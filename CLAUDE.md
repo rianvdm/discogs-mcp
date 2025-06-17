@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+# General instructions for completing tasks:
+
+* Before starting implementation, provide an ELI5 explanation of what you're about to do
+* Once implemented:
+  	- Make sure the tests pass, and the program builds/runs
+  	- Commit the changes to the repository with a clear commit message.
+	- Explain what you did and what should now be possible. If I am able to manually test the latest change myself to make sure it works, give me instructions on how I can do that.
+* Pause and wait for user review or feedback.
+
 ## Project Overview
 
 This is a Cloudflare Workers-based MCP (Model Context Protocol) server that allows AI assistants to interact with users' personal Discogs music collections. The service implements OAuth authentication, intelligent search with mood mapping, and context-aware recommendations.
@@ -98,3 +107,4 @@ Tests use Vitest with Cloudflare Workers environment. Key patterns:
 2. Manual deployments: `npm run deploy` (dev) or `npm run deploy:prod` (production)
 3. CI pipeline runs lint, test, and build checks before deployment
 4. Monitor deployment logs in Cloudflare dashboard
+
