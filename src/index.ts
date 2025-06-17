@@ -246,7 +246,7 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
 				accessTokenSecret,
 			},
 			env.JWT_SECRET,
-			24, // expires in 24 hours
+			168, // expires in 7 days
 		)
 
 		// Store session in KV with connection-specific key
@@ -258,12 +258,12 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
 					accessToken,
 					accessTokenSecret,
 					timestamp: Date.now(),
-					expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
+					expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
 					connectionId: finalConnectionId,
 				}
 				// Store with connection-specific key
 				await env.MCP_SESSIONS.put(`session:${finalConnectionId}`, JSON.stringify(sessionData), {
-					expirationTtl: 24 * 60 * 60, // 24 hours
+					expirationTtl: 7 * 24 * 60 * 60, // 7 days
 				})
 				
 				// Mark the SSE connection as authenticated (only for non-mcp-remote connections)
@@ -284,7 +284,7 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
 			'Secure',
 			'SameSite=Strict',
 			'Path=/',
-			'Max-Age=86400', // 24 hours in seconds
+			'Max-Age=604800', // 7 days in seconds
 		].join('; ')
 
 		const responseMessage = finalConnectionId !== 'unknown' 
