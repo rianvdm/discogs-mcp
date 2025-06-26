@@ -1544,7 +1544,7 @@ export async function handleMethod(request: JSONRPCRequest, httpRequest?: Reques
 			const toolName = (params as ToolsCallParams)?.name
 			const dualHandlerTools = ['auth_status'] // Tools that exist in both handlers
 			
-			if (dualHandlerTools.includes(toolName) && httpRequest && jwtSecret) {
+			if (dualHandlerTools.includes(toolName) && httpRequest && env) {
 				// Check if user is authenticated first
 				const session = await getAuthenticatedSession(httpRequest, env)
 				
@@ -1571,7 +1571,7 @@ export async function handleMethod(request: JSONRPCRequest, httpRequest?: Reques
 					console.log('Attempting authenticated tool call for:', params)
 
 					// Check if we have authentication context
-					if (!httpRequest || !jwtSecret) {
+					if (!httpRequest || !env) {
 						console.log('Missing authentication context')
 						return hasId(request) ? createError(id!, -32603, 'Internal error: Missing authentication context for authenticated tool') : null
 					}
@@ -1626,8 +1626,23 @@ export async function handleMethod(request: JSONRPCRequest, httpRequest?: Reques
 		}
 	}
 
-	// All other methods require authentication
-	if (!httpRequest || !jwtSecret) {
+	// Check if this is a known method that requires authentication
+	const authenticatedMethods = [
+		'resources/read',
+		'tools/call'
+	]
+	
+	if (!authenticatedMethods.includes(method)) {
+		// Unknown method
+		if (hasId(request)) {
+			const error = createMethodNotFoundError(method)
+			return createError(id!, error.code, error.message, error.data)
+		}
+		return null
+	}
+
+	// Known authenticated method - check authentication context
+	if (!httpRequest || !env) {
 		if (hasId(request)) {
 			return createError(id!, -32603, 'Internal error: Missing authentication context')
 		}
