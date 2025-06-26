@@ -4,6 +4,8 @@
  */
 
 import { JSONRPCResponse } from '../types/jsonrpc'
+import { authenticateRequest } from '../auth/middleware'
+import type { Env } from '../types/env'
 
 // Store active SSE connections with enhanced tracking
 const connections = new Map<string, SSEConnection>()
@@ -15,6 +17,7 @@ interface SSEConnection {
 	lastActivity: number
 	isAuthenticated: boolean
 	userId?: string
+	authMethod?: 'jwt' | 'bearer'
 	createdAt: number
 }
 
@@ -127,7 +130,7 @@ export function getConnection(connectionId: string): SSEConnection | undefined {
 /**
  * Update connection authentication status
  */
-export function authenticateConnection(connectionId: string, userId: string): boolean {
+export function authenticateConnection(connectionId: string, userId: string, authMethod: 'jwt' | 'bearer' = 'jwt'): boolean {
 	const connection = connections.get(connectionId)
 	if (!connection) {
 		return false
@@ -135,12 +138,14 @@ export function authenticateConnection(connectionId: string, userId: string): bo
 
 	connection.isAuthenticated = true
 	connection.userId = userId
+	connection.authMethod = authMethod
 	connection.lastActivity = Date.now()
 
 	// Send authentication success event
 	sendSSEMessage(connection, 'authenticated', {
 		connectionId,
 		userId,
+		authMethod,
 		message: 'Authentication successful'
 	})
 
@@ -186,13 +191,55 @@ export function getActiveConnectionCount(): number {
 }
 
 /**
+ * Authenticate a connection using request headers (for Bearer token auth)
+ */
+export async function authenticateConnectionViaRequest(connectionId: string, request: Request, env: Env): Promise<boolean> {
+	const connection = connections.get(connectionId)
+	if (!connection) {
+		return false
+	}
+
+	try {
+		const authResult = await authenticateRequest(request, env)
+		if (authResult.isAuthenticated && authResult.userId) {
+			connection.isAuthenticated = true
+			connection.userId = authResult.userId
+			connection.authMethod = authResult.authMethod
+			connection.lastActivity = Date.now()
+
+			// Send authentication success event
+			sendSSEMessage(connection, 'authenticated', {
+				connectionId,
+				userId: authResult.userId,
+				authMethod: authResult.authMethod,
+				message: 'Authentication successful via Bearer token'
+			})
+
+			return true
+		}
+	} catch (error) {
+		console.error('Connection authentication error:', error)
+		
+		// Send authentication failure event
+		sendSSEMessage(connection, 'auth_error', {
+			connectionId,
+			error: 'Authentication failed',
+			message: 'Invalid or expired credentials'
+		})
+	}
+
+	return false
+}
+
+/**
  * Get all active connections (for debugging/monitoring)
  */
-export function getActiveConnections(): Array<{ id: string; isAuthenticated: boolean; userId?: string; lastActivity: number }> {
+export function getActiveConnections(): Array<{ id: string; isAuthenticated: boolean; userId?: string; authMethod?: string; lastActivity: number }> {
 	return Array.from(connections.values()).map(conn => ({
 		id: conn.id,
 		isAuthenticated: conn.isAuthenticated,
 		userId: conn.userId,
+		authMethod: conn.authMethod,
 		lastActivity: conn.lastActivity
 	}))
 }

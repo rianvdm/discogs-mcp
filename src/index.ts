@@ -7,12 +7,13 @@ import { parseMessage, createError, serializeResponse } from './protocol/parser'
 import { handleMethod, verifyAuthentication } from './protocol/handlers'
 import { createSessionToken } from './auth/jwt'
 import { ErrorCode, JSONRPCError } from './types/jsonrpc'
-import { createSSEResponse, getConnection, authenticateConnection } from './transport/sse'
+import { createSSEResponse, getConnection, authenticateConnection, authenticateConnectionViaRequest } from './transport/sse'
 import { DiscogsAuth } from './auth/discogs'
 import { handleMetadataRequest } from './auth/metadata'
 import { handleClientRegistration } from './auth/registration'
 import { handleAuthorizationRequest, handleTokenRequest } from './auth/oauth2'
 import type { AuthorizationCode } from './auth/oauth2'
+import { authenticateRequest, getMCPProtocolVersion, isValidMCPProtocolVersion } from './auth/middleware'
 import { KVLogger } from './utils/kvLogger'
 import { RateLimiter } from './utils/rateLimit'
 import type { Env } from './types/env'
@@ -454,12 +455,25 @@ async function handleMCPRequest(request: Request, env?: Env): Promise<Response> 
 		: null
 
 	try {
+		// Validate MCP Protocol Version header if present
+		const protocolVersion = getMCPProtocolVersion(request)
+		if (!isValidMCPProtocolVersion(protocolVersion)) {
+			const errorResponse = createError(null, ErrorCode.InvalidRequest, `Unsupported MCP protocol version: ${protocolVersion}`)
+			return new Response(serializeResponse(errorResponse), {
+				status: 400,
+				headers: addCorsHeaders({ 'Content-Type': 'application/json' }),
+			})
+		}
+
 		// Check for connection ID header (for SSE-connected clients)
 		const connectionId = request.headers.get('X-Connection-ID')
 		if (connectionId) {
 			const connection = getConnection(connectionId)
 			if (!connection) {
 				console.warn(`Invalid connection ID: ${connectionId}`)
+			} else if (!connection.isAuthenticated && env) {
+				// Try to authenticate the connection via Bearer token
+				await authenticateConnectionViaRequest(connectionId, request, env)
 			}
 		}
 
@@ -513,11 +527,11 @@ async function handleMCPRequest(request: Request, env?: Env): Promise<Response> 
 			})
 		}
 
-		// Get user ID for rate limiting and logging
-		if (env?.JWT_SECRET) {
-			const session = await verifyAuthentication(request, env.JWT_SECRET)
-			if (session) {
-				userId = session.userId
+		// Get user ID for rate limiting and logging using unified authentication
+		if (env) {
+			const authResult = await authenticateRequest(request, env)
+			if (authResult.isAuthenticated && authResult.userId) {
+				userId = authResult.userId
 			}
 		}
 
@@ -554,7 +568,7 @@ async function handleMCPRequest(request: Request, env?: Env): Promise<Response> 
 		}
 
 		// Handle the method
-		const response = await handleMethod(jsonrpcRequest, request, env?.JWT_SECRET, env)
+		const response = await handleMethod(jsonrpcRequest, request, env)
 
 		// Calculate latency
 		const latency = Date.now() - startTime

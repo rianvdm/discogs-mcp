@@ -31,10 +31,10 @@ import {
 	ValidationError,
 } from './validation'
 import { verifySessionToken, SessionPayload } from '../auth/jwt'
+import { authenticateRequest } from '../auth/middleware'
 import { discogsClient, type DiscogsCollectionItem } from '../clients/discogs'
 import { getCachedDiscogsClient, type CachedDiscogsClient } from '../clients/cachedDiscogs'
 import { analyzeMoodQuery, hasMoodContent, generateMoodSearchTerms } from '../utils/moodMapping'
-import { isConnectionAuthenticated } from '../transport/sse'
 
 /**
  * Get cached Discogs client instance
@@ -84,56 +84,58 @@ export async function verifyAuthentication(request: Request, jwtSecret: string):
 }
 
 /**
- * Get connection-specific authentication session
+ * Get authentication session using unified authentication
  */
-async function getConnectionSession(request: Request, jwtSecret: string, env?: Env): Promise<SessionPayload | null> {
-	// First try standard authentication via cookie
-	const cookieSession = await verifyAuthentication(request, jwtSecret)
-	if (cookieSession) {
-		return cookieSession
-	}
-
-	// Try connection-specific authentication only if we have a connection ID and KV storage
-	const connectionId = request.headers.get('X-Connection-ID')
-	if (!connectionId || !env?.MCP_SESSIONS) {
-		// No connection ID or KV storage, but cookie auth failed, so return null
+async function getAuthenticatedSession(request: Request, env?: Env): Promise<{ userId: string; accessToken?: string; accessTokenSecret?: string } | null> {
+	if (!env) {
 		return null
 	}
 
-	// For mcp-remote connections, skip the SSE connection check
-	// mcp-remote uses deterministic connection IDs and doesn't establish SSE connections
-	if (!connectionId.startsWith('mcp-remote-')) {
-		// Check if SSE connection is authenticated
-		if (!isConnectionAuthenticated(connectionId)) {
-			return null
-		}
-	}
-
 	try {
-		// Try to get connection-specific session from KV storage
-		const sessionDataStr = await env.MCP_SESSIONS.get(`session:${connectionId}`)
-		if (!sessionDataStr) {
+		const authResult = await authenticateRequest(request, env)
+		if (!authResult.isAuthenticated || !authResult.userId) {
 			return null
 		}
 
-		const sessionData = JSON.parse(sessionDataStr)
-		
-		// Verify the stored session is still valid
-		if (!sessionData.expiresAt || new Date(sessionData.expiresAt) <= new Date()) {
-			console.log('Connection session has expired')
-			return null
+		// For JWT authentication, we can get the Discogs tokens
+		if (authResult.authMethod === 'jwt') {
+			return {
+				userId: authResult.userId,
+				accessToken: authResult.accessToken,
+				accessTokenSecret: authResult.accessTokenSecret,
+			}
 		}
 
-		// Return session payload
-		return {
-			userId: sessionData.userId,
-			accessToken: sessionData.accessToken,
-			accessTokenSecret: sessionData.accessTokenSecret,
-			iat: Math.floor(Date.now() / 1000),
-			exp: Math.floor(new Date(sessionData.expiresAt).getTime() / 1000),
+		// For Bearer token authentication, we have the user ID
+		// We need to get the Discogs tokens from the original session
+		if (authResult.authMethod === 'bearer') {
+			// Try to get the original Discogs session for this user
+			// This requires looking up the session by user ID
+			const connectionId = request.headers.get('X-Connection-ID')
+			if (connectionId && env.MCP_SESSIONS) {
+				const sessionDataStr = await env.MCP_SESSIONS.get(`session:${connectionId}`)
+				if (sessionDataStr) {
+					const sessionData = JSON.parse(sessionDataStr)
+					if (sessionData.userId === authResult.userId) {
+						return {
+							userId: authResult.userId,
+							accessToken: sessionData.accessToken,
+							accessTokenSecret: sessionData.accessTokenSecret,
+						}
+					}
+				}
+			}
+
+			// If we can't find the original session, we can still return the user ID
+			// The Discogs client will need to handle this case
+			return {
+				userId: authResult.userId,
+			}
 		}
+
+		return null
 	} catch (error) {
-		console.error('Error retrieving connection session:', error)
+		console.error('Authentication error:', error)
 		return null
 	}
 }
@@ -1358,7 +1360,7 @@ function isPromptsListParams(params: unknown): params is PromptsListParams {
 /**
  * Main method router
  */
-export async function handleMethod(request: JSONRPCRequest, httpRequest?: Request, jwtSecret?: string, env?: Env) {
+export async function handleMethod(request: JSONRPCRequest, httpRequest?: Request, env?: Env) {
 	// Validate JSON-RPC message structure
 	try {
 		validateJSONRPCMessage(request)
@@ -1544,7 +1546,7 @@ export async function handleMethod(request: JSONRPCRequest, httpRequest?: Reques
 			
 			if (dualHandlerTools.includes(toolName) && httpRequest && jwtSecret) {
 				// Check if user is authenticated first
-				const session = await getConnectionSession(httpRequest, jwtSecret, env)
+				const session = await getAuthenticatedSession(httpRequest, env)
 				
 				if (session) {
 					// User is authenticated, use authenticated handler
@@ -1575,7 +1577,7 @@ export async function handleMethod(request: JSONRPCRequest, httpRequest?: Reques
 					}
 
 					console.log('Verifying authentication...')
-					const session = await getConnectionSession(httpRequest, jwtSecret, env)
+					const session = await getAuthenticatedSession(httpRequest, env)
 					console.log('Session verification result:', session ? 'SUCCESS' : 'FAILED')
 
 					if (!session) {
@@ -1632,7 +1634,7 @@ export async function handleMethod(request: JSONRPCRequest, httpRequest?: Reques
 		return null
 	}
 
-	const session = await getConnectionSession(httpRequest, jwtSecret, env)
+	const session = await getAuthenticatedSession(httpRequest, env)
 
 	if (!session) {
 		if (hasId(request)) {
