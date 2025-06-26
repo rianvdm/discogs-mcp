@@ -36,13 +36,16 @@ function extractBearerToken(request: Request): string | null {
  */
 async function verifyBearerToken(token: string, env: Env): Promise<AuthenticationResult> {
 	try {
+		console.log(`Verifying Bearer token: ${token.substring(0, 10)}...`)
 		const tokenData = await getAccessToken(token, env)
 		if (!tokenData) {
+			console.log('Bearer token not found in storage')
 			return {
 				isAuthenticated: false,
 				error: 'Invalid or expired access token',
 			}
 		}
+		console.log(`Bearer token found - User: ${tokenData.user_id}, Has Discogs tokens: ${!!tokenData.discogs_access_token}`)
 
 		// Check if token is expired
 		const now = Date.now()
@@ -58,6 +61,8 @@ async function verifyBearerToken(token: string, env: Env): Promise<Authenticatio
 			isAuthenticated: true,
 			userId: tokenData.user_id,
 			authMethod: 'bearer',
+			accessToken: tokenData.discogs_access_token,
+			accessTokenSecret: tokenData.discogs_access_token_secret,
 		}
 	} catch (error) {
 		console.error('Bearer token verification error:', error)
@@ -104,13 +109,16 @@ export async function authenticateRequest(request: Request, env: Env): Promise<A
 	// Try Bearer token authentication first
 	const bearerToken = extractBearerToken(request)
 	if (bearerToken) {
+		console.log('Bearer token found in request, verifying...')
 		const bearerResult = await verifyBearerToken(bearerToken, env)
 		if (bearerResult.isAuthenticated) {
+			console.log('Bearer authentication successful')
 			return bearerResult
 		}
 		
 		// If Bearer token was provided but invalid, don't fall back to JWT
 		// This prevents security issues where malformed Bearer tokens bypass auth
+		console.log('Bearer authentication failed:', bearerResult.error)
 		return bearerResult
 	}
 

@@ -88,12 +88,16 @@ export async function verifyAuthentication(request: Request, jwtSecret: string):
  */
 async function getAuthenticatedSession(request: Request, env?: Env): Promise<{ userId: string; accessToken?: string; accessTokenSecret?: string } | null> {
 	if (!env) {
+		console.log('getAuthenticatedSession: No env provided')
 		return null
 	}
 
 	try {
+		console.log('getAuthenticatedSession: Checking authentication...')
 		const authResult = await authenticateRequest(request, env)
+		console.log(`getAuthenticatedSession: Auth result - isAuthenticated: ${authResult.isAuthenticated}, userId: ${authResult.userId}, authMethod: ${authResult.authMethod}`)
 		if (!authResult.isAuthenticated || !authResult.userId) {
+			console.log('getAuthenticatedSession: Not authenticated')
 			return null
 		}
 
@@ -1383,8 +1387,31 @@ export async function handleMethod(request: JSONRPCRequest, httpRequest?: Reques
 		return hasId(request) ? createError(id!, MCPErrorCode.ServerNotInitialized, 'Server not initialized') : null
 	}
 
-	// Special case: initialize can be called before initialization
+	// Special case: initialize requires authentication for Claude Custom Integrations
 	if (method === 'initialize') {
+		// Check if this is a Claude Custom Integrations request that needs OAuth
+		if (httpRequest && env && hasId(request)) {
+			// Check if this is a Claude client by looking at the MCP client info
+			const clientInfo = (params as any)?.clientInfo?.name || ''
+			const userAgent = httpRequest.headers.get('User-Agent') || ''
+			console.log(`Initialize request - User-Agent: ${userAgent}, Client: ${clientInfo}, Has ID: ${hasId(request)}, ID: ${id}`)
+			
+			if (clientInfo.includes('claude-ai') || userAgent.includes('claude-ai')) {
+				// Claude Custom Integrations - require authentication
+				const session = await getAuthenticatedSession(httpRequest, env)
+				console.log(`Authentication check for Claude - Session: ${session ? 'FOUND' : 'NOT FOUND'}`)
+				if (!session) {
+					const authInstructions = generateAuthInstructions(httpRequest)
+					console.log(`Returning auth error for initialize - hasId: ${hasId(request)}`)
+					return createError(
+						id!,
+						MCPErrorCode.Unauthorized,
+						`Authentication required. Please use the "auth_status" tool for detailed authentication instructions, or ${authInstructions}`,
+					)
+				}
+			}
+		}
+		
 		const result = handleInitialize(params)
 		return hasId(request) ? createResponse(id!, result) : null
 	}

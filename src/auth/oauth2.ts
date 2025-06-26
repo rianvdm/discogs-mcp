@@ -35,6 +35,9 @@ export interface AuthorizationCode {
 	user_id: string
 	expires_at: number
 	created_at: number
+	// Discogs access tokens for API calls
+	discogs_access_token?: string
+	discogs_access_token_secret?: string
 }
 
 export interface AccessToken {
@@ -46,6 +49,9 @@ export interface AccessToken {
 	user_id: string
 	client_id: string
 	created_at: number
+	// Discogs access tokens for API calls
+	discogs_access_token?: string
+	discogs_access_token_secret?: string
 }
 
 /**
@@ -454,6 +460,9 @@ export async function handleTokenRequest(request: Request, env: Env): Promise<Re
 				user_id: authCode.user_id,
 				client_id: clientId,
 				created_at: Date.now(),
+				// Include Discogs access tokens for API calls
+				discogs_access_token: authCode.discogs_access_token,
+				discogs_access_token_secret: authCode.discogs_access_token_secret,
 			}
 
 			// Store tokens

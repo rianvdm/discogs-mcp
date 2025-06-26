@@ -43,12 +43,10 @@ export function createSSEResponse(): { response: Response; connectionId: string 
 	}
 	connections.set(connectionId, connection)
 
-	// Send initial connection event with authentication info
-	sendSSEMessage(connection, 'endpoint', {
-		endpoint: '/', // Main JSON-RPC endpoint
+	// Send initial connection established event
+	sendSSEMessage(connection, 'connected', {
 		connectionId,
-		requiresAuth: true,
-		authUrl: `/login?connection_id=${connectionId}`
+		timestamp: Date.now()
 	})
 
 	// Set up keepalive

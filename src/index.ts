@@ -335,6 +335,9 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
 				user_id: accessToken,
 				expires_at: Date.now() + (10 * 60 * 1000), // 10 minutes
 				created_at: Date.now(),
+				// Include Discogs access tokens for API calls
+				discogs_access_token: accessToken,
+				discogs_access_token_secret: accessTokenSecret,
 			}
 
 			// Store authorization code
@@ -506,6 +509,14 @@ async function handleMCPRequest(request: Request, env?: Env): Promise<Response> 
 			jsonrpcRequest = parseMessage(body)
 			method = jsonrpcRequest.method
 			params = jsonrpcRequest.params
+			
+			// Debug logging for Claude Custom Integrations
+			console.log(`MCP Request - Method: ${method}, ID: ${jsonrpcRequest.id || 'none'}`)
+			
+			// Special logging for post-auth requests
+			if (method === 'tools/list') {
+				console.log('Claude requesting tools/list after authentication!')
+			}
 		} catch (error) {
 			// Parse error or invalid request
 			const jsonrpcError = error as JSONRPCError
@@ -572,6 +583,16 @@ async function handleMCPRequest(request: Request, env?: Env): Promise<Response> 
 
 		// Calculate latency
 		const latency = Date.now() - startTime
+
+		// Check if response is an authentication error (MCP auth spec compliance)
+		if (response && response.error && response.error.code === -32001) {
+			// Return HTTP 401 for authentication errors per 3/26 auth spec
+			console.log(`Returning HTTP 401 for method: ${method}`)
+			return new Response(serializeResponse(response), {
+				status: 401,
+				headers: addCorsHeaders({ 'Content-Type': 'application/json' }),
+			})
+		}
 
 		// Log successful request
 		if (logger) {
