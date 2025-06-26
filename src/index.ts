@@ -12,7 +12,7 @@ import { DiscogsAuth } from './auth/discogs'
 import { handleMetadataRequest } from './auth/metadata'
 import { handleClientRegistration } from './auth/registration'
 import { handleAuthorizationRequest, handleTokenRequest } from './auth/oauth2'
-import type { AuthorizationRequest, AuthorizationCode } from './auth/oauth2'
+import type { AuthorizationCode } from './auth/oauth2'
 import { KVLogger } from './utils/kvLogger'
 import { RateLimiter } from './utils/rateLimit'
 import type { Env } from './types/env'
@@ -265,8 +265,8 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
 
 		// Check if this is part of an OAuth 2.1 flow
 		let oauth2AuthRequest = null
-		if (finalConnectionId.startsWith('oauth2-') && env.OAUTH_TOKENS) {
-			const authRequestData = await env.OAUTH_TOKENS.get(`auth_request:${finalConnectionId}`)
+		if (finalConnectionId.startsWith('oauth2-') && env.DISCOGS_OAUTH_TOKENS) {
+			const authRequestData = await env.DISCOGS_OAUTH_TOKENS.get(`auth_request:${finalConnectionId}`)
 			if (authRequestData) {
 				oauth2AuthRequest = JSON.parse(authRequestData)
 			}
@@ -337,13 +337,13 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
 			}
 
 			// Store authorization code
-			if (env.OAUTH_TOKENS) {
-				await env.OAUTH_TOKENS.put(`auth_code:${authCode}`, JSON.stringify(authorizationCode), {
+			if (env.DISCOGS_OAUTH_TOKENS) {
+				await env.DISCOGS_OAUTH_TOKENS.put(`auth_code:${authCode}`, JSON.stringify(authorizationCode), {
 					expirationTtl: 10 * 60, // 10 minutes
 				})
 				
 				// Clean up authorization request
-				await env.OAUTH_TOKENS.delete(`auth_request:${finalConnectionId}`)
+				await env.DISCOGS_OAUTH_TOKENS.delete(`auth_request:${finalConnectionId}`)
 			}
 
 			// Redirect back to OAuth 2.1 client with authorization code

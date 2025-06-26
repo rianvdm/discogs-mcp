@@ -15,6 +15,6 @@ export interface Env {
 	MCP_SESSIONS: KVNamespace
 
 	// OAuth 2.1 KV namespaces
-	OAUTH_CLIENTS: KVNamespace
-	OAUTH_TOKENS: KVNamespace
+	DISCOGS_OAUTH_CLIENTS: KVNamespace
+	DISCOGS_OAUTH_TOKENS: KVNamespace
 }

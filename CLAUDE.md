@@ -109,8 +109,8 @@ The codebase follows a clean architecture pattern with clear separation of conce
 - `MCP_SESSIONS` - OAuth session storage (JWT + OAuth 2.1)
 - `MCP_LOGS` - Structured logging storage
 - `MCP_RL` - Per-user rate limiting
-- `OAUTH_CLIENTS` - OAuth 2.1 client registrations (for Claude Custom Integrations)
-- `OAUTH_TOKENS` - OAuth 2.1 tokens and authorization codes
+- `DISCOGS_OAUTH_CLIENTS` - OAuth 2.1 client registrations (for Claude Custom Integrations)
+- `DISCOGS_OAUTH_TOKENS` - OAuth 2.1 tokens and authorization codes
 
 ### Environments
 - Development: Default configuration in wrangler.toml

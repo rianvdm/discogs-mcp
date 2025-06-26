@@ -50,7 +50,7 @@ export function generateAuthorizationServerMetadata(baseUrl: string): Authorizat
 /**
  * Handle OAuth Authorization Server Metadata request
  */
-export async function handleMetadataRequest(request: Request, env: Env): Promise<Response> {
+export async function handleMetadataRequest(request: Request, _env: Env): Promise<Response> {
 	try {
 		// Get base URL from request
 		const url = new URL(request.url)

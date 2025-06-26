@@ -144,7 +144,7 @@ export async function handleClientRegistration(request: Request, env: Env): Prom
 				throw new Error('Empty request body')
 			}
 			registrationRequest = JSON.parse(body)
-		} catch (error) {
+		} catch {
 			return new Response(
 				JSON.stringify({
 					error: 'invalid_request',
@@ -252,8 +252,8 @@ export async function handleClientRegistration(request: Request, env: Env): Prom
 		}
 
 		// Store client in KV
-		if (env.OAUTH_CLIENTS) {
-			await env.OAUTH_CLIENTS.put(`client:${clientId}`, JSON.stringify(client), {
+		if (env.DISCOGS_OAUTH_CLIENTS) {
+			await env.DISCOGS_OAUTH_CLIENTS.put(`client:${clientId}`, JSON.stringify(client), {
 				expirationTtl: 365 * 24 * 60 * 60, // 1 year
 			})
 		}
@@ -312,12 +312,12 @@ export async function handleClientRegistration(request: Request, env: Env): Prom
  * Get OAuth client by client ID
  */
 export async function getOAuthClient(clientId: string, env: Env): Promise<OAuthClient | null> {
-	if (!env.OAUTH_CLIENTS) {
+	if (!env.DISCOGS_OAUTH_CLIENTS) {
 		return null
 	}
 
 	try {
-		const clientData = await env.OAUTH_CLIENTS.get(`client:${clientId}`)
+		const clientData = await env.DISCOGS_OAUTH_CLIENTS.get(`client:${clientId}`)
 		if (!clientData) {
 			return null
 		}

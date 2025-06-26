@@ -222,8 +222,8 @@ export async function handleAuthorizationRequest(request: Request, env: Env): Pr
 			}
 
 			// Store authorization code
-			if (env.OAUTH_TOKENS) {
-				await env.OAUTH_TOKENS.put(`auth_code:${authCode}`, JSON.stringify(authorizationCode), {
+			if (env.DISCOGS_OAUTH_TOKENS) {
+				await env.DISCOGS_OAUTH_TOKENS.put(`auth_code:${authCode}`, JSON.stringify(authorizationCode), {
 					expirationTtl: 10 * 60, // 10 minutes
 				})
 			}
@@ -253,8 +253,8 @@ export async function handleAuthorizationRequest(request: Request, env: Env): Pr
 			code_challenge_method: codeChallengeMethod,
 		}
 
-		if (env.OAUTH_TOKENS) {
-			await env.OAUTH_TOKENS.put(`auth_request:${connectionId}`, JSON.stringify(authRequest), {
+		if (env.DISCOGS_OAUTH_TOKENS) {
+			await env.DISCOGS_OAUTH_TOKENS.put(`auth_request:${connectionId}`, JSON.stringify(authRequest), {
 				expirationTtl: 10 * 60, // 10 minutes
 			})
 		}
@@ -297,7 +297,7 @@ export async function handleTokenRequest(request: Request, env: Env): Promise<Re
 		const clientId = params.get('client_id')
 		const clientSecret = params.get('client_secret')
 		const codeVerifier = params.get('code_verifier')
-		const refreshToken = params.get('refresh_token')
+		const _refreshToken = params.get('refresh_token')
 
 		// Validate grant type
 		if (!grantType || !['authorization_code', 'refresh_token'].includes(grantType)) {
@@ -386,7 +386,7 @@ export async function handleTokenRequest(request: Request, env: Env): Promise<Re
 			}
 
 			// Retrieve authorization code
-			const authCodeData = env.OAUTH_TOKENS ? await env.OAUTH_TOKENS.get(`auth_code:${code}`) : null
+			const authCodeData = env.DISCOGS_OAUTH_TOKENS ? await env.DISCOGS_OAUTH_TOKENS.get(`auth_code:${code}`) : null
 			if (!authCodeData) {
 				return new Response(
 					JSON.stringify({
@@ -457,16 +457,16 @@ export async function handleTokenRequest(request: Request, env: Env): Promise<Re
 			}
 
 			// Store tokens
-			if (env.OAUTH_TOKENS) {
-				await env.OAUTH_TOKENS.put(`access_token:${accessToken}`, JSON.stringify(tokenData), {
+			if (env.DISCOGS_OAUTH_TOKENS) {
+				await env.DISCOGS_OAUTH_TOKENS.put(`access_token:${accessToken}`, JSON.stringify(tokenData), {
 					expirationTtl: expiresIn,
 				})
-				await env.OAUTH_TOKENS.put(`refresh_token:${refreshTokenValue}`, JSON.stringify(tokenData), {
+				await env.DISCOGS_OAUTH_TOKENS.put(`refresh_token:${refreshTokenValue}`, JSON.stringify(tokenData), {
 					expirationTtl: 30 * 24 * 60 * 60, // 30 days
 				})
 				
 				// Clean up authorization code
-				await env.OAUTH_TOKENS.delete(`auth_code:${code}`)
+				await env.DISCOGS_OAUTH_TOKENS.delete(`auth_code:${code}`)
 			}
 
 			// Return token response
@@ -527,12 +527,12 @@ export async function handleTokenRequest(request: Request, env: Env): Promise<Re
  * Get access token by token value
  */
 export async function getAccessToken(token: string, env: Env): Promise<AccessToken | null> {
-	if (!env.OAUTH_TOKENS) {
+	if (!env.DISCOGS_OAUTH_TOKENS) {
 		return null
 	}
 
 	try {
-		const tokenData = await env.OAUTH_TOKENS.get(`access_token:${token}`)
+		const tokenData = await env.DISCOGS_OAUTH_TOKENS.get(`access_token:${token}`)
 		if (!tokenData) {
 			return null
 		}

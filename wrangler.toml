@@ -19,14 +19,13 @@ id = "b4caaaa688cc45d2a9a85fe67ba53bfc"
 binding = "MCP_SESSIONS"
 id = "a0bc40f523d54a6ab70fa947ac3daeaf"
 
-# OAuth 2.1 KV namespaces (need to be created with: wrangler kv:namespace create)
-# [[kv_namespaces]]
-# binding = "OAUTH_CLIENTS"
-# id = "TBD - run: wrangler kv:namespace create OAUTH_CLIENTS"
+[[kv_namespaces]]
+binding = "DISCOGS_OAUTH_CLIENTS"
+id = "0fbf725469be4387b46582bdb195b4b7"
 
-# [[kv_namespaces]]
-# binding = "OAUTH_TOKENS"
-# id = "TBD - run: wrangler kv:namespace create OAUTH_TOKENS"
+[[kv_namespaces]]
+binding = "DISCOGS_OAUTH_TOKENS"
+id = "a0829d327a6045ddbb724ec91b7f27ee"
 
 # Production environment
 [env.production]
@@ -44,14 +43,13 @@ id = "bfc831cedceb4a08a6d997909c3899ce"
 binding = "MCP_SESSIONS"
 id = "e45edcc5347e4b409169c1d0a9b2ed5d"
 
-# OAuth 2.1 KV namespaces for production (need to be created)
-# [[env.production.kv_namespaces]]
-# binding = "OAUTH_CLIENTS"
-# id = "TBD - run: wrangler kv:namespace create OAUTH_CLIENTS --env production"
+[[env.production.kv_namespaces]]
+binding = "DISCOGS_OAUTH_CLIENTS"
+id = "37c1184f1c514223b1a340e0778dd84e"
 
-# [[env.production.kv_namespaces]]
-# binding = "OAUTH_TOKENS"
-# id = "TBD - run: wrangler kv:namespace create OAUTH_TOKENS --env production"
+[[env.production.kv_namespaces]]
+binding = "DISCOGS_OAUTH_TOKENS"
+id = "45695a7b54c346219b4ed22ce5d95d07"
 
 # Secrets (set via wrangler secret put):
 # - DISCOGS_CONSUMER_KEY
