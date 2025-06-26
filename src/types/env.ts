@@ -13,4 +13,8 @@ export interface Env {
 	MCP_LOGS: KVNamespace
 	MCP_RL: KVNamespace
 	MCP_SESSIONS: KVNamespace
+
+	// OAuth 2.1 KV namespaces
+	OAUTH_CLIENTS: KVNamespace
+	OAUTH_TOKENS: KVNamespace
 }

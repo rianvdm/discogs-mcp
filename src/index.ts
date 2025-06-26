@@ -9,6 +9,10 @@ import { createSessionToken } from './auth/jwt'
 import { ErrorCode, JSONRPCError } from './types/jsonrpc'
 import { createSSEResponse, getConnection, authenticateConnection } from './transport/sse'
 import { DiscogsAuth } from './auth/discogs'
+import { handleMetadataRequest } from './auth/metadata'
+import { handleClientRegistration } from './auth/registration'
+import { handleAuthorizationRequest, handleTokenRequest } from './auth/oauth2'
+import type { AuthorizationRequest, AuthorizationCode } from './auth/oauth2'
 import { KVLogger } from './utils/kvLogger'
 import { RateLimiter } from './utils/rateLimit'
 import type { Env } from './types/env'
@@ -26,7 +30,7 @@ function addCorsHeaders(headers: HeadersInit = {}): Headers {
 	const corsHeaders = new Headers(headers)
 	corsHeaders.set('Access-Control-Allow-Origin', '*')
 	corsHeaders.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-	corsHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Connection-ID, Cookie')
+	corsHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Connection-ID, Cookie, MCP-Protocol-Version')
 	return corsHeaders
 }
 
@@ -41,7 +45,7 @@ export default {
 				headers: {
 					'Access-Control-Allow-Origin': '*',
 					'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-					'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Connection-ID, Cookie',
+					'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Connection-ID, Cookie, MCP-Protocol-Version',
 					'Access-Control-Max-Age': '86400',
 				},
 			})
@@ -66,6 +70,10 @@ export default {
 								'/callback': 'GET - OAuth callback',
 								'/mcp-auth': 'GET - MCP authentication',
 								'/health': 'GET - Health check',
+								'/.well-known/oauth-authorization-server': 'GET - OAuth server metadata',
+								'/oauth/register': 'POST - OAuth client registration',
+								'/oauth/authorize': 'GET - OAuth authorization',
+								'/oauth/token': 'POST - OAuth token exchange',
 							},
 						}),
 						{
@@ -131,6 +139,31 @@ export default {
 						},
 					},
 				)
+
+			case '/.well-known/oauth-authorization-server':
+				// OAuth 2.1 Authorization Server Metadata
+				if (request.method !== 'GET') {
+					return new Response('Method not allowed', { status: 405 })
+				}
+				return handleMetadataRequest(request, env)
+
+			case '/oauth/register':
+				// OAuth 2.1 Dynamic Client Registration
+				return handleClientRegistration(request, env)
+
+			case '/oauth/authorize':
+				// OAuth 2.1 Authorization endpoint
+				if (request.method !== 'GET') {
+					return new Response('Method not allowed', { status: 405 })
+				}
+				return handleAuthorizationRequest(request, env)
+
+			case '/oauth/token':
+				// OAuth 2.1 Token endpoint
+				if (request.method !== 'POST') {
+					return new Response('Method not allowed', { status: 405 })
+				}
+				return handleTokenRequest(request, env)
 
 			default:
 				return new Response('Not found', { status: 404 })
@@ -230,6 +263,15 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
 		// Use connection ID from callback URL or stored connection ID
 		const finalConnectionId = connectionId || storedConnectionId
 
+		// Check if this is part of an OAuth 2.1 flow
+		let oauth2AuthRequest = null
+		if (finalConnectionId.startsWith('oauth2-') && env.OAUTH_TOKENS) {
+			const authRequestData = await env.OAUTH_TOKENS.get(`auth_request:${finalConnectionId}`)
+			if (authRequestData) {
+				oauth2AuthRequest = JSON.parse(authRequestData)
+			}
+		}
+
 		// Exchange for access token
 		const auth = new DiscogsAuth(env.DISCOGS_CONSUMER_KEY, env.DISCOGS_CONSUMER_SECRET)
 		const { oauth_token: accessToken, oauth_token_secret: accessTokenSecret } = await auth.getAccessToken(
@@ -276,6 +318,42 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
 			} catch (error) {
 				console.warn('Could not save session to KV:', error)
 			}
+		}
+
+		// Handle OAuth 2.1 authorization completion
+		if (oauth2AuthRequest) {
+			// Generate authorization code for OAuth 2.1 flow
+			const authCode = crypto.randomUUID().replace(/-/g, '')
+			const authorizationCode: AuthorizationCode = {
+				code: authCode,
+				client_id: oauth2AuthRequest.client_id,
+				redirect_uri: oauth2AuthRequest.redirect_uri,
+				scope: oauth2AuthRequest.scope,
+				code_challenge: oauth2AuthRequest.code_challenge,
+				code_challenge_method: oauth2AuthRequest.code_challenge_method,
+				user_id: accessToken,
+				expires_at: Date.now() + (10 * 60 * 1000), // 10 minutes
+				created_at: Date.now(),
+			}
+
+			// Store authorization code
+			if (env.OAUTH_TOKENS) {
+				await env.OAUTH_TOKENS.put(`auth_code:${authCode}`, JSON.stringify(authorizationCode), {
+					expirationTtl: 10 * 60, // 10 minutes
+				})
+				
+				// Clean up authorization request
+				await env.OAUTH_TOKENS.delete(`auth_request:${finalConnectionId}`)
+			}
+
+			// Redirect back to OAuth 2.1 client with authorization code
+			const redirectUrl = new URL(oauth2AuthRequest.redirect_uri)
+			redirectUrl.searchParams.set('code', authCode)
+			if (oauth2AuthRequest.state) {
+				redirectUrl.searchParams.set('state', oauth2AuthRequest.state)
+			}
+
+			return Response.redirect(redirectUrl.toString(), 302)
 		}
 
 		// Set secure HTTP-only cookie

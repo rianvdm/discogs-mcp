@@ -106,9 +106,11 @@ The codebase follows a clean architecture pattern with clear separation of conce
 - `JWT_SECRET` - Secret for JWT signing
 
 ### KV Namespaces
-- `AUTH_SESSIONS` - OAuth session storage
-- `LOGS` - Structured logging storage
-- `RATE_LIMIT` - Per-user rate limiting
+- `MCP_SESSIONS` - OAuth session storage (JWT + OAuth 2.1)
+- `MCP_LOGS` - Structured logging storage
+- `MCP_RL` - Per-user rate limiting
+- `OAUTH_CLIENTS` - OAuth 2.1 client registrations (for Claude Custom Integrations)
+- `OAUTH_TOKENS` - OAuth 2.1 tokens and authorization codes
 
 ### Environments
 - Development: Default configuration in wrangler.toml
