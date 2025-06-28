@@ -843,12 +843,19 @@ export class DiscogsClient {
 			'User-Agent': this.userAgent,
 		}
 
-		// Use OAuth 1.0a if we have all required parameters, otherwise fall back to simple token auth
+		// Database search can be done without authentication, but we'll try with auth first
+		// If we have OAuth credentials, use them; otherwise, try without auth
 		if (accessTokenSecret && consumerKey && consumerSecret) {
-			headers['Authorization'] = await this.createOAuthHeader(url, 'GET', accessToken, accessTokenSecret, consumerKey, consumerSecret)
-		} else {
+			try {
+				headers['Authorization'] = await this.createOAuthHeader(url, 'GET', accessToken, accessTokenSecret, consumerKey, consumerSecret)
+			} catch (authError) {
+				// If OAuth fails, continue without authentication
+				console.warn('OAuth header creation failed for database search, continuing without auth:', authError)
+			}
+		} else if (accessToken) {
 			headers['Authorization'] = `Discogs token=${accessToken}`
 		}
+		// If no auth provided, that's fine - database search can work without it
 
 		try {
 			await this.throttleRequest()
