@@ -624,7 +624,7 @@ async function handleAuthenticatedToolsCall(params: unknown, session: SessionPay
 				artist_name: { type: 'string' },
 				limit: { type: 'number', minimum: 1, maximum: 50 },
 			},
-			required: [],
+			required: ['artist_name'],
 		},
 	}
 
@@ -1415,154 +1415,93 @@ If the problem persists, please check that your Discogs account is accessible.`,
 				const consumerKey = env?.DISCOGS_CONSUMER_KEY || ''
 				const consumerSecret = env?.DISCOGS_CONSUMER_SECRET || ''
 
-				const userProfile = await client.getUserProfile(session.accessToken, session.accessTokenSecret, consumerKey, consumerSecret)
-				
-				// Get all collection items
-				let allReleases: DiscogsCollectionItem[] = []
-				let page = 1
-				let totalPages = 1
-
-				do {
-					const response = await client.searchCollection(
-						userProfile.username,
-						session.accessToken,
-						session.accessTokenSecret,
-						{
-							page,
-							per_page: 100,
-						},
-						consumerKey,
-						consumerSecret,
-					)
-
-					allReleases = allReleases.concat(response.releases)
-					totalPages = response.pagination.pages
-					page++
-				} while (page <= totalPages && page <= 5) // Limit to first 500 items for performance
-
-				if (allReleases.length === 0) {
+				if (!artistName) {
 					return {
 						content: [
 							{
 								type: 'text',
-								text: '**Collection Gaps Analysis**\n\n🔍 No collection items found to analyze.',
+								text: '**Collection Gaps Analysis**\n\n❌ **Error:** Please specify an artist name to analyze.\n\n**Example usage:**\n• "What releases from Pink Floyd am I missing?"\n• "Find missing albums from The Beatles"',
 							},
 						],
 					}
 				}
 
-				// Group by artist
-				const artistReleases = new Map<string, (DiscogsRelease & { artistId: number })[]>()
-				for (const item of allReleases) {
-					const release = item.basic_information
-					for (const artist of release.artists) {
-						const normalizedName = artist.name.toLowerCase().trim()
-						if (!artistReleases.has(normalizedName)) {
-							artistReleases.set(normalizedName, [])
-						}
-						artistReleases.get(normalizedName)!.push({
-							...release,
-							artistId: artist.id,
-						})
-					}
-				}
+				const userProfile = await client.getUserProfile(session.accessToken, session.accessTokenSecret, consumerKey, consumerSecret)
+				
+				// Step 1: Search the user's collection for this artist
+				const collectionResults = await client.searchCollection(
+					userProfile.username,
+					session.accessToken,
+					session.accessTokenSecret,
+					{
+						query: artistName,
+						per_page: 100, // Get more results to ensure we find everything
+					},
+					consumerKey,
+					consumerSecret,
+				)
 
-				// If specific artist requested, filter to that artist
-				let targetArtists = Array.from(artistReleases.keys())
-				if (artistName) {
-					const normalizedTarget = artistName.toLowerCase().trim()
-					targetArtists = targetArtists.filter(name => {
-						const normalizedName = name.toLowerCase().trim()
-						// Check for exact match, partial match, or word-level match
-						return normalizedName === normalizedTarget ||
-							   normalizedName.includes(normalizedTarget) ||
-							   normalizedTarget.includes(normalizedName) ||
-							   // Check word-by-word for multi-word artist names
-							   normalizedTarget.split(/\s+/).some(word => normalizedName.includes(word)) ||
-							   normalizedName.split(/\s+/).some(word => normalizedTarget.includes(word))
+				// Step 2: Search the Discogs database for all releases by this artist
+				const databaseResults = await client.searchDatabase(
+					artistName,
+					'', // Unauthenticated database search
+					undefined,
+					{
+						type: 'release',
+						per_page: Math.min(limit * 2, 50), // Get more than needed so we can filter
+					},
+				)
+
+				// Step 3: Compare what they own vs what exists
+				const ownedReleaseIds = new Set(collectionResults.releases.map(item => item.basic_information.id))
+				const ownedReleaseTitles = new Set(
+					collectionResults.releases.map(item => item.basic_information.title.toLowerCase().trim())
+				)
+
+				const missingReleases = databaseResults.results
+					.filter((result) => {
+						// Filter to only releases by this artist (not just mentioning the artist)
+						const isMainArtist = result.title && result.title.toLowerCase().includes(artistName.toLowerCase())
+						const notOwned = !ownedReleaseIds.has(result.id)
+						const notOwnedByTitle = !ownedReleaseTitles.has(result.title.toLowerCase().trim())
+						const hasValidData = result.title && result.year
+						
+						return result.type === 'release' && notOwned && notOwnedByTitle && hasValidData
 					})
-					
-					if (targetArtists.length === 0) {
-						// If still no match, show available artists for debugging
-						const availableArtists = Array.from(artistReleases.keys()).slice(0, 10)
-						return {
-							content: [
-								{
-									type: 'text',
-									text: `**Collection Gaps Analysis**\n\n🔍 Artist "${artistName}" not found in your collection.\n\n**Artists in your collection (sample):**\n${availableArtists.map(artist => `• ${artistReleases.get(artist)![0].artists[0].name}`).join('\n')}\n\n💡 **Tip:** Try using the exact artist name as it appears in your collection.`,
-								},
-							],
-						}
-					}
-				}
+					.slice(0, limit)
 
-				// Sort artists by number of releases (most to least)
-				targetArtists.sort((a, b) => (artistReleases.get(b)?.length || 0) - (artistReleases.get(a)?.length || 0))
-
-				// Take top artists to analyze
-				const artistsToAnalyze = targetArtists.slice(0, artistName ? 1 : 5)
+				// Build response
 				let text = '**Collection Gaps Analysis**\n\n'
+				text += `🎯 **Artist:** ${artistName}\n\n`
 
-				if (artistName) {
-					text += `🎯 **Analyzing:** ${artistName}\n\n`
-				} else {
-					text += `🎯 **Analyzing top ${artistsToAnalyze.length} artists in your collection**\n\n`
-				}
-
-				for (const artistKey of artistsToAnalyze) {
-					const releases = artistReleases.get(artistKey)!
-					const displayName = releases[0].artists[0].name
-
-					text += `**${displayName}** (${releases.length} releases in collection)\n`
-					
-					try {
-						// Search for more releases by this artist in the database (unauthenticated)
-						const searchResults = await client.searchDatabase(
-							displayName,
-							'', // No access token needed for public database search
-							undefined, // No access token secret
-							{
-								type: 'release',
-								per_page: Math.min(limit * 2, 50),
-							},
-							undefined, // No consumer key needed
-							undefined, // No consumer secret needed
-						)
-
-						if (searchResults.results && searchResults.results.length > 0) {
-							// Find releases not in collection
-							const ownedReleaseIds = new Set(releases.map(r => r.id))
-							const missingReleases = searchResults.results
-								.filter((result) => 
-									result.type === 'release' && 
-									!ownedReleaseIds.has(result.id) &&
-									result.title && 
-									result.year
-								)
-								.slice(0, limit)
-
-							if (missingReleases.length > 0) {
-								text += `📋 **Missing releases found:**\n`
-								for (const missing of missingReleases) {
-									const year = missing.year ? ` (${missing.year})` : ''
-									const format = missing.format?.[0] || 'Unknown'
-									text += `   • *${missing.title}*${year} - ${format}\n`
-								}
-							} else {
-								text += `✅ **Collection appears complete** based on database search\n`
-							}
-						} else {
-							text += `❓ **Could not find additional releases** in database\n`
-						}
-					} catch (error) {
-						text += `⚠️ **Error searching for additional releases:** ${error instanceof Error ? error.message : 'Unknown error'}\n`
+				if (collectionResults.releases.length > 0) {
+					text += `**✅ You own ${collectionResults.releases.length} releases:**\n`
+					collectionResults.releases.slice(0, 5).forEach(item => {
+						const release = item.basic_information
+						const year = release.year ? ` (${release.year})` : ''
+						const format = release.formats?.[0]?.name || 'Unknown'
+						text += `   • *${release.title}*${year} - ${format}\n`
+					})
+					if (collectionResults.releases.length > 5) {
+						text += `   • ... and ${collectionResults.releases.length - 5} more\n`
 					}
-
 					text += '\n'
+				} else {
+					text += `**📭 You don't own any releases by ${artistName}**\n\n`
 				}
 
-				text += `\n💡 **Note:** This analysis is based on Discogs database searches and may not be complete. Some releases might not be available or may be variations/reissues you already own.\n\n`
-				text += `🔗 **Explore more on Discogs:** https://www.discogs.com/user/${userProfile.username}/collection`
+				if (missingReleases.length > 0) {
+					text += `**📋 Missing releases you might want:**\n`
+					missingReleases.forEach(missing => {
+						const year = missing.year ? ` (${missing.year})` : ''
+						const format = missing.format?.[0] || 'Unknown'
+						text += `   • *${missing.title}*${year} - ${format}\n`
+					})
+				} else {
+					text += `**✅ No obvious gaps found** - your collection appears complete for this artist!`
+				}
+
+				text += `\n\n💡 **Note:** This compares your collection with Discogs database results. Some releases might be variations, reissues, or different formats of albums you already own.`
 
 				return {
 					content: [
@@ -1802,23 +1741,23 @@ export async function handleMethod(request: JSONRPCRequest, httpRequest?: Reques
 				},
 				{
 					name: 'get_collection_gaps',
-					description: 'Find missing releases from artists in your collection. Use when user asks about missing albums, what they don\'t have, gaps in their collection, or wants to discover what releases they\'re missing from specific artists (e.g., "What Tash Sultana releases am I missing?", "What don\'t I have from Pink Floyd?", "Find gaps in my Beatles collection")',
+					description: 'Find missing releases from a specific artist by comparing what you own vs what exists in the Discogs database. Use when user asks about missing albums from a particular artist (e.g., "What Tash Sultana releases am I missing?", "What Beatles albums don\'t I have?", "Find gaps in my Pink Floyd collection")',
 					inputSchema: {
 						type: 'object',
 						properties: {
 							artist_name: {
 								type: 'string',
-								description: 'Specific artist to analyze (if not provided, analyzes all artists in collection)',
+								description: 'The artist name to analyze for missing releases (required)',
 							},
 							limit: {
 								type: 'number',
-								description: 'Maximum number of missing releases to return per artist',
+								description: 'Maximum number of missing releases to return',
 								default: 10,
 								minimum: 1,
 								maximum: 50,
 							},
 						},
-						required: [],
+						required: ['artist_name'],
 					},
 				},
 			]
