@@ -1,243 +1,276 @@
-# Discogs MCP Server
+# 🎵 Discogs MCP Server
 
-A Cloudflare Workers-based service that allows authenticated users to interact with their personal Discogs music collection via natural language commands using the MCP (Model Context Protocol).
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 
-## Overview
+A powerful MCP (Model Context Protocol) server that enables AI assistants to interact with your personal Discogs music collection. Built on Cloudflare Workers with intelligent mood mapping, advanced search capabilities, and seamless OAuth authentication.
 
-This server processes plain-text queries and returns rich, markdown-formatted responses suitable for display in natural language clients like ChatGPT or Claude. It features intelligent mood mapping that translates emotional descriptors like "mellow," "energetic," or "Sunday evening vibes" into relevant Discogs genres and styles.
+## ✨ Features
 
-## Quick Start
+- 🔐 **Secure OAuth Authentication** - Connect your Discogs account safely
+- 🧠 **Intelligent Mood Mapping** - Translate emotions into music ("mellow", "energetic", "Sunday evening vibes")
+- 🔍 **Advanced Search Intelligence** - Multi-strategy search with OR logic and relevance scoring
+- 📊 **Collection Analytics** - Comprehensive statistics and insights about your music
+- 🎯 **Context-Aware Recommendations** - Smart suggestions based on mood, genre, and similarity
+- ⚡ **Edge Computing** - Global low-latency responses via Cloudflare Workers
+- 🗂️ **Smart Caching** - Intelligent KV-based caching for optimal performance
+- 🚦 **Rate Limiting** - Per-user throttling to respect API limits
+
+## 🚀 Quick Start
 
 ### Adding to Claude Desktop
 
-1. Open Claude Desktop settings and find the MCP configuration (Settings / Developer / Edit Config)
-2. Add this server configuration:
+1. **Open Claude Desktop settings**: Go to Settings → Developer → Edit Config
+2. **Add the server configuration**:
 
 ```json
 {
-	"mcpServers": {
-		"discogs": {
-			"command": "npx",
-			"args": ["mcp-remote", "https://discogs-mcp-prod.rian-db8.workers.dev/sse"]
-		}
-	}
+  "mcpServers": {
+    "discogs": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://discogs-mcp-prod.rian-db8.workers.dev/sse"]
+    }
+  }
 }
 ```
 
-3. Restart Claude Desktop
-4. Ask something like "What can you tell me about my Discogs collection?"
-5. Visit the provided login URL to connect your Discogs account
-6. Come back and enjoy! See below for things you can ask about
+3. **Restart Claude Desktop**
+4. **Test the connection**: Ask "What can you tell me about my Discogs collection?"
+5. **Authenticate**: Visit the provided login URL to connect your Discogs account
+6. **Start exploring**: Try the example queries below!
 
 ### Adding to Other MCP Clients
 
-For other MCP-compatible clients, like the [Cloudflare Workers LLM Playground](https://playground.ai.cloudflare.com/), use the server endpoint:
+For other MCP-compatible clients, use the server endpoint:
 
 ```
 https://discogs-mcp-prod.rian-db8.workers.dev/sse
 ```
 
-## Key Features
+## 🛠️ Available Tools
 
-- **OAuth Authentication**: Secure login via Discogs OAuth
-- **Advanced Search Intelligence**: Enhanced search algorithms with multiple matching strategies:
-  - **OR Logic for Genre Searches**: Queries like "psychedelic rock prog rock space rock" find releases matching ANY of the terms, not requiring all terms to match
-  - **Relevance Scoring**: Multi-word searches prioritize results by number of matching terms - albums matching more terms rank higher
-  - **Smart Context Detection**: Automatically detects whether you're searching for specific albums vs. mood-based recommendations
-- **Intelligent Mood Mapping**: Translate emotional descriptors and contextual cues into music recommendations:
-  - Mood descriptors: "mellow," "energetic," "melancholy," "romantic," "dark"
-  - Contextual awareness: "Sunday evening," "studying," "workout," "rainy day"
-  - Time and seasonal contexts: "morning," "midnight," "winter," "summer"
-  - **Enhanced Album Recognition**: Distinguishes between specific searches like "Dark Side of the Moon" vs. mood queries like "dark ambient music"
-- **Collection Search**: Search through your Discogs collection by artist, album, genre, year, or mood
-- **Release Details**: Get detailed information about specific releases including tracklists, formats, and metadata
-- **Collection Statistics**: Analyze your collection with breakdowns by genre, decade, format, and more
-- **Context-Aware Recommendations**: Get intelligent recommendations from your own collection based on:
-  - **Multi-Genre Support**: Combine multiple genres like "psychedelic rock prog rock space rock" using flexible separator detection
-  - Mood and emotional context (e.g., "mellow Sunday evening vibes")
-  - Time periods (e.g., "1960s", "1970s", "1980s")
-  - Similar artists or albums (e.g., "similar to Miles Davis")
-  - Natural language queries (e.g., "hard bop albums from the 60s that I own")
-- **Smart Caching**: Intelligent KV-based caching system for improved performance and rate limit optimization
-- **Natural Language Interface**: Process commands via MCP protocol
-- **Rich Responses**: Structured output optimized for AI assistants
-- **Rate Limiting**: Per-user request throttling via Workers KV
+| Tool | Description | Authentication |
+|------|-------------|----------------|
+| `ping` | Test server connectivity | ❌ |
+| `server_info` | Get server information and capabilities | ❌ |
+| `auth_status` | Check authentication status and get login instructions | ❌ |
+| `search_collection` | Search your collection with intelligent mood and genre matching | ✅ |
+| `get_release` | Get detailed information about a specific release | ✅ |
+| `get_collection_stats` | View comprehensive collection statistics | ✅ |
+| `get_recommendations` | Get context-aware music recommendations | ✅ |
+| `get_cache_stats` | Monitor cache performance (development) | ✅ |
 
-## Available Tools
+## 🔗 Authentication
 
-- **`search_collection`** - Enhanced search with intelligent matching and relevance scoring
-  - **Smart genre detection**: Use OR logic for genre searches like "psychedelic rock prog rock"
-  - **Relevance ranking**: Multi-word searches prioritize releases with more matching terms
-  - **Mood and contextual awareness**: Supports mood descriptors and contextual cues
-  - **Flexible input**: Accepts genres separated by spaces, commas, or other separators
-  - Examples: "mellow", "energetic", "Sunday evening", "ambient drone progressive"
-- **`get_release`** - Get detailed information about a specific release
-- **`get_collection_stats`** - View statistics about your collection
-- **`get_recommendations`** - Enhanced context-aware recommendations with multi-genre support
-  - **Multi-genre filtering**: Combine genres like "psychedelic rock prog rock space rock"
-  - **Similarity matching**: Find releases similar to specific artists/albums
-  - **Advanced scoring**: Combines genre matching, style matching, era matching, and personal ratings
-  - **Intelligent filtering**: OR logic for genre/mood queries, smart context detection
-  - Examples: "mellow jazz for studying", "energetic workout music", "psychedelic rock prog rock"
+Authentication uses Discogs OAuth 1.0a flow:
 
-## Architecture
+1. **Initiate**: Use the `auth_status` tool to get your personalized login URL
+2. **Authorize**: Visit the URL and authorize the application on Discogs
+3. **Connect**: You'll be automatically redirected back with a success message
+4. **Enjoy**: Your session persists for 7 days with automatic cross-origin support
 
-Built on Cloudflare Workers with:
+The server handles all OAuth complexity behind the scenes - just visit the URL and you're connected!
 
-- Workers KV for request logging and rate limiting
-- Discogs API for collection data
-- MCP (Model Context Protocol) for AI assistant integration
-- No persistent storage or caching
-- Automated CI/CD deployment to production
+## 💡 Example Usage
 
-## Development
-
-This project uses Wrangler for Cloudflare Workers development.
-
-### Local Development
-
+### Test Connection
 ```bash
+curl -X POST https://discogs-mcp-prod.rian-db8.workers.dev \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "ping",
+      "arguments": {
+        "message": "Hello Discogs!"
+      }
+    }
+  }'
+```
+
+### Check Authentication Status
+```bash
+curl -X POST https://discogs-mcp-prod.rian-db8.workers.dev \
+  -H "Content-Type: application/json" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "auth_status"
+    }
+  }'
+```
+
+### Search Collection (Authenticated)
+```bash
+curl -X POST https://discogs-mcp-prod.rian-db8.workers.dev \
+  -H "Content-Type: application/json" \
+  -H "Cookie: session=YOUR_SESSION_TOKEN" \
+  -d '{
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "tools/call",
+    "params": {
+      "name": "search_collection",
+      "arguments": {
+        "query": "mellow jazz for studying"
+      }
+    }
+  }'
+```
+
+## 🎯 AI Assistant Examples
+
+### Multi-Genre Searches
+- *"Show me psychedelic rock prog rock space rock albums"* - Uses OR logic for broader results
+- *"Find jazz fusion bebop hard bop albums from the 70s"* - Combines multiple subgenres
+- *"What electronic techno house trance music do I own?"* - Flexible genre matching
+
+### Mood-Based Queries
+- *"I want something mellow for Sunday evening"* - Contextual mood mapping
+- *"Find energetic music for working out"* - Activity-based recommendations
+- *"What's good for a cozy winter evening?"* - Seasonal and mood awareness
+- *"Show me dark and brooding music for a rainy day"* - Emotional context understanding
+
+### Contextual Recommendations
+- *"Suggest albums similar to Pink Floyd's Dark Side of the Moon"* - Similarity matching
+- *"What are my highest-rated jazz albums from the 1960s?"* - Era and rating filtering
+- *"Find romantic music for a dinner date"* - Social context awareness
+- *"Give me chill music for studying"* - Activity-specific suggestions
+
+### Collection Analysis
+- *"What does my collection say about my musical taste?"* - Comprehensive analysis
+- *"Show me my collection statistics"* - Detailed breakdowns by genre, decade, format
+- *"How many albums do I have from each decade?"* - Temporal analysis
+
+## 🏗️ Architecture
+
+### Core Components
+- **Cloudflare Workers** - Edge computing platform for global low-latency
+- **Workers KV** - Distributed storage for sessions, caching, and rate limiting
+- **Discogs API** - Official API for music database and collection access
+- **MCP Protocol** - Standard protocol for AI assistant integration
+- **OAuth 1.0a** - Secure authentication flow
+
+### Key Features
+- **Stateless Design** - No persistent database, uses KV for sessions
+- **Intelligent Caching** - Smart cache invalidation and TTL management
+- **Mood Intelligence** - Advanced NLP for emotional context understanding
+- **Edge Distribution** - Global deployment for optimal performance
+
+## 🔧 Development
+
+### Prerequisites
+- Node.js 18+
+- npm or yarn
+- Cloudflare account
+- Discogs Developer Account
+
+### Local Setup
+```bash
+# Clone the repository
+git clone https://github.com/rianvdm/discogs-mcp.git
+cd discogs-mcp
+
+# Install dependencies
 npm install
+
+# Start development server
 npm run dev
 ```
 
-### Claude Desktop Configuration
-
-For local development, use the configuration in `config/claude-desktop-config.json`:
-
-```json
-{
-	"mcpServers": {
-		"discogs-local": {
-			"command": "npx",
-			"args": ["mcp-remote", "http://localhost:8787/sse"]
-		}
-	}
-}
-```
-
-For production, use the configuration in `config/claude-desktop-config-production.json`:
-
-```json
-{
-	"mcpServers": {
-		"discogs": {
-			"command": "npx",
-			"args": ["mcp-remote", "https://your-worker-domain.workers.dev/sse"]
-		}
-	}
-}
-```
-
-### Setup
-
+### Environment Configuration
 ```bash
-npm install
-npm run dev    # Start local development server
-npm test       # Run tests
-npm run build  # Build for production
+# Copy environment template
+cp .env.example .env
+
+# Set your Discogs API credentials
+DISCOGS_CONSUMER_KEY=your_key_here
+DISCOGS_CONSUMER_SECRET=your_secret_here
+JWT_SECRET=your_jwt_secret_here
 ```
 
-## Deployment
-
-### Development Deployment
-
+### Available Scripts
 ```bash
-npm run deploy  # Deploy to development environment
+npm run dev        # Start local development server
+npm test           # Run test suite
+npm run lint       # Run ESLint
+npm run format     # Format code with Prettier
+npm run build      # Build for production
+npm run deploy     # Deploy to development
+npm run deploy:prod # Deploy to production
 ```
 
-### Production Deployment
+## 🚀 Deployment
 
-1. **First-time setup**: Create production KV namespaces and set secrets:
-
+### Production Setup
+1. **Create KV namespaces**:
    ```bash
    npm run setup:prod
    ```
 
-2. **Deploy to production**:
+2. **Set Cloudflare secrets**:
+   ```bash
+   wrangler secret put DISCOGS_CONSUMER_KEY
+   wrangler secret put DISCOGS_CONSUMER_SECRET
+   wrangler secret put JWT_SECRET
+   ```
+
+3. **Deploy**:
    ```bash
    npm run deploy:prod
    ```
 
-### Automated Deployment
-
-The project includes GitHub Actions for automated deployment:
-
+### GitHub Actions
+The project includes automated CI/CD:
 - **CI Pipeline**: Runs on all pushes and PRs (lint, test, build)
-- **Production Deployment**: Automatically deploys to production when code is pushed to `main` branch
+- **Production Deployment**: Auto-deploys `main` branch to production
 
 ### Required Secrets
+**Cloudflare** (via `wrangler secret put`):
+- `DISCOGS_CONSUMER_KEY`
+- `DISCOGS_CONSUMER_SECRET`
+- `JWT_SECRET`
 
-For production deployment, set these secrets in your Cloudflare account and GitHub repository:
+**GitHub** (for automation):
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
 
-**Cloudflare Secrets** (set via `wrangler secret put`):
+## 🧪 Testing
 
-- `DISCOGS_CONSUMER_KEY` - Your Discogs app consumer key
-- `DISCOGS_CONSUMER_SECRET` - Your Discogs app consumer secret
-- `JWT_SECRET` - Strong random string for JWT signing
+The project includes comprehensive tests:
+- **Unit Tests** - Individual component testing
+- **Integration Tests** - Full MCP protocol flow
+- **API Tests** - Discogs API integration
+- **Authentication Tests** - OAuth flow validation
 
-**GitHub Secrets** (for automated deployment):
+```bash
+npm test              # Run all tests
+npm test -- --watch  # Run tests in watch mode
+npm test auth         # Run specific test suite
+```
 
-- `CLOUDFLARE_API_TOKEN` - Cloudflare API token with Workers:Edit permissions
-- `CLOUDFLARE_ACCOUNT_ID` - Your Cloudflare account ID
+## 🤝 Contributing
 
-### Environment Configuration
+Contributions are welcome! Please feel free to submit a Pull Request. For major changes, please open an issue first to discuss what you would like to change.
 
-The project supports multiple environments via `wrangler.toml`:
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-- **Development** (default): Uses development KV namespaces
-- **Production** (`--env production`): Uses separate production KV namespaces
-
-Each environment has isolated KV storage for logs, rate limiting, and sessions.
-
-## Example Queries
-
-### Enhanced Multi-Genre Searches (New!)
-
-- "psychedelic rock prog rock space rock" - Finds releases matching ANY of these genre terms
-- "ambient drone progressive experimental" - Uses OR logic for broader, more relevant results  
-- "jazz fusion bebop hard bop" - Combines multiple jazz subgenres intelligently
-- "electronic techno house trance" - Searches across electronic music styles
-- "Show me releases similar to Pink Floyd Dark Side of the Moon" - Uses similarity matching with genre filtering
-
-### Traditional Genre-Based Queries
-
-- "Give me some ideas for hard bop albums from the 60s that I own"
-- "What do I own that is similar to REM?"
-- "Show me my highest-rated Jazz albums from the 1970s"
-- "Find electronic music in my collection from the 1980s"
-- "What are my best rock albums?"
-
-### Mood-Based Queries (Enhanced!)
-
-- "I want to listen to something mellow on CD tonight"
-- "Find me energetic music for working out"
-- "What do I have that fits Sunday evening melancholy vibes?"
-- "Show me romantic music for a dinner date"
-- "I need something dark and brooding for a rainy day" - (Note: "dark" mood vs "Dark Side of the Moon" album detection)
-- "Give me chill music for studying"
-- "What's good for a cozy winter evening?"
-- "moody melancholy introspective sad contemplative" - Multi-mood OR logic finds releases matching any mood term
-
-### Contextual Queries
-
-- "Suggest albums for a road trip"
-- "What's perfect for cooking dinner?"
-- "Find music for late night listening"
-- "Show me something uplifting for Monday morning"
-
-### Search Intelligence Features
-
-The system now features **advanced search intelligence** that:
-
-- **Automatically detects search intent**: Distinguishes between specific album searches ("Dark Side of the Moon") vs. mood-based queries ("dark ambient music")
-- **Uses flexible matching logic**: OR logic for genre/mood searches provides broader results, while AND logic for specific searches maintains precision
-- **Prioritizes relevance**: Multi-word searches rank results by number of matching terms - releases matching more terms appear first
-- **Supports flexible input**: Accepts multiple genres separated by spaces, commas, semicolons, or other separators
-- **Handles complex queries**: Combines genre filtering, similarity matching, mood analysis, and relevance scoring intelligently
-
-Whether you're looking for specific albums, exploring genres, or discovering music based on mood and context, the system adapts its search strategy to provide the most relevant results from your collection.
-
-## License
+## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🙏 Acknowledgments
+
+- [Discogs](https://www.discogs.com/) for providing the comprehensive music database API
+- [Model Context Protocol](https://modelcontextprotocol.io/) for the standard protocol
+- [Cloudflare Workers](https://workers.cloudflare.com/) for the serverless platform
+- The open-source community for inspiration and tools
