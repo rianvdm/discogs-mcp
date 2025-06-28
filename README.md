@@ -48,6 +48,41 @@ For other MCP-compatible clients, use the server endpoint:
 https://discogs-mcp-prod.rian-db8.workers.dev/sse
 ```
 
+## 🎯 What You Can Ask Your AI Assistant
+
+### Multi-Genre Searches
+- *"Show me psychedelic rock prog rock space rock albums"* - Uses OR logic for broader results
+- *"Find jazz fusion bebop hard bop albums from the 70s"* - Combines multiple subgenres
+- *"What electronic techno house trance music do I own?"* - Flexible genre matching
+
+### Mood-Based Queries
+- *"I want something mellow for Sunday evening"* - Contextual mood mapping
+- *"Find energetic music for working out"* - Activity-based recommendations
+- *"What's good for a cozy winter evening?"* - Seasonal and mood awareness
+- *"Show me dark and brooding music for a rainy day"* - Emotional context understanding
+
+### Contextual Recommendations
+- *"Suggest albums similar to Pink Floyd's Dark Side of the Moon"* - Similarity matching
+- *"What are my highest-rated jazz albums from the 1960s?"* - Era and rating filtering
+- *"Find romantic music for a dinner date"* - Social context awareness
+- *"Give me chill music for studying"* - Activity-specific suggestions
+
+### Collection Analysis
+- *"What does my collection say about my musical taste?"* - Comprehensive analysis
+- *"Show me my collection statistics"* - Detailed breakdowns by genre, decade, format
+- *"How many albums do I have from each decade?"* - Temporal analysis
+
+## 🔗 Authentication
+
+Authentication uses Discogs OAuth 1.0a flow:
+
+1. **Initiate**: Use the `auth_status` tool to get your personalized login URL
+2. **Authorize**: Visit the URL and authorize the application on Discogs
+3. **Connect**: You'll be automatically redirected back with a success message
+4. **Enjoy**: Your session persists for 7 days with automatic cross-origin support
+
+The server handles all OAuth complexity behind the scenes - just visit the URL and you're connected!
+
 ## 🛠️ Available Tools
 
 | Tool | Description | Authentication |
@@ -61,18 +96,7 @@ https://discogs-mcp-prod.rian-db8.workers.dev/sse
 | `get_recommendations` | Get context-aware music recommendations | ✅ |
 | `get_cache_stats` | Monitor cache performance (development) | ✅ |
 
-## 🔗 Authentication
-
-Authentication uses Discogs OAuth 1.0a flow:
-
-1. **Initiate**: Use the `auth_status` tool to get your personalized login URL
-2. **Authorize**: Visit the URL and authorize the application on Discogs
-3. **Connect**: You'll be automatically redirected back with a success message
-4. **Enjoy**: Your session persists for 7 days with automatic cross-origin support
-
-The server handles all OAuth complexity behind the scenes - just visit the URL and you're connected!
-
-## 💡 Example Usage
+## 💡 API Examples
 
 ### Test Connection
 ```bash
@@ -123,44 +147,17 @@ curl -X POST https://discogs-mcp-prod.rian-db8.workers.dev \
   }'
 ```
 
-## 🎯 AI Assistant Examples
+## 🏗️ How It Works
 
-### Multi-Genre Searches
-- *"Show me psychedelic rock prog rock space rock albums"* - Uses OR logic for broader results
-- *"Find jazz fusion bebop hard bop albums from the 70s"* - Combines multiple subgenres
-- *"What electronic techno house trance music do I own?"* - Flexible genre matching
+Built on **Cloudflare Workers** for global edge computing with:
+- **OAuth 1.0a Authentication** - Secure Discogs account connection
+- **Intelligent Caching** - Smart KV-based caching for optimal performance
+- **MCP Protocol** - Standard interface for AI assistant integration
+- **Mood Intelligence** - Advanced emotional context understanding
 
-### Mood-Based Queries
-- *"I want something mellow for Sunday evening"* - Contextual mood mapping
-- *"Find energetic music for working out"* - Activity-based recommendations
-- *"What's good for a cozy winter evening?"* - Seasonal and mood awareness
-- *"Show me dark and brooding music for a rainy day"* - Emotional context understanding
+The server runs at the edge globally, providing low-latency responses while respecting Discogs API rate limits through intelligent caching and request optimization.
 
-### Contextual Recommendations
-- *"Suggest albums similar to Pink Floyd's Dark Side of the Moon"* - Similarity matching
-- *"What are my highest-rated jazz albums from the 1960s?"* - Era and rating filtering
-- *"Find romantic music for a dinner date"* - Social context awareness
-- *"Give me chill music for studying"* - Activity-specific suggestions
-
-### Collection Analysis
-- *"What does my collection say about my musical taste?"* - Comprehensive analysis
-- *"Show me my collection statistics"* - Detailed breakdowns by genre, decade, format
-- *"How many albums do I have from each decade?"* - Temporal analysis
-
-## 🏗️ Architecture
-
-### Core Components
-- **Cloudflare Workers** - Edge computing platform for global low-latency
-- **Workers KV** - Distributed storage for sessions, caching, and rate limiting
-- **Discogs API** - Official API for music database and collection access
-- **MCP Protocol** - Standard protocol for AI assistant integration
-- **OAuth 1.0a** - Secure authentication flow
-
-### Key Features
-- **Stateless Design** - No persistent database, uses KV for sessions
-- **Intelligent Caching** - Smart cache invalidation and TTL management
-- **Mood Intelligence** - Advanced NLP for emotional context understanding
-- **Edge Distribution** - Global deployment for optimal performance
+---
 
 ## 🔧 Development
 
