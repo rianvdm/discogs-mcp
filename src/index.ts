@@ -279,10 +279,11 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
 		}
 
 		// Set secure HTTP-only cookie
+		// Using SameSite=None to allow cross-origin requests from MCP clients
 		const cookieOptions = [
 			'HttpOnly',
 			'Secure',
-			'SameSite=Strict',
+			'SameSite=None', // Changed from Strict to None for cross-origin MCP requests
 			'Path=/',
 			'Max-Age=604800', // 7 days in seconds
 		].join('; ')
