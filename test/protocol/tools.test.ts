@@ -1057,58 +1057,6 @@ describe('MCP Tools', () => {
 			}, '', '')
 		})
 
-		it('should handle get_collection_gaps tool', async () => {
-			const mockUserProfile = { username: 'testuser', id: 123 }
-			const mockCollectionResults = {
-				releases: [
-					{
-						basic_information: {
-							id: 123456,
-							title: 'Existing Album',
-							artists: [{ name: 'Test Artist', id: 1 }],
-							year: 2020,
-							genres: ['Rock'],
-							formats: [{ name: 'Vinyl' }],
-						},
-					},
-				],
-				pagination: { pages: 1, page: 1, per_page: 100, items: 1 },
-			}
-			const mockSearchResults = {
-				results: [
-					{
-						id: 789012,
-						type: 'release',
-						title: 'Missing Album',
-						year: 2021,
-						format: ['Vinyl'],
-					},
-					{
-						id: 345678,
-						type: 'release',
-						title: 'Another Missing Album',
-						year: 2019,
-						format: ['CD'],
-					},
-				],
-				pagination: { pages: 1, page: 1, per_page: 20, items: 2 },
-			}
-
-			mockDiscogsClient.getUserProfile.mockResolvedValue(mockUserProfile)
-			mockDiscogsClient.searchCollection.mockResolvedValue(mockCollectionResults)
-			mockDiscogsClient.searchDatabase.mockResolvedValue(mockSearchResults)
-
-			// Initialize first
-			await handleMethod({
-				jsonrpc: '2.0',
-				method: 'initialize',
-				params: {
-					protocolVersion: '2024-11-05',
-					capabilities: {},
-					clientInfo: { name: 'Test', version: '1.0' },
-				},
-				id: 1,
-			})
 
 			// Send initialized notification
 			await handleMethod({

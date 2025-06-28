@@ -618,14 +618,6 @@ async function handleAuthenticatedToolsCall(params: unknown, session: SessionPay
 			},
 			required: [],
 		},
-		get_collection_gaps: {
-			type: 'object',
-			properties: {
-				artist_name: { type: 'string' },
-				limit: { type: 'number', minimum: 1, maximum: 50 },
-			},
-			required: ['artist_name'],
-		},
 	}
 
 	// Validate tool arguments against schema
@@ -1408,80 +1400,6 @@ If the problem persists, please check that your Discogs account is accessible.`,
 			}
 		}
 
-		case 'get_collection_gaps': {
-			try {
-				const artistName = args?.artist_name as string
-				const limit = (args?.limit as number) || 10
-
-				if (!artistName) {
-					return {
-						content: [
-							{
-								type: 'text',
-								text: '**Collection Gaps Analysis**\n\n❌ **Error:** Please specify an artist name to analyze.\n\n**Example usage:**\n• "What releases from Pink Floyd am I missing?"\n• "Find missing albums from The Beatles"',
-							},
-						],
-					}
-				}
-
-				// Use the same approach as other working tools - get user profile first
-				const consumerKey = env?.DISCOGS_CONSUMER_KEY || ''
-				const consumerSecret = env?.DISCOGS_CONSUMER_SECRET || ''
-				const userProfile = await client.getUserProfile(session.accessToken, session.accessTokenSecret, consumerKey, consumerSecret)
-				
-				// Get collection items for this artist using search
-				const collectionResults = await client.searchCollection(
-					userProfile.username,
-					session.accessToken,
-					session.accessTokenSecret,
-					{
-						query: artistName,
-						per_page: 100,
-					},
-					consumerKey,
-					consumerSecret,
-				)
-
-				// Build a simple response showing what they own
-				let text = '**Collection Gaps Analysis**\n\n'
-				text += `🎯 **Artist:** ${artistName}\n\n`
-
-				if (collectionResults.releases.length > 0) {
-					text += `**✅ You currently own ${collectionResults.releases.length} releases by this artist:**\n`
-					collectionResults.releases.forEach(item => {
-						const release = item.basic_information
-						const year = release.year ? ` (${release.year})` : ''
-						const format = release.formats?.[0]?.name || 'Unknown'
-						text += `   • *${release.title}*${year} - ${format}\n`
-					})
-					
-					// Get the first artist ID for potential future database searches
-					const firstRelease = collectionResults.releases[0]
-					const artistId = firstRelease.basic_information.artists?.[0]?.id
-					if (artistId) {
-						text += `\n🔍 **Artist ID:** ${artistId} (for future database searches)\n`
-					}
-				} else {
-					text += `**📭 You don't currently own any releases by "${artistName}" in your collection.**\n\n`
-					text += `This could mean:\n`
-					text += `• The artist name spelling doesn't match exactly\n`
-					text += `• You haven't added any releases by this artist yet\n`
-					text += `• The artist might be listed differently in your collection\n\n`
-					text += `💡 **Try:** Search your collection directly for this artist to see how they're listed.`
-				}
-
-				return {
-					content: [
-						{
-							type: 'text',
-							text,
-						},
-					],
-				}
-			} catch (error) {
-				throw new Error(`Failed to analyze collection gaps: ${error instanceof Error ? error.message : 'Unknown error'}`)
-			}
-		}
 
 		default:
 			throw new Error(`Unknown authenticated tool: ${name}`)
@@ -1704,27 +1622,6 @@ export async function handleMethod(request: JSONRPCRequest, httpRequest?: Reques
 							},
 						},
 						required: [],
-					},
-				},
-				{
-					name: 'get_collection_gaps',
-					description: 'Show what releases you currently own by a specific artist in your collection. Use when user asks about their collection for a particular artist (e.g., "What Tash Sultana releases do I have?", "Show me my Beatles albums", "What do I own from Pink Floyd?")',
-					inputSchema: {
-						type: 'object',
-						properties: {
-							artist_name: {
-								type: 'string',
-								description: 'The artist name to analyze for missing releases (required)',
-							},
-							limit: {
-								type: 'number',
-								description: 'Maximum number of missing releases to return',
-								default: 10,
-								minimum: 1,
-								maximum: 50,
-							},
-						},
-						required: ['artist_name'],
 					},
 				},
 			]
