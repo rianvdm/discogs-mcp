@@ -279,10 +279,11 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
 		}
 
 		// Set secure HTTP-only cookie
+		// Using SameSite=Lax to allow navigation-based requests while preventing CSRF
 		const cookieOptions = [
 			'HttpOnly',
 			'Secure',
-			'SameSite=Strict',
+			'SameSite=Lax', // Changed from Strict to Lax for better compatibility
 			'Path=/',
 			'Max-Age=604800', // 7 days in seconds
 		].join('; ')
