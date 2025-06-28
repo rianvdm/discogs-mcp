@@ -1456,7 +1456,7 @@ If the problem persists, please check that your Discogs account is accessible.`,
 				for (const item of allReleases) {
 					const release = item.basic_information
 					for (const artist of release.artists) {
-						const normalizedName = artist.name.toLowerCase()
+						const normalizedName = artist.name.toLowerCase().trim()
 						if (!artistReleases.has(normalizedName)) {
 							artistReleases.set(normalizedName, [])
 						}
@@ -1470,17 +1470,26 @@ If the problem persists, please check that your Discogs account is accessible.`,
 				// If specific artist requested, filter to that artist
 				let targetArtists = Array.from(artistReleases.keys())
 				if (artistName) {
-					const normalizedTarget = artistName.toLowerCase()
-					targetArtists = targetArtists.filter(name => 
-						name.includes(normalizedTarget) || normalizedTarget.includes(name)
-					)
+					const normalizedTarget = artistName.toLowerCase().trim()
+					targetArtists = targetArtists.filter(name => {
+						const normalizedName = name.toLowerCase().trim()
+						// Check for exact match, partial match, or word-level match
+						return normalizedName === normalizedTarget ||
+							   normalizedName.includes(normalizedTarget) ||
+							   normalizedTarget.includes(normalizedName) ||
+							   // Check word-by-word for multi-word artist names
+							   normalizedTarget.split(/\s+/).some(word => normalizedName.includes(word)) ||
+							   normalizedName.split(/\s+/).some(word => normalizedTarget.includes(word))
+					})
 					
 					if (targetArtists.length === 0) {
+						// If still no match, show available artists for debugging
+						const availableArtists = Array.from(artistReleases.keys()).slice(0, 10)
 						return {
 							content: [
 								{
 									type: 'text',
-									text: `**Collection Gaps Analysis**\n\n🔍 Artist "${artistName}" not found in your collection.\n\n💡 **Tip:** Try searching your collection first to see which artists you have.`,
+									text: `**Collection Gaps Analysis**\n\n🔍 Artist "${artistName}" not found in your collection.\n\n**Artists in your collection (sample):**\n${availableArtists.map(artist => `• ${artistReleases.get(artist)![0].artists[0].name}`).join('\n')}\n\n💡 **Tip:** Try using the exact artist name as it appears in your collection.`,
 								},
 							],
 						}
