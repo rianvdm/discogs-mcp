@@ -6,9 +6,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 * Before starting implementation, provide an ELI5 explanation of what you're about to do
 * Once implemented:
- 	- Make sure the tests pass, and the program builds/runs
- 	- Commit the changes to the repository with a clear commit message.
-   - Explain what you did and what should now be possible. If I am able to manually test the latest change myself to make sure it works, give me instructions on how I can do that.
+   - Make sure the tests pass, and the program builds/runs
+   - Commit the changes to the repository with a clear commit message.
+   - Explain what you did and what should now be possible.
+   - If I am able to manually test the latest change myself to make sure it works, give me instructions on how I can do that.
 * Pause and wait for user review or feedback.
 
 # Writing code
@@ -25,7 +26,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - Avoid mocks for core business logic, but they're acceptable for external APIs during development.
 - When you are trying to fix a bug or compilation error or any other issue, YOU MUST NEVER throw away the old implementation and rewrite without explicit permission from the user. If you are going to do this, YOU MUST STOP and get explicit permission from the user.
 - NEVER name things as 'improved' or 'new' or 'enhanced', etc. Code naming should be evergreen. What is new today will be "old" someday.
-- Update README.md when adding new features or changing how the project works. Keep setup/usage instructions current.
+- Update README.md and CLAUDE.md when adding new features or changing how the project works. Keep setup/usage instructions current.
 
 # Getting help
 
@@ -36,6 +37,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - All projects need comprehensive tests. Start with the most critical test type for the project's scope and add others as complexity grows.
 - Tests MUST cover the functionality being implemented.
+- If a develpoment server is needed, ask me to run `npm run dev` and let you know when the server is available.
+- Ask me to run the tests using `npm test` and present the output to you.
+- You have to run the linter before every commit.
 - NEVER ignore the output of the system or the tests - Logs and messages often contain CRITICAL information.
 - TEST OUTPUT MUST BE PRISTINE TO PASS.
 - If the logs are supposed to contain errors, capture and test it.
