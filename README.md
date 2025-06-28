@@ -22,7 +22,7 @@ A powerful MCP (Model Context Protocol) server that enables AI assistants to int
 ### Adding to Claude Desktop
 
 1. **Open Claude Desktop settings**: Go to Settings → Developer → Edit Config
-2. **Add the server configuration**:
+2. **Open the file in any text editor, and add the server configuration**:
 
 ```json
 {
