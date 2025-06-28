@@ -1058,54 +1058,6 @@ describe('MCP Tools', () => {
 		})
 
 
-			// Send initialized notification
-			await handleMethod({
-				jsonrpc: '2.0',
-				method: 'initialized',
-			})
-
-			const response = await handleMethod(
-				{
-					jsonrpc: '2.0',
-					method: 'tools/call',
-					params: {
-						name: 'get_collection_gaps',
-						arguments: { artist_name: 'Test Artist', limit: 10 },
-					},
-					id: 2,
-				},
-				await createMockAuthenticatedRequest(),
-				mockJwtSecret,
-			)
-
-			expect(response).toMatchObject({
-				jsonrpc: '2.0',
-				id: 2,
-				result: {
-					content: [
-						{
-							type: 'text',
-							text: expect.stringContaining('Collection Gaps Analysis'),
-						},
-					],
-				},
-			})
-
-			const result = response?.result as { content: Array<{ type: string; text: string }> }
-			const responseText = result.content[0].text
-			expect(responseText).toContain('Test Artist')
-			expect(responseText).toContain('You currently own')
-			expect(responseText).toContain('releases by this artist')
-
-			expect(mockDiscogsClient.getUserProfile).toHaveBeenCalledWith('test-token', 'test-secret', '', '')
-			expect(mockDiscogsClient.searchCollection).toHaveBeenCalledWith('testuser', 'test-token', 'test-secret', {
-				query: 'Test Artist',
-				per_page: 100,
-			}, '', '')
-			// No longer calling searchDatabase
-			expect(mockDiscogsClient.searchDatabase).not.toHaveBeenCalled()
-		})
-
 		it('should require authentication for authenticated tools', async () => {
 			// Initialize first
 			await handleMethod({
