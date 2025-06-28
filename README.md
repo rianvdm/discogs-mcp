@@ -183,15 +183,29 @@ npm install
 npm run dev
 ```
 
+### Claude Desktop Configuration
+
+For local development, copy the configuration from `.devtools/config/claude-desktop-config.json`:
+
+```json
+{
+  "mcpServers": {
+    "discogs-local": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://localhost:8787/sse"]
+    }
+  }
+}
+```
+
+For production, use `.devtools/config/claude-desktop-config-production.json` as a template.
+
 ### Environment Configuration
 ```bash
-# Copy environment template
-cp .env.example .env
-
-# Set your Discogs API credentials
-DISCOGS_CONSUMER_KEY=your_key_here
-DISCOGS_CONSUMER_SECRET=your_secret_here
-JWT_SECRET=your_jwt_secret_here
+# Set your Discogs API credentials as Wrangler secrets
+wrangler secret put DISCOGS_CONSUMER_KEY
+wrangler secret put DISCOGS_CONSUMER_SECRET
+wrangler secret put JWT_SECRET
 ```
 
 ### Available Scripts

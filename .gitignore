@@ -194,3 +194,7 @@ coverage/
 # Temporary files
 *.tmp
 *.temp
+
+# Development artifacts
+dist/
+.wrangler/
