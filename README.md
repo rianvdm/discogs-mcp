@@ -72,6 +72,13 @@ https://discogs-mcp-prod.rian-db8.workers.dev/sse
 - *"Show me my collection statistics"* - Detailed breakdowns by genre, decade, format
 - *"How many albums do I have from each decade?"* - Temporal analysis
 
+### Recent Activity & Discovery
+- *"Show me my recent collection additions"* - Timeline of latest acquisitions
+- *"What have I added to my collection lately?"* - Recent activity overview
+- *"What albums am I missing from Pink Floyd?"* - Gap analysis for specific artists
+- *"Find missing releases from my favorite artists"* - Collection gap discovery
+- *"What Beatles albums don't I have yet?"* - Artist-specific collection analysis
+
 ## 🔗 Authentication
 
 Authentication uses Discogs OAuth 1.0a flow:
@@ -94,6 +101,8 @@ The server handles all OAuth complexity behind the scenes - just visit the URL a
 | `get_release` | Get detailed information about a specific release | ✅ |
 | `get_collection_stats` | View comprehensive collection statistics | ✅ |
 | `get_recommendations` | Get context-aware music recommendations | ✅ |
+| `get_recent_activity` | View recent collection additions and activity timeline | ✅ |
+| `get_collection_gaps` | Find missing releases from artists in your collection | ✅ |
 | `get_cache_stats` | Monitor cache performance (development) | ✅ |
 
 ## 💡 API Examples
