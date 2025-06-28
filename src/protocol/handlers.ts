@@ -611,6 +611,21 @@ async function handleAuthenticatedToolsCall(params: unknown, session: SessionPay
 			properties: {},
 			required: [],
 		},
+		get_recent_activity: {
+			type: 'object',
+			properties: {
+				limit: { type: 'number', minimum: 1, maximum: 100 },
+			},
+			required: [],
+		},
+		get_collection_gaps: {
+			type: 'object',
+			properties: {
+				artist_name: { type: 'string' },
+				limit: { type: 'number', minimum: 1, maximum: 50 },
+			},
+			required: [],
+		},
 	}
 
 	// Validate tool arguments against schema
@@ -1326,6 +1341,233 @@ If the problem persists, please check that your Discogs account is accessible.`,
 			}
 		}
 
+		case 'get_recent_activity': {
+			try {
+				const limit = (args?.limit as number) || 20
+				const consumerKey = env?.DISCOGS_CONSUMER_KEY || ''
+				const consumerSecret = env?.DISCOGS_CONSUMER_SECRET || ''
+
+				const userProfile = await client.getUserProfile(session.accessToken, session.accessTokenSecret, consumerKey, consumerSecret)
+				
+				// Get recent collection additions sorted by date_added
+				const response = await client.searchCollection(
+					userProfile.username,
+					session.accessToken,
+					session.accessTokenSecret,
+					{
+						page: 1,
+						per_page: Math.min(limit, 100),
+						sort: 'added',
+						sort_order: 'desc',
+					},
+					consumerKey,
+					consumerSecret,
+				)
+
+				if (!response.releases || response.releases.length === 0) {
+					return {
+						content: [
+							{
+								type: 'text',
+								text: '**Recent Collection Activity**\n\n🔍 No recent activity found. Your collection might be empty or there may be an issue accessing your collection.',
+							},
+						],
+					}
+				}
+
+				let text = `**Recent Collection Activity** (Last ${response.releases.length} additions)\n\n`
+				
+				for (const item of response.releases) {
+					const release = item.basic_information
+					const artists = release.artists.map(a => a.name).join(', ')
+					const year = release.year ? ` (${release.year})` : ''
+					const genres = release.genres.length > 0 ? ` • ${release.genres.slice(0, 2).join(', ')}` : ''
+					const format = release.formats?.[0]?.name || 'Unknown'
+					const dateAdded = new Date(item.date_added).toLocaleDateString('en-US', {
+						year: 'numeric',
+						month: 'short',
+						day: 'numeric'
+					})
+					
+					text += `📅 **${dateAdded}** - ${artists} - *${release.title}*${year}\n`
+					text += `   💿 ${format}${genres}\n\n`
+				}
+
+				text += `\n🔗 **View your full collection on Discogs:** https://www.discogs.com/user/${userProfile.username}/collection`
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text,
+						},
+					],
+				}
+			} catch (error) {
+				throw new Error(`Failed to get recent activity: ${error instanceof Error ? error.message : 'Unknown error'}`)
+			}
+		}
+
+		case 'get_collection_gaps': {
+			try {
+				const artistName = args?.artist_name as string
+				const limit = (args?.limit as number) || 10
+				const consumerKey = env?.DISCOGS_CONSUMER_KEY || ''
+				const consumerSecret = env?.DISCOGS_CONSUMER_SECRET || ''
+
+				const userProfile = await client.getUserProfile(session.accessToken, session.accessTokenSecret, consumerKey, consumerSecret)
+				
+				// Get all collection items
+				let allReleases: DiscogsCollectionItem[] = []
+				let page = 1
+				let totalPages = 1
+
+				do {
+					const response = await client.searchCollection(
+						userProfile.username,
+						session.accessToken,
+						session.accessTokenSecret,
+						{
+							page,
+							per_page: 100,
+						},
+						consumerKey,
+						consumerSecret,
+					)
+
+					allReleases = allReleases.concat(response.releases)
+					totalPages = response.pagination.pages
+					page++
+				} while (page <= totalPages && page <= 5) // Limit to first 500 items for performance
+
+				if (allReleases.length === 0) {
+					return {
+						content: [
+							{
+								type: 'text',
+								text: '**Collection Gaps Analysis**\n\n🔍 No collection items found to analyze.',
+							},
+						],
+					}
+				}
+
+				// Group by artist
+				const artistReleases = new Map<string, (DiscogsRelease & { artistId: number })[]>()
+				for (const item of allReleases) {
+					const release = item.basic_information
+					for (const artist of release.artists) {
+						const normalizedName = artist.name.toLowerCase()
+						if (!artistReleases.has(normalizedName)) {
+							artistReleases.set(normalizedName, [])
+						}
+						artistReleases.get(normalizedName)!.push({
+							...release,
+							artistId: artist.id,
+						})
+					}
+				}
+
+				// If specific artist requested, filter to that artist
+				let targetArtists = Array.from(artistReleases.keys())
+				if (artistName) {
+					const normalizedTarget = artistName.toLowerCase()
+					targetArtists = targetArtists.filter(name => 
+						name.includes(normalizedTarget) || normalizedTarget.includes(name)
+					)
+					
+					if (targetArtists.length === 0) {
+						return {
+							content: [
+								{
+									type: 'text',
+									text: `**Collection Gaps Analysis**\n\n🔍 Artist "${artistName}" not found in your collection.\n\n💡 **Tip:** Try searching your collection first to see which artists you have.`,
+								},
+							],
+						}
+					}
+				}
+
+				// Sort artists by number of releases (most to least)
+				targetArtists.sort((a, b) => (artistReleases.get(b)?.length || 0) - (artistReleases.get(a)?.length || 0))
+
+				// Take top artists to analyze
+				const artistsToAnalyze = targetArtists.slice(0, artistName ? 1 : 5)
+				let text = '**Collection Gaps Analysis**\n\n'
+
+				if (artistName) {
+					text += `🎯 **Analyzing:** ${artistName}\n\n`
+				} else {
+					text += `🎯 **Analyzing top ${artistsToAnalyze.length} artists in your collection**\n\n`
+				}
+
+				for (const artistKey of artistsToAnalyze) {
+					const releases = artistReleases.get(artistKey)!
+					const displayName = releases[0].artists[0].name
+
+					text += `**${displayName}** (${releases.length} releases in collection)\n`
+					
+					try {
+						// Search for more releases by this artist in the database
+						const searchResults = await client.searchDatabase(
+							displayName,
+							session.accessToken,
+							session.accessTokenSecret,
+							{
+								type: 'artist',
+								per_page: Math.min(limit * 2, 50),
+							},
+							consumerKey,
+							consumerSecret,
+						)
+
+						if (searchResults.results && searchResults.results.length > 0) {
+							// Find releases not in collection
+							const ownedReleaseIds = new Set(releases.map(r => r.id))
+							const missingReleases = searchResults.results
+								.filter((result) => 
+									result.type === 'release' && 
+									!ownedReleaseIds.has(result.id) &&
+									result.title && 
+									result.year
+								)
+								.slice(0, limit)
+
+							if (missingReleases.length > 0) {
+								text += `📋 **Missing releases found:**\n`
+								for (const missing of missingReleases) {
+									const year = missing.year ? ` (${missing.year})` : ''
+									const format = missing.format?.[0] || 'Unknown'
+									text += `   • *${missing.title}*${year} - ${format}\n`
+								}
+							} else {
+								text += `✅ **Collection appears complete** based on database search\n`
+							}
+						} else {
+							text += `❓ **Could not find additional releases** in database\n`
+						}
+					} catch (error) {
+						text += `⚠️ **Error searching for additional releases:** ${error instanceof Error ? error.message : 'Unknown error'}\n`
+					}
+
+					text += '\n'
+				}
+
+				text += `\n💡 **Note:** This analysis is based on Discogs database searches and may not be complete. Some releases might not be available or may be variations/reissues you already own.\n\n`
+				text += `🔗 **Explore more on Discogs:** https://www.discogs.com/user/${userProfile.username}/collection`
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text,
+						},
+					],
+				}
+			} catch (error) {
+				throw new Error(`Failed to analyze collection gaps: ${error instanceof Error ? error.message : 'Unknown error'}`)
+			}
+		}
+
 		default:
 			throw new Error(`Unknown authenticated tool: ${name}`)
 	}
@@ -1529,6 +1771,44 @@ export async function handleMethod(request: JSONRPCRequest, httpRequest?: Reques
 					inputSchema: {
 						type: 'object',
 						properties: {},
+						required: [],
+					},
+				},
+				{
+					name: 'get_recent_activity',
+					description: 'Get recent collection additions and activity timeline',
+					inputSchema: {
+						type: 'object',
+						properties: {
+							limit: {
+								type: 'number',
+								description: 'Number of recent items to return',
+								default: 20,
+								minimum: 1,
+								maximum: 100,
+							},
+						},
+						required: [],
+					},
+				},
+				{
+					name: 'get_collection_gaps',
+					description: 'Find missing releases from artists in your collection to discover gaps in discographies',
+					inputSchema: {
+						type: 'object',
+						properties: {
+							artist_name: {
+								type: 'string',
+								description: 'Specific artist to analyze (if not provided, analyzes all artists in collection)',
+							},
+							limit: {
+								type: 'number',
+								description: 'Maximum number of missing releases to return per artist',
+								default: 10,
+								minimum: 1,
+								maximum: 50,
+							},
+						},
 						required: [],
 					},
 				},
