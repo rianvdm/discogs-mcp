@@ -1507,17 +1507,17 @@ If the problem persists, please check that your Discogs account is accessible.`,
 					text += `**${displayName}** (${releases.length} releases in collection)\n`
 					
 					try {
-						// Search for more releases by this artist in the database
+						// Search for more releases by this artist in the database (unauthenticated)
 						const searchResults = await client.searchDatabase(
 							displayName,
-							session.accessToken,
-							session.accessTokenSecret,
+							'', // No access token needed for public database search
+							undefined, // No access token secret
 							{
-								type: 'artist',
+								type: 'release',
 								per_page: Math.min(limit * 2, 50),
 							},
-							consumerKey,
-							consumerSecret,
+							undefined, // No consumer key needed
+							undefined, // No consumer secret needed
 						)
 
 						if (searchResults.results && searchResults.results.length > 0) {
@@ -1776,7 +1776,7 @@ export async function handleMethod(request: JSONRPCRequest, httpRequest?: Reques
 				},
 				{
 					name: 'get_recent_activity',
-					description: 'Get recent collection additions and activity timeline',
+					description: 'Get recent collection additions and activity timeline. Use when user asks about recent additions, what they\'ve added lately, their collection activity, or wants to see their latest acquisitions (e.g., "What have I added recently?", "Show my recent purchases", "What\'s new in my collection?")',
 					inputSchema: {
 						type: 'object',
 						properties: {
@@ -1793,7 +1793,7 @@ export async function handleMethod(request: JSONRPCRequest, httpRequest?: Reques
 				},
 				{
 					name: 'get_collection_gaps',
-					description: 'Find missing releases from artists in your collection to discover gaps in discographies',
+					description: 'Find missing releases from artists in your collection. Use when user asks about missing albums, what they don\'t have, gaps in their collection, or wants to discover what releases they\'re missing from specific artists (e.g., "What Tash Sultana releases am I missing?", "What don\'t I have from Pink Floyd?", "Find gaps in my Beatles collection")',
 					inputSchema: {
 						type: 'object',
 						properties: {
