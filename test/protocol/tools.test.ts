@@ -1146,18 +1146,16 @@ describe('MCP Tools', () => {
 			const result = response?.result as { content: Array<{ type: string; text: string }> }
 			const responseText = result.content[0].text
 			expect(responseText).toContain('Test Artist')
-			expect(responseText).toContain('Missing Album')
-			expect(responseText).toContain('Missing releases you might want')
+			expect(responseText).toContain('You currently own')
+			expect(responseText).toContain('releases by this artist')
 
 			expect(mockDiscogsClient.getUserProfile).toHaveBeenCalledWith('test-token', 'test-secret', '', '')
 			expect(mockDiscogsClient.searchCollection).toHaveBeenCalledWith('testuser', 'test-token', 'test-secret', {
 				query: 'Test Artist',
 				per_page: 100,
 			}, '', '')
-			expect(mockDiscogsClient.searchDatabase).toHaveBeenCalledWith('Test Artist', 'test-token', 'test-secret', {
-				type: 'release',
-				per_page: 20,
-			}, '', '')
+			// No longer calling searchDatabase
+			expect(mockDiscogsClient.searchDatabase).not.toHaveBeenCalled()
 		})
 
 		it('should require authentication for authenticated tools', async () => {

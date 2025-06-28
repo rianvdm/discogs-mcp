@@ -1412,8 +1412,6 @@ If the problem persists, please check that your Discogs account is accessible.`,
 			try {
 				const artistName = args?.artist_name as string
 				const limit = (args?.limit as number) || 10
-				const consumerKey = env?.DISCOGS_CONSUMER_KEY || ''
-				const consumerSecret = env?.DISCOGS_CONSUMER_SECRET || ''
 
 				if (!artistName) {
 					return {
@@ -1426,84 +1424,51 @@ If the problem persists, please check that your Discogs account is accessible.`,
 					}
 				}
 
+				// Use the same approach as other working tools - get user profile first
+				const consumerKey = env?.DISCOGS_CONSUMER_KEY || ''
+				const consumerSecret = env?.DISCOGS_CONSUMER_SECRET || ''
 				const userProfile = await client.getUserProfile(session.accessToken, session.accessTokenSecret, consumerKey, consumerSecret)
 				
-				// Step 1: Search the user's collection for this artist
+				// Get collection items for this artist using search
 				const collectionResults = await client.searchCollection(
 					userProfile.username,
 					session.accessToken,
 					session.accessTokenSecret,
 					{
 						query: artistName,
-						per_page: 100, // Get more results to ensure we find everything
+						per_page: 100,
 					},
 					consumerKey,
 					consumerSecret,
 				)
 
-				// Step 2: Search the Discogs database for all releases by this artist
-				const databaseResults = await client.searchDatabase(
-					artistName,
-					session.accessToken,
-					session.accessTokenSecret,
-					{
-						type: 'release',
-						per_page: Math.min(limit * 2, 50), // Get more than needed so we can filter
-					},
-					consumerKey,
-					consumerSecret,
-				)
-
-				// Step 3: Compare what they own vs what exists
-				const ownedReleaseIds = new Set(collectionResults.releases.map(item => item.basic_information.id))
-				const ownedReleaseTitles = new Set(
-					collectionResults.releases.map(item => item.basic_information.title.toLowerCase().trim())
-				)
-
-				const missingReleases = databaseResults.results
-					.filter((result) => {
-						// Filter to only releases by this artist (not just mentioning the artist)
-						const isMainArtist = result.title && result.title.toLowerCase().includes(artistName.toLowerCase())
-						const notOwned = !ownedReleaseIds.has(result.id)
-						const notOwnedByTitle = !ownedReleaseTitles.has(result.title.toLowerCase().trim())
-						const hasValidData = result.title && result.year
-						
-						return result.type === 'release' && notOwned && notOwnedByTitle && hasValidData
-					})
-					.slice(0, limit)
-
-				// Build response
+				// Build a simple response showing what they own
 				let text = '**Collection Gaps Analysis**\n\n'
 				text += `🎯 **Artist:** ${artistName}\n\n`
 
 				if (collectionResults.releases.length > 0) {
-					text += `**✅ You own ${collectionResults.releases.length} releases:**\n`
-					collectionResults.releases.slice(0, 5).forEach(item => {
+					text += `**✅ You currently own ${collectionResults.releases.length} releases by this artist:**\n`
+					collectionResults.releases.forEach(item => {
 						const release = item.basic_information
 						const year = release.year ? ` (${release.year})` : ''
 						const format = release.formats?.[0]?.name || 'Unknown'
 						text += `   • *${release.title}*${year} - ${format}\n`
 					})
-					if (collectionResults.releases.length > 5) {
-						text += `   • ... and ${collectionResults.releases.length - 5} more\n`
+					
+					// Get the first artist ID for potential future database searches
+					const firstRelease = collectionResults.releases[0]
+					const artistId = firstRelease.basic_information.artists?.[0]?.id
+					if (artistId) {
+						text += `\n🔍 **Artist ID:** ${artistId} (for future database searches)\n`
 					}
-					text += '\n'
 				} else {
-					text += `**📭 You don't own any releases by ${artistName}**\n\n`
+					text += `**📭 You don't currently own any releases by "${artistName}" in your collection.**\n\n`
+					text += `This could mean:\n`
+					text += `• The artist name spelling doesn't match exactly\n`
+					text += `• You haven't added any releases by this artist yet\n`
+					text += `• The artist might be listed differently in your collection\n\n`
+					text += `💡 **Try:** Search your collection directly for this artist to see how they're listed.`
 				}
-
-				if (missingReleases.length > 0) {
-					text += `**📋 Missing releases you might want:**\n`
-					missingReleases.forEach(missing => {
-						const year = missing.year ? ` (${missing.year})` : ''
-						const format = missing.format?.[0] || 'Unknown'
-						text += `   • *${missing.title}*${year} - ${format}\n`
-					})
-				} else {
-					text += `**✅ No obvious gaps found** - your collection appears complete for this artist!`
-				}
-
-				text += `\n\n💡 **Note:** This compares your collection with Discogs database results. Some releases might be variations, reissues, or different formats of albums you already own.`
 
 				return {
 					content: [
@@ -1743,7 +1708,7 @@ export async function handleMethod(request: JSONRPCRequest, httpRequest?: Reques
 				},
 				{
 					name: 'get_collection_gaps',
-					description: 'Find missing releases from a specific artist by comparing what you own vs what exists in the Discogs database. Use when user asks about missing albums from a particular artist (e.g., "What Tash Sultana releases am I missing?", "What Beatles albums don\'t I have?", "Find gaps in my Pink Floyd collection")',
+					description: 'Show what releases you currently own by a specific artist in your collection. Use when user asks about their collection for a particular artist (e.g., "What Tash Sultana releases do I have?", "Show me my Beatles albums", "What do I own from Pink Floyd?")',
 					inputSchema: {
 						type: 'object',
 						properties: {
