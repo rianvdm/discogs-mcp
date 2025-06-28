@@ -1154,10 +1154,10 @@ describe('MCP Tools', () => {
 				query: 'Test Artist',
 				per_page: 100,
 			}, '', '')
-			expect(mockDiscogsClient.searchDatabase).toHaveBeenCalledWith('Test Artist', '', undefined, {
+			expect(mockDiscogsClient.searchDatabase).toHaveBeenCalledWith('Test Artist', 'test-token', 'test-secret', {
 				type: 'release',
 				per_page: 20,
-			})
+			}, '', '')
 		})
 
 		it('should require authentication for authenticated tools', async () => {

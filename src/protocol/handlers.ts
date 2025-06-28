@@ -1444,12 +1444,14 @@ If the problem persists, please check that your Discogs account is accessible.`,
 				// Step 2: Search the Discogs database for all releases by this artist
 				const databaseResults = await client.searchDatabase(
 					artistName,
-					'', // Unauthenticated database search
-					undefined,
+					session.accessToken,
+					session.accessTokenSecret,
 					{
 						type: 'release',
 						per_page: Math.min(limit * 2, 50), // Get more than needed so we can filter
 					},
+					consumerKey,
+					consumerSecret,
 				)
 
 				// Step 3: Compare what they own vs what exists
