@@ -11,6 +11,7 @@ vi.mock('../../src/clients/discogs', () => ({
 		searchCollection: vi.fn(),
 		getRelease: vi.fn(),
 		getCollectionStats: vi.fn(),
+		searchDatabase: vi.fn(),
 	},
 }))
 
@@ -961,6 +962,101 @@ describe('MCP Tools', () => {
 			expect(mockDiscogsClient.getUserProfile).toHaveBeenCalledWith('test-token', 'test-secret', '', '')
 			expect(mockDiscogsClient.searchCollection).toHaveBeenCalledWith('testuser', 'test-token', 'test-secret', { per_page: 100 }, '', '')
 		})
+
+		it('should handle get_recent_activity tool', async () => {
+			const mockUserProfile = { username: 'testuser', id: 123 }
+			const mockSearchResults = {
+				releases: [
+					{
+						date_added: '2023-12-01T12:00:00-08:00',
+						basic_information: {
+							id: 123456,
+							title: 'Recent Album',
+							artists: [{ name: 'Recent Artist', id: 1 }],
+							year: 2023,
+							genres: ['Rock', 'Alternative'],
+							formats: [{ name: 'Vinyl' }],
+						},
+					},
+					{
+						date_added: '2023-11-15T10:30:00-08:00',
+						basic_information: {
+							id: 789012,
+							title: 'Another Recent Album',
+							artists: [{ name: 'Another Artist', id: 2 }],
+							year: 2022,
+							genres: ['Jazz'],
+							formats: [{ name: 'CD' }],
+						},
+					},
+				],
+				pagination: { pages: 1, page: 1, per_page: 20, items: 2 },
+			}
+
+			mockDiscogsClient.getUserProfile.mockResolvedValue(mockUserProfile)
+			mockDiscogsClient.searchCollection.mockResolvedValue(mockSearchResults)
+
+			// Initialize first
+			await handleMethod({
+				jsonrpc: '2.0',
+				method: 'initialize',
+				params: {
+					protocolVersion: '2024-11-05',
+					capabilities: {},
+					clientInfo: { name: 'Test', version: '1.0' },
+				},
+				id: 1,
+			})
+
+			// Send initialized notification
+			await handleMethod({
+				jsonrpc: '2.0',
+				method: 'initialized',
+			})
+
+			const response = await handleMethod(
+				{
+					jsonrpc: '2.0',
+					method: 'tools/call',
+					params: {
+						name: 'get_recent_activity',
+						arguments: { limit: 20 },
+					},
+					id: 2,
+				},
+				await createMockAuthenticatedRequest(),
+				mockJwtSecret,
+			)
+
+			expect(response).toMatchObject({
+				jsonrpc: '2.0',
+				id: 2,
+				result: {
+					content: [
+						{
+							type: 'text',
+							text: expect.stringContaining('Recent Collection Activity'),
+						},
+					],
+				},
+			})
+
+			const result = response?.result as { content: Array<{ type: string; text: string }> }
+			const responseText = result.content[0].text
+			expect(responseText).toContain('Recent Artist - *Recent Album*')
+			expect(responseText).toContain('Dec 1, 2023')
+			expect(responseText).toContain('Vinyl')
+			expect(responseText).toContain('Another Artist - *Another Recent Album*')
+
+			expect(mockDiscogsClient.getUserProfile).toHaveBeenCalledWith('test-token', 'test-secret', '', '')
+			expect(mockDiscogsClient.searchCollection).toHaveBeenCalledWith('testuser', 'test-token', 'test-secret', {
+				page: 1,
+				per_page: 20,
+				sort: 'added',
+				sort_order: 'desc',
+			}, '', '')
+		})
+
 
 		it('should require authentication for authenticated tools', async () => {
 			// Initialize first

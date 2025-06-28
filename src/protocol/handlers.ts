@@ -611,6 +611,13 @@ async function handleAuthenticatedToolsCall(params: unknown, session: SessionPay
 			properties: {},
 			required: [],
 		},
+		get_recent_activity: {
+			type: 'object',
+			properties: {
+				limit: { type: 'number', minimum: 1, maximum: 100 },
+			},
+			required: [],
+		},
 	}
 
 	// Validate tool arguments against schema
@@ -1326,6 +1333,74 @@ If the problem persists, please check that your Discogs account is accessible.`,
 			}
 		}
 
+		case 'get_recent_activity': {
+			try {
+				const limit = (args?.limit as number) || 20
+				const consumerKey = env?.DISCOGS_CONSUMER_KEY || ''
+				const consumerSecret = env?.DISCOGS_CONSUMER_SECRET || ''
+
+				const userProfile = await client.getUserProfile(session.accessToken, session.accessTokenSecret, consumerKey, consumerSecret)
+				
+				// Get recent collection additions sorted by date_added
+				const response = await client.searchCollection(
+					userProfile.username,
+					session.accessToken,
+					session.accessTokenSecret,
+					{
+						page: 1,
+						per_page: Math.min(limit, 100),
+						sort: 'added',
+						sort_order: 'desc',
+					},
+					consumerKey,
+					consumerSecret,
+				)
+
+				if (!response.releases || response.releases.length === 0) {
+					return {
+						content: [
+							{
+								type: 'text',
+								text: '**Recent Collection Activity**\n\n🔍 No recent activity found. Your collection might be empty or there may be an issue accessing your collection.',
+							},
+						],
+					}
+				}
+
+				let text = `**Recent Collection Activity** (Last ${response.releases.length} additions)\n\n`
+				
+				for (const item of response.releases) {
+					const release = item.basic_information
+					const artists = release.artists.map(a => a.name).join(', ')
+					const year = release.year ? ` (${release.year})` : ''
+					const genres = release.genres.length > 0 ? ` • ${release.genres.slice(0, 2).join(', ')}` : ''
+					const format = release.formats?.[0]?.name || 'Unknown'
+					const dateAdded = new Date(item.date_added).toLocaleDateString('en-US', {
+						year: 'numeric',
+						month: 'short',
+						day: 'numeric'
+					})
+					
+					text += `📅 **${dateAdded}** - ${artists} - *${release.title}*${year}\n`
+					text += `   💿 ${format}${genres}\n\n`
+				}
+
+				text += `\n🔗 **View your full collection on Discogs:** https://www.discogs.com/user/${userProfile.username}/collection`
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text,
+						},
+					],
+				}
+			} catch (error) {
+				throw new Error(`Failed to get recent activity: ${error instanceof Error ? error.message : 'Unknown error'}`)
+			}
+		}
+
+
 		default:
 			throw new Error(`Unknown authenticated tool: ${name}`)
 	}
@@ -1529,6 +1604,23 @@ export async function handleMethod(request: JSONRPCRequest, httpRequest?: Reques
 					inputSchema: {
 						type: 'object',
 						properties: {},
+						required: [],
+					},
+				},
+				{
+					name: 'get_recent_activity',
+					description: 'Get recent collection additions and activity timeline. Use when user asks about recent additions, what they\'ve added lately, their collection activity, or wants to see their latest acquisitions (e.g., "What have I added recently?", "Show my recent purchases", "What\'s new in my collection?")',
+					inputSchema: {
+						type: 'object',
+						properties: {
+							limit: {
+								type: 'number',
+								description: 'Number of recent items to return',
+								default: 20,
+								minimum: 1,
+								maximum: 100,
+							},
+						},
 						required: [],
 					},
 				},
