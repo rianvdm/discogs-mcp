@@ -1,8 +1,4 @@
-/**
- * Discogs Resources
- * Provides MCP resources for accessing Discogs data via URIs
- */
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer, ResourceTemplate } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Env } from "../../types/env.js";
 import { DiscogsClient } from "../../clients/discogs.js";
 import { CachedDiscogsClient } from "../../clients/cachedDiscogs.js";
@@ -24,11 +20,14 @@ export function registerResources(
 	const client = cachedClient || discogsClient;
 
 	// List available resources
-	server.resource(
+	server.registerResource(
+		"collection",
 		"discogs://collection",
-		"Complete Discogs collection for the authenticated user",
-		"application/json",
-		async () => {
+		{
+			mimeType: "application/json",
+			description: "Complete Discogs collection for the authenticated user",
+		},
+		async (uri) => {
 			const { session } = await getSessionContext();
 
 			if (!session) {
@@ -59,7 +58,7 @@ export function registerResources(
 				return {
 					contents: [
 						{
-							uri: "discogs://collection",
+							uri: uri.toString(),
 							mimeType: "application/json",
 							text: JSON.stringify(collection, null, 2),
 						},
@@ -74,11 +73,14 @@ export function registerResources(
 	);
 
 	// Release details resource (template)
-	server.resource(
-		"discogs://release/{id}",
-		"Detailed information about a specific Discogs release. Replace {id} with the release ID.",
-		"application/json",
-		async (uri: string) => {
+	server.registerResource(
+		"release",
+		new ResourceTemplate("discogs://release/{id}", { list: undefined }),
+		{
+			mimeType: "application/json",
+			description: "Detailed information about a specific Discogs release. Replace {id} with the release ID.",
+		},
+		async (uri, variables) => {
 			const { session } = await getSessionContext();
 
 			if (!session) {
@@ -86,14 +88,13 @@ export function registerResources(
 			}
 
 			try {
-				// Extract release ID from URI
-				const releaseId = uri.replace("discogs://release/", "");
-				if (!releaseId || releaseId.includes("{")) {
+				const releaseId = variables.id;
+				if (!releaseId) {
 					throw new Error("Invalid release URI - must specify a release ID");
 				}
 
 				const release = await client.getRelease(
-					releaseId,
+					releaseId as string,
 					session.accessToken,
 					session.accessTokenSecret,
 					env.DISCOGS_CONSUMER_KEY,
@@ -103,7 +104,7 @@ export function registerResources(
 				return {
 					contents: [
 						{
-							uri,
+							uri: uri.toString(),
 							mimeType: "application/json",
 							text: JSON.stringify(release, null, 2),
 						},
@@ -118,11 +119,14 @@ export function registerResources(
 	);
 
 	// Search resource (template with query parameter)
-	server.resource(
-		"discogs://search?q={query}",
-		"Search results from user's collection. Replace {query} with search terms.",
-		"application/json",
-		async (uri: string) => {
+	server.registerResource(
+		"search",
+		new ResourceTemplate("discogs://search?q={query}", { list: undefined }),
+		{
+			mimeType: "application/json",
+			description: "Search results from user's collection. Replace {query} with search terms.",
+		},
+		async (uri, variables) => {
 			const { session } = await getSessionContext();
 
 			if (!session) {
@@ -130,9 +134,8 @@ export function registerResources(
 			}
 
 			try {
-				// Parse query parameter from URI
-				const url = new URL(uri.replace("discogs://", "https://example.com/"));
-				const query = url.searchParams.get("q");
+				// We can get query directly from variables now!
+				const query = variables.query;
 
 				if (!query) {
 					throw new Error("Invalid search URI - query parameter is required");
@@ -150,7 +153,7 @@ export function registerResources(
 					session.accessToken,
 					session.accessTokenSecret,
 					{
-						query,
+						query: query as string,
 						per_page: 50,
 					},
 					env.DISCOGS_CONSUMER_KEY,
@@ -160,7 +163,7 @@ export function registerResources(
 				return {
 					contents: [
 						{
-							uri,
+							uri: uri.toString(),
 							mimeType: "application/json",
 							text: JSON.stringify(searchResults, null, 2),
 						},

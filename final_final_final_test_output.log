@@ -1,0 +1,607 @@
+
+> discogs-mcp@0.0.0 test
+> vitest
+
+
+ DEV  v3.0.9 /Users/rian/Documents/GitHub/discogs-mcp
+
+[vpw:info] Starting isolated runtimes for vitest.config.mts...
+stdout | test/utils/retry.test.ts > Retry Utility > withRetry > should retry on failure and eventually succeed
+Retry attempt 1/3 after 105.07542947043041ms delay
+
+stdout | test/utils/retry.test.ts > Retry Utility > withRetry > should retry on failure and eventually succeed
+Retry attempt 2/3 after 209.2989453022122ms delay
+
+stdout | test/utils/retry.test.ts > Retry Utility > withRetry > should fail after max retries
+Retry attempt 1/2 after 107.28059324131169ms delay
+
+stdout | test/utils/retry.test.ts > Retry Utility > withRetry > should fail after max retries
+Retry attempt 2/2 after 217.51738373796633ms delay
+
+stdout | test/utils/retry.test.ts > Retry Utility > fetchWithRetry > should retry on 429 status
+Retry attempt 1/3 after 2171.2410020612647ms delay
+
+stdout | test/utils/retry.test.ts > Retry Utility > fetchWithRetry > should parse Retry-After header in seconds
+Retry attempt 1/3 after 5123.848001793487ms delay
+
+stdout | test/clients/discogs.test.ts > Discogs Client > searchCollection > should return all items when no query is provided
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fper_page%3D50&oauth_consumer_key%3Dtest-key%26oauth_nonce%3DNsO26w8ImzItGpmYa4aMT1AH9k0nFl72%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811100%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-secret-key&test-secret
+OAuth signature: LZwGypBSYqtjtUQHAxTDvKJIOCE=
+
+stdout | test/utils/retry.test.ts > Retry Utility > fetchWithRetry > should parse Retry-After header as HTTP date
+Retry attempt 1/3 after 2185.1841479220493ms delay
+
+stdout | test/clients/discogs.test.ts > Discogs Client > searchCollection > should filter by artist name when query is provided
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fpage%3D1%26per_page%3D100%26sort%3Dadded%26sort_order%3Ddesc&oauth_consumer_key%3Dtest-key%26oauth_nonce%3DXjSTXOLl5gGNYTtrSCoGUWfTM5yKA7po%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811100%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-secret-key&test-secret
+OAuth signature: T9cCFCTBrAgGjXixzY9ATCpXeWY=
+
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > getRequestToken > should successfully get a request token
+Getting OAuth header for request token...
+
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > getRequestToken > should successfully get a request token
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Foauth%2Frequest_token&oauth_callback%3Dhttp%253A%252F%252Flocalhost%253A3000%252Fcallback%26oauth_consumer_key%3Dtest-consumer-key%26oauth_nonce%3DRJSuIjZBNss5eGHue6NW9t28TG9FiaPM%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811100%26oauth_version%3D1.0
+OAuth signing key: test-consumer-secret&
+OAuth signature: HTFqzzA3NHowoxJpAQWYJ3APRjo=
+
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > getRequestToken > should successfully get a request token
+Authorization header: OAuth oauth_consumer_key="test-consumer-key", oauth_nonce="RJSuIjZBNss5eGHue6NW9t28TG9FiaPM", oauth_signature_method="HMAC-SHA1", oauth_timestamp="1765811100", oauth_version="1.0", oauth_callback="http%3A%2F%2Flocalhost%3A3000%2Fcallback", oauth_signature="HTFqzzA3NHowoxJpAQWYJ3APRjo%3D"
+Making request to: https://api.discogs.com/oauth/request_token
+
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > getRequestToken > should successfully get a request token
+Discogs response: oauth_token=test-token&oauth_token_secret=test-secret&oauth_callback_confirmed=true
+
+ ✓ test/utils/kvLogger.test.ts (6 tests) 464ms
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > getRequestToken > should handle API errors
+Getting OAuth header for request token...
+
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > getRequestToken > should handle API errors
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Foauth%2Frequest_token&oauth_callback%3Dhttp%253A%252F%252Flocalhost%253A3000%252Fcallback%26oauth_consumer_key%3Dtest-consumer-key%26oauth_nonce%3DFZmXmUXXnbRTZuLny5wkoa1F6Zd38VZY%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811101%26oauth_version%3D1.0
+OAuth signing key: test-consumer-secret&
+OAuth signature: 2CSCUnv4chOZnKmbsN8tyfhzNWo=
+
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > getRequestToken > should handle API errors
+Authorization header: OAuth oauth_consumer_key="test-consumer-key", oauth_nonce="FZmXmUXXnbRTZuLny5wkoa1F6Zd38VZY", oauth_signature_method="HMAC-SHA1", oauth_timestamp="1765811101", oauth_version="1.0", oauth_callback="http%3A%2F%2Flocalhost%3A3000%2Fcallback", oauth_signature="2CSCUnv4chOZnKmbsN8tyfhzNWo%3D"
+Making request to: https://api.discogs.com/oauth/request_token
+
+stderr | test/auth/discogs.spec.ts > DiscogsAuth > getRequestToken > should handle API errors
+Discogs API error: ResponseError: HTTP 401: Unauthorized
+    at withRetry (/Users/rian/Documents/GitHub/discogs-mcp/src/utils/retry.ts:178:11)
+    at withRetry (/Users/rian/Documents/GitHub/discogs-mcp/src/utils/retry.ts:108:17)
+    at fetchWithRetry (/Users/rian/Documents/GitHub/discogs-mcp/src/utils/retry.ts:171:17)
+    at DiscogsAuth.getRequestToken (/Users/rian/Documents/GitHub/discogs-mcp/src/auth/discogs.ts:179:21)
+    at /Users/rian/Documents/GitHub/discogs-mcp/test/auth/discogs.spec.ts:61:4
+    at Users/rian/Documents/GitHub/discogs-mcp/node_modules/@vitest/runner/dist/index.js:573:22 {
+  response: {
+    ok: false,
+    status: 401,
+    statusText: 'Unauthorized',
+    text: [Function: text]
+  }
+}
+
+stdout | test/utils/retry.test.ts > Retry Utility > fetchWithRetry > should retry on 5xx errors
+Retry attempt 1/3 after 102.93296711825559ms delay
+
+stdout | test/clients/discogs.test.ts > Discogs Client > searchCollection > should filter by album title when query is provided
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fpage%3D1%26per_page%3D100%26sort%3Dadded%26sort_order%3Ddesc&oauth_consumer_key%3Dtest-key%26oauth_nonce%3D6dESBuxy2ye2LaNpE1yd993b7MB66Jeb%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811101%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-secret-key&test-secret
+OAuth signature: rJBLK/7h/FX7wj27XuF6y8AtXL4=
+
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > getRequestToken > should handle malformed responses
+Getting OAuth header for request token...
+
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > getRequestToken > should handle malformed responses
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Foauth%2Frequest_token&oauth_callback%3Dhttp%253A%252F%252Flocalhost%253A3000%252Fcallback%26oauth_consumer_key%3Dtest-consumer-key%26oauth_nonce%3Dv8H0qPchiKA89mbGXVfLOml8Ih3ALPBZ%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811101%26oauth_version%3D1.0
+OAuth signing key: test-consumer-secret&
+OAuth signature: 3JCVAETrye/SGKjAbe1oSJQsR/Y=
+
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > getRequestToken > should handle malformed responses
+Authorization header: OAuth oauth_consumer_key="test-consumer-key", oauth_nonce="v8H0qPchiKA89mbGXVfLOml8Ih3ALPBZ", oauth_signature_method="HMAC-SHA1", oauth_timestamp="1765811101", oauth_version="1.0", oauth_callback="http%3A%2F%2Flocalhost%3A3000%2Fcallback", oauth_signature="3JCVAETrye%2FSGKjAbe1oSJQsR%2FY%3D"
+Making request to: https://api.discogs.com/oauth/request_token
+
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > getRequestToken > should handle malformed responses
+Discogs response: invalid_response
+
+stderr | test/auth/discogs.spec.ts > DiscogsAuth > getRequestToken > should handle malformed responses
+Discogs API error: Error: Invalid response from Discogs: missing oauth_token or oauth_token_secret
+    at DiscogsAuth.getRequestToken (/Users/rian/Documents/GitHub/discogs-mcp/src/auth/discogs.ts:201:11)
+    at /Users/rian/Documents/GitHub/discogs-mcp/test/auth/discogs.spec.ts:74:4
+    at Users/rian/Documents/GitHub/discogs-mcp/node_modules/@vitest/runner/dist/index.js:573:22
+
+ ✓ test/utils/retry.test.ts (9 tests) 609ms
+ ✓ test/utils/moodMapping.test.ts (10 tests) 576ms
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > getAccessToken > should successfully exchange for access token
+OAuth signature base string: POST&https%3A%2F%2Fapi.discogs.com%2Foauth%2Faccess_token&oauth_consumer_key%3Dtest-consumer-key%26oauth_nonce%3DpovtQpzskCBwIvxnQWojYL4oOibwhD9P%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811101%26oauth_token%3Drequest-token%26oauth_verifier%3Dverifier%26oauth_version%3D1.0
+OAuth signing key: test-consumer-secret&request-secret
+OAuth signature: 2Z+wEVzYikt8FYUaPnvN/CVbUd0=
+
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > getAccessToken > should handle access token errors
+OAuth signature base string: POST&https%3A%2F%2Fapi.discogs.com%2Foauth%2Faccess_token&oauth_consumer_key%3Dtest-consumer-key%26oauth_nonce%3Dpj4xxVQihE6U0UCWkhPxCDe58ipwNXZH%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811101%26oauth_token%3Drequest-token%26oauth_verifier%3Dinvalid-verifier%26oauth_version%3D1.0
+OAuth signing key: test-consumer-secret&request-secret
+OAuth signature: j207y+K0Nm6ndpSJv2WQSUqMOdo=
+
+stderr | test/auth/discogs.spec.ts > DiscogsAuth > getAccessToken > should handle access token errors
+Discogs API error: ResponseError: HTTP 401: Unauthorized
+    at withRetry (/Users/rian/Documents/GitHub/discogs-mcp/src/utils/retry.ts:178:11)
+    at withRetry (/Users/rian/Documents/GitHub/discogs-mcp/src/utils/retry.ts:108:17)
+    at fetchWithRetry (/Users/rian/Documents/GitHub/discogs-mcp/src/utils/retry.ts:171:17)
+    at DiscogsAuth.getAccessToken (/Users/rian/Documents/GitHub/discogs-mcp/src/auth/discogs.ts:244:21)
+    at /Users/rian/Documents/GitHub/discogs-mcp/test/auth/discogs.spec.ts:127:4
+    at Users/rian/Documents/GitHub/discogs-mcp/node_modules/@vitest/runner/dist/index.js:573:22 {
+  response: {
+    ok: false,
+    status: 401,
+    statusText: 'Unauthorized',
+    text: [Function: text]
+  }
+}
+
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > getAccessToken > should handle malformed access token responses
+OAuth signature base string: POST&https%3A%2F%2Fapi.discogs.com%2Foauth%2Faccess_token&oauth_consumer_key%3Dtest-consumer-key%26oauth_nonce%3DkmHoVDqv3wWDkm8f9BEb7YKY1iFFRDoQ%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811101%26oauth_token%3Drequest-token%26oauth_verifier%3Dverifier%26oauth_version%3D1.0
+OAuth signing key: test-consumer-secret&request-secret
+OAuth signature: zdQIRtwa0A6o6eTvKOp7zceB74U=
+
+stderr | test/auth/discogs.spec.ts > DiscogsAuth > getAccessToken > should handle malformed access token responses
+Discogs API error: Error: Invalid response from Discogs: missing oauth_token or oauth_token_secret
+    at DiscogsAuth.getAccessToken (/Users/rian/Documents/GitHub/discogs-mcp/src/auth/discogs.ts:265:11)
+    at /Users/rian/Documents/GitHub/discogs-mcp/test/auth/discogs.spec.ts:140:4
+    at Users/rian/Documents/GitHub/discogs-mcp/node_modules/@vitest/runner/dist/index.js:573:22
+
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > getAuthHeaders > should generate correct auth headers for API requests
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftest&oauth_consumer_key%3Dtest-consumer-key%26oauth_nonce%3DeNlDzNdTlSSQVqi2lTCozYAkyhfz3aS4%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811101%26oauth_token%3Daccess-token%26oauth_version%3D1.0
+OAuth signing key: test-consumer-secret&access-secret
+OAuth signature: ytOoJ77IGVLAiP0KTsNm/HAzlFI=
+
+stdout | test/clients/discogs.test.ts > Discogs Client > searchCollection > should filter by genre when query is provided
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fpage%3D1%26per_page%3D100%26sort%3Dadded%26sort_order%3Ddesc&oauth_consumer_key%3Dtest-key%26oauth_nonce%3D7MRLbP5rnGUiNy3N4phqqXJN7tRfLhgQ%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811101%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-secret-key&test-secret
+OAuth signature: iPQCgei/WOHu4ZjxYNlycHNn1WM=
+
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > OAuth signature generation > should generate consistent signatures for the same parameters
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Ftest&oauth_consumer_key%3Dtest-consumer-key%26oauth_nonce%3Dffffffffffffffffffffffffffffffff%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1672531200%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-consumer-secret&test-secret
+OAuth signature: g06ttDnmU3albDFhbKWiPttm5uk=
+
+stdout | test/auth/discogs.spec.ts > DiscogsAuth > OAuth signature generation > should generate consistent signatures for the same parameters
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Ftest&oauth_consumer_key%3Dtest-consumer-key%26oauth_nonce%3Dffffffffffffffffffffffffffffffff%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1672531200%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-consumer-secret&test-secret
+OAuth signature: g06ttDnmU3albDFhbKWiPttm5uk=
+
+ ✓ test/utils/rateLimit.test.ts (15 tests) 698ms
+ ✓ test/auth/discogs.spec.ts (9 tests) 349ms
+stdout | test/clients/discogs.test.ts > Discogs Client > searchCollection > should return empty results when no matches found
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fpage%3D1%26per_page%3D100%26sort%3Dadded%26sort_order%3Ddesc&oauth_consumer_key%3Dtest-key%26oauth_nonce%3DhJRM2qCVW2GhogL47C3wWM1ZgNYBy0iV%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811101%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-secret-key&test-secret
+OAuth signature: rE2vQtDbPmbIuOf0kaooJjIWu40=
+
+stdout | test/clients/discogs.test.ts > Discogs Client > searchCollection > should handle case-insensitive search
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fpage%3D1%26per_page%3D100%26sort%3Dadded%26sort_order%3Ddesc&oauth_consumer_key%3Dtest-key%26oauth_nonce%3DSmw6G6ccDICl76JRwBJ1iXsn0DxK0g5c%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811101%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-secret-key&test-secret
+OAuth signature: MoIrcbvF1/AQ6vL1YdlTugvowdE=
+
+stdout | test/clients/discogs.test.ts > Discogs Client > searchCollection > should find releases with multi-word queries like "Miles Davis Kind of Blue"
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fpage%3D1%26per_page%3D100%26sort%3Dadded%26sort_order%3Ddesc&oauth_consumer_key%3Dtest-key%26oauth_nonce%3Dhl9jQURZKJs9gS79IE77nNYmEmLEE1ge%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811101%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-secret-key&test-secret
+OAuth signature: PCzH+VA996dmUezzqj0mXyKSdec=
+
+stdout | test/clients/discogs.test.ts > Discogs Client > searchCollection > should handle decade queries like "1960s" matching years in that decade
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fpage%3D1%26per_page%3D100%26sort%3Dadded%26sort_order%3Ddesc&oauth_consumer_key%3Dtest-key%26oauth_nonce%3D292BxfxJgMBd1jEz0W2XmpE2odE1VZgq%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811101%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-secret-key&test-secret
+OAuth signature: DjxGs0+XR6OxplpNGQoUH8kI/oY=
+
+stdout | test/clients/discogs.test.ts > Discogs Client > searchCollection > should handle multiple decades with OR logic (1960s OR 1970s)
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fpage%3D1%26per_page%3D100%26sort%3Dadded%26sort_order%3Ddesc&oauth_consumer_key%3Dtest-key%26oauth_nonce%3DgsipN9Xnc4YF8Pquagxc6mRFIHuKoRAz%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811101%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-secret-key&test-secret
+OAuth signature: XESYTP+K4HjHwS6h378J21Ys78Y=
+
+stdout | test/clients/discogs.test.ts > Discogs Client > searchCollection > should handle complex style and decade queries like "post-bop 1960s 1970s vinyl"
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fpage%3D1%26per_page%3D100%26sort%3Dadded%26sort_order%3Ddesc&oauth_consumer_key%3Dtest-key%26oauth_nonce%3DFw3XrkpWh3obyEQwRnayND1iM7k8Osal%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811102%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-secret-key&test-secret
+OAuth signature: 9V5pxvk3WE1nt6/URPCL/m3/hek=
+
+stdout | test/clients/discogs.test.ts > Discogs Client > searchCollection > should find release by specific ID 654321
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fpage%3D1%26per_page%3D100%26sort%3Dadded%26sort_order%3Ddesc&oauth_consumer_key%3Dtest-key%26oauth_nonce%3D3HXaRO5pwVHLf794zOhsWuvO8VjRmpeA%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811102%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-secret-key&test-secret
+OAuth signature: kkVdHlFs+Ggg77UzuljxyZUIrlY=
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/logging-ratelimit.test.ts > Logging and Rate Limiting Integration > should log successful MCP requests
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/index.spec.ts > Discogs MCP Server > should handle initialize request
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+Response status: 200 Text length: 270 Text: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInf
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/logging-ratelimit.test.ts > Logging and Rate Limiting Integration > should log parse errors
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+Response status: 200 Text length: 270 Text: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInf
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+Session ID extraction: { providedSessionId: 'mcp-efa543eedde602b1b37f96fe50283eb1' }
+Looking up KV key: session:mcp-efa543eedde602b1b37f96fe50283eb1
+
+stdout | test/integration/logging-ratelimit.test.ts > Logging and Rate Limiting Integration > should apply rate limiting and log rate limit errors
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/index.spec.ts > Discogs MCP Server > should handle parse errors
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+No session found for key: session:mcp-efa543eedde602b1b37f96fe50283eb1
+
+stdout | test/clients/discogs.test.ts > Discogs Client > searchCollection > should handle temporal queries like "rock vinyl recent"
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fpage%3D1%26per_page%3D100%26sort%3Dadded%26sort_order%3Ddesc&oauth_consumer_key%3Dtest-key%26oauth_nonce%3DKh6d5g77E13T74Xub8niJ7s5esjnCJYO%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811102%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-secret-key&test-secret
+OAuth signature: U3LxpLb3ORNox3LLSTK0Yps6Fzs=
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+Response status: 200 Text length: 137 Text: event: message
+data: {"jsonrpc":"2.0","id":2,"error":{"code":-32603,"message":"Authentication required to access collection resource"}}
+
+
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/index.spec.ts > Discogs MCP Server > should handle empty body
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/logging-ratelimit.test.ts > Logging and Rate Limiting Integration > should skip rate limiting for initialize method
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Response status: 200 Text length: 270 Text: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInf
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Response status: 200 Text length: 224 Text: event: message
+data: {"result":{"resources":[{"uri":"discogs://collection","name":"collection","mimeType":"application/json","description":"Complete Discogs collection for the authenticated user"}]},"
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Session ID extraction: { providedSessionId: 'mcp-efa543eedde602b1b37f96fe50283eb1' }
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Fetching fresh data for userProfiles:test-access-token
+Making OAuth request to /oauth/identity with token: test-acces...
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Foauth%2Fidentity&oauth_consumer_key%3Dtest-key%26oauth_nonce%3Dv4eU2B28XX5Rg7SbYGPTbgzCkMwdVgap%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811102%26oauth_token%3Dtest-access-token%26oauth_version%3D1.0
+OAuth signing key: test-secret&test-access-secret
+OAuth signature: IV12QhpDJtNFLmrjWT1VL2YHSro=
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Fetching fresh data for collections:testuser:all:default:desc
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fper_page%3D100&oauth_consumer_key%3Dtest-key%26oauth_nonce%3D45OCOnd9r0y8D7kpSYVllXbVXlwluN68%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811102%26oauth_token%3Dtest-access-token%26oauth_version%3D1.0
+OAuth signing key: test-secret&test-access-secret
+OAuth signature: 3SHN2U/kiPi93qDVmHYtLg5zVjA=
+
+stdout | test/integration/logging-ratelimit.test.ts > Logging and Rate Limiting Integration > should handle missing KV namespaces gracefully
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/logging-ratelimit.test.ts > Logging and Rate Limiting Integration > should handle empty request body
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+ ❯ test/index.spec.ts (6 tests | 3 failed) 73ms
+   × Discogs MCP Server > should handle initialize request 15ms
+     → expected 406 to be 200 // Object.is equality
+   ✓ Discogs MCP Server > should return server info for GET requests to main endpoint
+   × Discogs MCP Server > should handle parse errors 6ms
+     → expected 406 to be 200 // Object.is equality
+   × Discogs MCP Server > should handle empty body 5ms
+     → expected 406 to be 200 // Object.is equality
+   ✓ Discogs MCP Server > should return 404 for unknown paths
+   ✓ Discogs MCP Server > should return 404 for unknown paths
+stdout | test/integration/logging-ratelimit.test.ts > Logging and Rate Limiting Integration > should measure request latency accurately
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+ ❯ test/integration/logging-ratelimit.test.ts (7 tests | 7 failed) 88ms
+   × Logging and Rate Limiting Integration > should log successful MCP requests 18ms
+     → expected 406 to be 200 // Object.is equality
+   × Logging and Rate Limiting Integration > should log parse errors 3ms
+     → expected 406 to be 200 // Object.is equality
+   × Logging and Rate Limiting Integration > should apply rate limiting and log rate limit errors 5ms
+     → expected 406 to be 429 // Object.is equality
+   × Logging and Rate Limiting Integration > should skip rate limiting for initialize method 5ms
+     → expected 406 to be 200 // Object.is equality
+   × Logging and Rate Limiting Integration > should handle missing KV namespaces gracefully 4ms
+     → expected 406 to be 200 // Object.is equality
+   × Logging and Rate Limiting Integration > should handle empty request body 3ms
+     → expected 406 to be 200 // Object.is equality
+   × Logging and Rate Limiting Integration > should measure request latency accurately 3ms
+     → undefined is not iterable (cannot read property Symbol(Symbol.iterator))
+stdout | test/clients/discogs.test.ts > Discogs Client > searchCollection > should use OR logic for multi-word genre searches like "ambient drone progressive"
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fpage%3D1%26per_page%3D100%26sort%3Dadded%26sort_order%3Ddesc&oauth_consumer_key%3Dtest-key%26oauth_nonce%3D5N4jcFC52IZUxpdPpGJJ1HBIbEgLp6F0%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811102%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-secret-key&test-secret
+OAuth signature: xswbeusFE2OdTc71Ci4e8KjdJyw=
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Response status: 200 Text length: 2115 Text: event: message
+data: {"result":{"contents":[{"uri":"discogs://collection","mimeType":"application/json","text":"{\n  \"releases\": [\n    {\n      \"id\": 123456,\n      \"instance_id\": 123456,\n    
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Response status: 200 Text length: 3681 Text: event: message
+data: {"result":{"tools":[{"name":"ping","description":"Test connectivity to the Discogs MCP server","inputSchema":{"$schema":"http://json-schema.org/draft-07/schema#","type":"object","
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Session ID extraction: { providedSessionId: 'mcp-efa543eedde602b1b37f96fe50283eb1' }
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Fetching fresh data for userProfiles:test-access-token
+Making OAuth request to /oauth/identity with token: test-acces...
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Foauth%2Fidentity&oauth_consumer_key%3Dtest-key%26oauth_nonce%3DLHHOWtAjGUJ48VAzxDeduCe31ySTmmSX%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811102%26oauth_token%3Dtest-access-token%26oauth_version%3D1.0
+OAuth signing key: test-secret&test-access-secret
+OAuth signature: AV7yLEHPCncRvX5PhoJ7krihdO0=
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Fetching fresh data for searches:testuser:Beatles:1
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fpage%3D1%26per_page%3D100%26sort%3Dadded%26sort_order%3Ddesc&oauth_consumer_key%3Dtest-key%26oauth_nonce%3DskJMWoMqTMyRzJTSDABFDILDCS7OSMKO%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811102%26oauth_token%3Dtest-access-token%26oauth_version%3D1.0
+OAuth signing key: test-secret&test-access-secret
+OAuth signature: 0Qx0Dyt6xO0CYN3kKIp2MPwhFu8=
+
+stdout | test/clients/discogs.test.ts > Discogs Client > searchCollection > should prioritize releases with more matching terms using relevance scoring
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fpage%3D1%26per_page%3D100%26sort%3Dadded%26sort_order%3Ddesc&oauth_consumer_key%3Dtest-key%26oauth_nonce%3DrKOBDR5W2kf3DzJvvl8R2c5E93zpk8Jf%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811102%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-secret-key&test-secret
+OAuth signature: SSKnPx7ehEelu+44CybHKniTn0s=
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Response status: 200 Text length: 372 Text: event: message
+data: {"result":{"content":[{"type":"text","text":"Found 1 results for \"Beatles\" in your collection (showing 1 items):\n• [ID: 123456] The Beatles - Abbey Road (1969)\n  Format: Vinyl
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Response status: 200 Text length: 421 Text: event: message
+data: {"result":{"prompts":[{"name":"browse_collection","description":"Browse and explore your Discogs music collection","arguments":[]},{"name":"find_music","description":"Find specifi
+
+ ✓ test/integration/mcp-client.test.ts (3 tests) 374ms
+   ✓ MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features 316ms
+stdout | test/clients/discogs.test.ts > Discogs Client > searchCollection > should prioritize mood-relevant releases for contextual queries like "cooking dinner mellow upbeat background"
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fpage%3D1%26per_page%3D100%26sort%3Dadded%26sort_order%3Ddesc&oauth_consumer_key%3Dtest-key%26oauth_nonce%3D0Tlfp8MhWoe3mH4i3HzmOlRrlSEUmn7x%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811102%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-secret-key&test-secret
+OAuth signature: lMJGg3+GM81WGVgesdKWq4eQ4Jg=
+
+stdout | test/clients/discogs.test.ts > Discogs Client > searchCollection > should not trigger mood detection for specific album searches like "Dark Side of the Moon"
+OAuth signature base string: GET&https%3A%2F%2Fapi.discogs.com%2Fusers%2Ftestuser%2Fcollection%2Ffolders%2F0%2Freleases%3Fpage%3D1%26per_page%3D100%26sort%3Dadded%26sort_order%3Ddesc&oauth_consumer_key%3Dtest-key%26oauth_nonce%3DUbOgNaFRLdvbpdo8MMJ1trfDH4fPWfzA%26oauth_signature_method%3DHMAC-SHA1%26oauth_timestamp%3D1765811102%26oauth_token%3Dtest-token%26oauth_version%3D1.0
+OAuth signing key: test-secret-key&test-secret
+OAuth signature: nwti8ItLgU/eDrFDfcITrApTn+Y=
+
+ ✓ test/clients/discogs.test.ts (16 tests) 2313ms
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 10 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/index.spec.ts > Discogs MCP Server > should handle initialize request
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/index.spec.ts:34:27
+     32|   await waitOnExecutionContext(ctx)
+     33| 
+     34|   expect(response.status).toBe(200)
+       |                           ^
+     35|   expect(response.headers.get('content-type')).toBe('application/json')
+     36| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/10]⎯
+
+ FAIL  test/index.spec.ts > Discogs MCP Server > should handle parse errors
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/index.spec.ts:89:27
+     87|   await waitOnExecutionContext(ctx)
+     88| 
+     89|   expect(response.status).toBe(200) // JSON-RPC errors still return 200
+       |                           ^
+     90|   const result = await response.json()
+     91|   expect(result).toMatchObject({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/10]⎯
+
+ FAIL  test/index.spec.ts > Discogs MCP Server > should handle empty body
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/index.spec.ts:115:27
+    113|   await waitOnExecutionContext(ctx)
+    114| 
+    115|   expect(response.status).toBe(200)
+       |                           ^
+    116|   const result = await response.json()
+    117|   expect(result).toMatchObject({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/10]⎯
+
+ FAIL  test/integration/logging-ratelimit.test.ts > Logging and Rate Limiting Integration > should log successful MCP requests
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/integration/logging-ratelimit.test.ts:60:27
+     58|   const response = await worker.fetch(request, mockEnv, {} as any)
+     59| 
+     60|   expect(response.status).toBe(200)
+       |                           ^
+     61| 
+     62|   // Verify logging was called
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/10]⎯
+
+ FAIL  test/integration/logging-ratelimit.test.ts > Logging and Rate Limiting Integration > should log parse errors
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/integration/logging-ratelimit.test.ts:89:27
+     87|   const response = await worker.fetch(request, mockEnv, {} as any)
+     88| 
+     89|   expect(response.status).toBe(200)
+       |                           ^
+     90| 
+     91|   // Verify error logging was called
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/10]⎯
+
+ FAIL  test/integration/logging-ratelimit.test.ts > Logging and Rate Limiting Integration > should apply rate limiting and log rate limit errors
+AssertionError: expected 406 to be 429 // Object.is equality
+
+- Expected
++ Received
+
+- 429
++ 406
+
+ ❯ test/integration/logging-ratelimit.test.ts:125:27
+    123|   const response = await worker.fetch(request, mockEnv, {} as any)
+    124| 
+    125|   expect(response.status).toBe(429)
+       |                           ^
+    126|   expect(response.headers.get('Retry-After')).toBeDefined()
+    127| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/10]⎯
+
+ FAIL  test/integration/logging-ratelimit.test.ts > Logging and Rate Limiting Integration > should skip rate limiting for initialize method
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/integration/logging-ratelimit.test.ts:167:27
+    165| 
+    166|   // Should succeed despite rate limit
+    167|   expect(response.status).toBe(200)
+       |                           ^
+    168| 
+    169|   // Rate limiting should not have been checked for initialize
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/10]⎯
+
+ FAIL  test/integration/logging-ratelimit.test.ts > Logging and Rate Limiting Integration > should handle missing KV namespaces gracefully
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/integration/logging-ratelimit.test.ts:207:27
+    205| 
+    206|   // Should still work without KV namespaces
+    207|   expect(response.status).toBe(200)
+       |                           ^
+    208| 
+    209|   // No KV operations should have been attempted
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/10]⎯
+
+ FAIL  test/integration/logging-ratelimit.test.ts > Logging and Rate Limiting Integration > should handle empty request body
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/integration/logging-ratelimit.test.ts:223:27
+    221|   const response = await worker.fetch(request, mockEnv, {} as any)
+    222| 
+    223|   expect(response.status).toBe(200)
+       |                           ^
+    224| 
+    225|   // Verify error logging was called
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/10]⎯
+
+ FAIL  test/integration/logging-ratelimit.test.ts > Logging and Rate Limiting Integration > should measure request latency accurately
+TypeError: undefined is not iterable (cannot read property Symbol(Symbol.iterator))
+ ❯ test/integration/logging-ratelimit.test.ts:262:24
+    260|   const endTime = Date.now()
+    261| 
+    262|   const [, logValue] = mockMCP_LOGS.put.mock.calls[0]
+       |                        ^
+    263|   const logEntry = JSON.parse(logValue)
+    264| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/10]⎯
+
+
+ Test Files  2 failed | 7 passed (9)
+      Tests  10 failed | 71 passed (81)
+   Start at  07:04:56
+   Duration  6.50s (transform 431ms, setup 0ms, collect 6.81s, tests 5.54s, environment 2ms, prepare 10.40s)
+
+ FAIL  Tests failed. Watching for file changes...
+       press h to show help, press q to quit
+Test removed... [ test/index.spec.ts ]
+
+Test removed... [ test/integration/logging-ratelimit.test.ts ]
+

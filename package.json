@@ -16,13 +16,15 @@
 		"format": "prettier --write .",
 		"format:check": "prettier --check .",
 		"build": "wrangler deploy --dry-run --outdir dist",
-		"setup:prod": "./scripts/setup-production.sh"
+		"setup:prod": "./scripts/setup-production.sh",
+		"postinstall": "node scripts/patch-ajv.js"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-pool-workers": "^0.8.19",
 		"@cloudflare/workers-types": "^4.20250607.0",
 		"@typescript-eslint/eslint-plugin": "^8.33.1",
 		"@typescript-eslint/parser": "^8.33.1",
+		"ajv": "^8.17.1",
 		"eslint": "^8.57.1",
 		"eslint-config-prettier": "^10.1.5",
 		"prettier": "^3.5.3",

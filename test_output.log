@@ -1,0 +1,517 @@
+
+> discogs-mcp@0.0.0 test
+> vitest test/integration/mcp-client.test.ts
+
+
+ DEV  v3.0.9 /Users/rian/Documents/GitHub/discogs-mcp
+
+[vpw:info] Starting isolated runtimes for vitest.config.mts...
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+ ❯ test/integration/mcp-client.test.ts (3 tests | 3 failed) 43ms
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake 13ms
+     → Empty response body
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources 8ms
+     → Empty response body
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features 4ms
+     → Empty response body
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+Error: Empty response body
+ ❯ MockMCPClient.makeRequest test/integration/mcp-client.test.ts:166:10
+    164|    }
+    165|    // Empty response is also invalid for non-204 status
+    166|    throw new Error('Empty response body')
+       |          ^
+    167|   }
+    168|  }
+ ❯ test/integration/mcp-client.test.ts:333:29
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+Error: Empty response body
+ ❯ MockMCPClient.makeRequest test/integration/mcp-client.test.ts:166:10
+    164|    }
+    165|    // Empty response is also invalid for non-204 status
+    166|    throw new Error('Empty response body')
+       |          ^
+    167|   }
+    168|  }
+ ❯ test/integration/mcp-client.test.ts:339:4
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Error: Empty response body
+ ❯ MockMCPClient.makeRequest test/integration/mcp-client.test.ts:166:10
+    164|    }
+    165|    // Empty response is also invalid for non-204 status
+    166|    throw new Error('Empty response body')
+       |          ^
+    167|   }
+    168|  }
+ ❯ test/integration/mcp-client.test.ts:353:4
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed (3)
+   Start at  06:52:11
+   Duration  1.50s (transform 106ms, setup 0ms, collect 495ms, tests 43ms, environment 1ms, prepare 119ms)
+
+ FAIL  Tests failed. Watching for file changes...
+       press h to show help, press q to quit
+c[3J RERUN  test/integration/mcp-client.test.ts x1 
+        Filename pattern: test/integration/mcp-client.test.ts
+
+[vpw:debug] Reusing runtime for vitest.config.mts...
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+Response status: 200 Text length: 270 Text: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInf
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+Response status: 202 Text length: 0 Text: 
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+Response status: 200 Text length: 270 Text: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInf
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+Response status: 202 Text length: 0 Text: 
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Response status: 200 Text length: 270 Text: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInf
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Response status: 202 Text length: 0 Text: 
+
+ ❯ test/integration/mcp-client.test.ts (3 tests | 3 failed) 100ms
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake 16ms
+     → Empty response body (status: 202)
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources 8ms
+     → Empty response body (status: 202)
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features 9ms
+     → Empty response body (status: 202)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+Error: Empty response body (status: 202)
+ ❯ MockMCPClient.makeRequest test/integration/mcp-client.test.ts:167:3
+    165|    }
+    166|    // Empty response is also invalid for non-204 status
+    167|    throw new Error(`Empty response body (status: ${response.status})`)
+       |   ^
+    168|   }
+    169|  }
+ ❯ test/integration/mcp-client.test.ts:334:4
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+Error: Empty response body (status: 202)
+ ❯ MockMCPClient.makeRequest test/integration/mcp-client.test.ts:167:3
+    165|    }
+    166|    // Empty response is also invalid for non-204 status
+    167|    throw new Error(`Empty response body (status: ${response.status})`)
+       |   ^
+    168|   }
+    169|  }
+ ❯ test/integration/mcp-client.test.ts:341:4
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Error: Empty response body (status: 202)
+ ❯ MockMCPClient.makeRequest test/integration/mcp-client.test.ts:167:3
+    165|    }
+    166|    // Empty response is also invalid for non-204 status
+    167|    throw new Error(`Empty response body (status: ${response.status})`)
+       |   ^
+    168|   }
+    169|  }
+ ❯ test/integration/mcp-client.test.ts:354:4
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed (3)
+   Start at  06:52:46
+   Duration  369ms
+
+ FAIL  Tests failed. Watching for file changes...
+       press h to show help, press q to quit
+c[3J RERUN  test/integration/mcp-client.test.ts x2 
+        Filename pattern: test/integration/mcp-client.test.ts
+
+[vpw:debug] Reusing runtime for vitest.config.mts...
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+Response status: 200 Text length: 270 Text: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInf
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+Response status: 202 Text length: 0 Text: 
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+Response status: 200 Text length: 270 Text: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInf
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+Response status: 202 Text length: 0 Text: 
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Response status: 200 Text length: 270 Text: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInf
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Response status: 202 Text length: 0 Text: 
+
+ ❯ test/integration/mcp-client.test.ts (3 tests | 3 failed) 412ms
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake 39ms
+     → Empty response body (status: 202)
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources 13ms
+     → Empty response body (status: 202)
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features 18ms
+     → Empty response body (status: 202)
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+Error: Empty response body (status: 202)
+ ❯ MockMCPClient.makeRequest test/integration/mcp-client.test.ts:167:3
+    165|    }
+    166|    // Empty response is also invalid for non-204 status
+    167|    throw new Error(`Empty response body (status: ${response.status})`)
+       |   ^
+    168|   }
+    169|  }
+ ❯ test/integration/mcp-client.test.ts:334:4
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+Error: Empty response body (status: 202)
+ ❯ MockMCPClient.makeRequest test/integration/mcp-client.test.ts:167:3
+    165|    }
+    166|    // Empty response is also invalid for non-204 status
+    167|    throw new Error(`Empty response body (status: ${response.status})`)
+       |   ^
+    168|   }
+    169|  }
+ ❯ test/integration/mcp-client.test.ts:341:4
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Error: Empty response body (status: 202)
+ ❯ MockMCPClient.makeRequest test/integration/mcp-client.test.ts:167:3
+    165|    }
+    166|    // Empty response is also invalid for non-204 status
+    167|    throw new Error(`Empty response body (status: ${response.status})`)
+       |   ^
+    168|   }
+    169|  }
+ ❯ test/integration/mcp-client.test.ts:354:4
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed (3)
+   Start at  06:52:51
+   Duration  794ms
+
+ FAIL  Tests failed. Watching for file changes...
+       press h to show help, press q to quit
+c[3J RERUN  test/integration/mcp-client.test.ts x3 
+        Filename pattern: test/integration/mcp-client.test.ts
+
+[vpw:debug] Reusing runtime for vitest.config.mts...
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+Response status: 200 Text length: 270 Text: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInf
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+Response status: 200 Text length: 270 Text: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInf
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+Response status: 200 Text length: 141 Text: event: message
+data: {"jsonrpc":"2.0","id":2,"error":{"code":-32602,"message":"MCP error -32602: Resource discogs://collection not found"}}
+
+
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Response status: 200 Text length: 270 Text: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInf
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Response status: 200 Text length: 418 Text: event: message
+data: {"result":{"resources":[{"uri":"Complete Discogs collection for the authenticated user","name":"discogs://collection"},{"uri":"Detailed information about a specific Discogs releas
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Response status: 200 Text length: 141 Text: event: message
+data: {"jsonrpc":"2.0","id":3,"error":{"code":-32602,"message":"MCP error -32602: Resource discogs://collection not found"}}
+
+
+
+ ❯ test/integration/mcp-client.test.ts (3 tests | 2 failed) 182ms
+   ✓ MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources 23ms
+     → expected { jsonrpc: '2.0', id: 2, …(1) } to match object { jsonrpc: '2.0', …(1) }
+(2 matching properties omitted from actual)
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features 12ms
+     → Cannot read properties of undefined (reading 'contents')
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+AssertionError: expected { jsonrpc: '2.0', id: 2, …(1) } to match object { jsonrpc: '2.0', …(1) }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "error": {
+-     "code": -32001,
++     "code": -32602,
+    },
+    "jsonrpc": "2.0",
+  }
+
+ ❯ Proxy.methodWrapper Users/rian/Documents/GitHub/discogs-mcp/node_modules/.vite/vitest/deps_ssr/chai.js:1537:25
+ ❯ test/integration/mcp-client.test.ts:344:14
+    343|    await client.sendInitialized()
+    344| 
+    345|    const result = await client.readResource('discogs://collection')
+       |             ^
+    346| 
+    347|    expect(result).toMatchObject({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+TypeError: Cannot read properties of undefined (reading 'contents')
+ ❯ test/integration/mcp-client.test.ts:364:45
+    362|    expect(resourcesList.result.resources).toHaveLength(3)
+    363| 
+    364|    const collectionResource = await client.readResource('discogs://col…
+       |                                             ^
+    365|    expect(collectionResource.result.contents).toBeDefined()
+    366| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed (3)
+   Start at  06:54:06
+   Duration  528ms
+
+ FAIL  Tests failed. Watching for file changes...
+       press h to show help, press q to quit
+c[3J RERUN  test/integration/mcp-client.test.ts x4 
+        Filename pattern: test/integration/mcp-client.test.ts
+
+[vpw:debug] Reusing runtime for vitest.config.mts...
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+Response status: 200 Text length: 270 Text: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInf
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+Response status: 200 Text length: 270 Text: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInf
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+Response status: 200 Text length: 141 Text: event: message
+data: {"jsonrpc":"2.0","id":2,"error":{"code":-32602,"message":"MCP error -32602: Resource discogs://collection not found"}}
+
+
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Response status: 200 Text length: 270 Text: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInf
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Response status: 200 Text length: 418 Text: event: message
+data: {"result":{"resources":[{"uri":"Complete Discogs collection for the authenticated user","name":"discogs://collection"},{"uri":"Detailed information about a specific Discogs releas
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Response status: 200 Text length: 141 Text: event: message
+data: {"jsonrpc":"2.0","id":3,"error":{"code":-32602,"message":"MCP error -32602: Resource discogs://collection not found"}}
+
+
+
+ ❯ test/integration/mcp-client.test.ts (3 tests | 2 failed) 147ms
+   ✓ MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources 12ms
+     → expected { jsonrpc: '2.0', id: 2, …(1) } to match object { jsonrpc: '2.0', …(1) }
+(2 matching properties omitted from actual)
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features 30ms
+     → Cannot read properties of undefined (reading 'contents')
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+AssertionError: expected { jsonrpc: '2.0', id: 2, …(1) } to match object { jsonrpc: '2.0', …(1) }
+(2 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "error": {
+-     "code": -32001,
++     "code": -32602,
+    },
+    "jsonrpc": "2.0",
+  }
+
+ ❯ Proxy.methodWrapper Users/rian/Documents/GitHub/discogs-mcp/node_modules/.vite/vitest/deps_ssr/chai.js:1537:25
+ ❯ test/integration/mcp-client.test.ts:344:14
+    343|    await client.sendInitialized()
+    344| 
+    345|    const result = await client.readResource('discogs://collection')
+       |             ^
+    346| 
+    347|    expect(result).toMatchObject({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+TypeError: Cannot read properties of undefined (reading 'contents')
+ ❯ test/integration/mcp-client.test.ts:364:45
+    362|    expect(resourcesList.result.resources).toHaveLength(3)
+    363| 
+    364|    const collectionResource = await client.readResource('discogs://col…
+       |                                             ^
+    365|    expect(collectionResource.result.contents).toBeDefined()
+    366| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 1 passed (3)
+   Start at  06:54:14
+   Duration  279ms
+
+ FAIL  Tests failed. Watching for file changes...
+       press h to show help, press q to quit
+[vpw:debug] Shutting down runtimes...
+c[3J RERUN  rerun all tests 
+
+[vpw:info] Starting isolated runtimes for vitest.config.mts...

@@ -128,18 +128,16 @@ export function createServer(env: Env, request: Request, sessionId: string): Mcp
 			return await sessionContextPromise;
 		}
 
-		// This shouldn't happen, but handle it gracefully
-		console.warn("No session promise available - returning unauthenticated");
-		return { session: null, connectionId: sessionId };
-	};
+		// Start extraction
+		sessionContextPromise = extractSessionFromRequest(request, env, sessionId).then(
+			(context) => {
+				sessionContextCache = context;
+				return context;
+			}
+		);
 
-	// Initialize session extraction (async, happens before tools are called)
-	sessionContextPromise = extractSessionFromRequest(request, env, sessionId).then(
-		(context) => {
-			sessionContextCache = context;
-			return context;
-		}
-	);
+		return await sessionContextPromise;
+	};
 
 	// Register public tools (available without authentication)
 	// Pass session context so they can include connection ID in auth URLs

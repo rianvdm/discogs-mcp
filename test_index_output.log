@@ -1,0 +1,396 @@
+
+> discogs-mcp@0.0.0 test
+> vitest test/index.spec.ts
+
+
+ DEV  v3.0.9 /Users/rian/Documents/GitHub/discogs-mcp
+
+[vpw:info] Starting isolated runtimes for vitest.config.mts...
+stdout | test/index.spec.ts > Discogs MCP Server > should handle initialize request
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/index.spec.ts > Discogs MCP Server > should handle parse errors
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/index.spec.ts > Discogs MCP Server > should handle empty body
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+ ❯ test/index.spec.ts (6 tests | 4 failed) 44ms
+   × Discogs MCP Server > should handle initialize request 11ms
+     → expected 404 to be 200 // Object.is equality
+   × Discogs MCP Server > should return server info for GET requests to main endpoint 4ms
+     → expected { name: 'Discogs MCP Server', …(3) } to match object { name: 'Discogs MCP Server', …(3) }
+   × Discogs MCP Server > should handle parse errors 2ms
+     → expected 404 to be 200 // Object.is equality
+   × Discogs MCP Server > should handle empty body 3ms
+     → expected 404 to be 200 // Object.is equality
+   ✓ Discogs MCP Server > should return 404 for unknown paths
+   ✓ Discogs MCP Server > should return 404 for unknown paths
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 4 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/index.spec.ts > Discogs MCP Server > should handle initialize request
+AssertionError: expected 404 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 404
+
+ ❯ test/index.spec.ts:33:27
+     31|   await waitOnExecutionContext(ctx)
+     32| 
+     33|   expect(response.status).toBe(200)
+       |                           ^
+     34|   expect(response.headers.get('content-type')).toBe('application/json')
+     35| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/4]⎯
+
+ FAIL  test/index.spec.ts > Discogs MCP Server > should return server info for GET requests to main endpoint
+AssertionError: expected { name: 'Discogs MCP Server', …(3) } to match object { name: 'Discogs MCP Server', …(3) }
+
+- Expected
++ Received
+
+  {
+-   "description": "Model Context Protocol server for Discogs collection access",
++   "description": "Model Context Protocol server for Discogs collection access (SDK-based)",
+    "endpoints": Any<Object>,
+    "name": "Discogs MCP Server",
+    "version": "1.0.0",
+  }
+
+ ❯ Proxy.methodWrapper Users/rian/Documents/GitHub/discogs-mcp/node_modules/.vite/vitest/deps_ssr/chai.js:1537:25
+ ❯ test/index.spec.ts:66:18
+     64| 
+     65|   const result = await response.json()
+     66|   expect(result).toMatchObject({
+       |                  ^
+     67|    name: 'Discogs MCP Server',
+     68|    version: '1.0.0',
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/4]⎯
+
+ FAIL  test/index.spec.ts > Discogs MCP Server > should handle parse errors
+AssertionError: expected 404 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 404
+
+ ❯ test/index.spec.ts:84:27
+     82|   await waitOnExecutionContext(ctx)
+     83| 
+     84|   expect(response.status).toBe(200) // JSON-RPC errors still return 200
+       |                           ^
+     85|   const result = await response.json()
+     86|   expect(result).toMatchObject({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/4]⎯
+
+ FAIL  test/index.spec.ts > Discogs MCP Server > should handle empty body
+AssertionError: expected 404 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 404
+
+ ❯ test/index.spec.ts:106:27
+    104|   await waitOnExecutionContext(ctx)
+    105| 
+    106|   expect(response.status).toBe(200)
+       |                           ^
+    107|   const result = await response.json()
+    108|   expect(result).toMatchObject({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/4]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  4 failed | 2 passed (6)
+   Start at  06:59:47
+   Duration  1.67s (transform 109ms, setup 0ms, collect 576ms, tests 44ms, environment 0ms, prepare 172ms)
+
+ FAIL  Tests failed. Watching for file changes...
+       press h to show help, press q to quit
+c[3J RERUN  test/index.spec.ts x1 
+        Filename pattern: test/index.spec.ts
+
+[vpw:debug] Reusing runtime for vitest.config.mts...
+stdout | test/index.spec.ts > Discogs MCP Server > should handle initialize request
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/index.spec.ts > Discogs MCP Server > should handle parse errors
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/index.spec.ts > Discogs MCP Server > should handle empty body
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+ ❯ test/index.spec.ts (6 tests | 3 failed) 164ms
+   × Discogs MCP Server > should handle initialize request 10ms
+     → expected 406 to be 200 // Object.is equality
+   ✓ Discogs MCP Server > should return server info for GET requests to main endpoint
+   × Discogs MCP Server > should handle parse errors 6ms
+     → expected 406 to be 200 // Object.is equality
+   × Discogs MCP Server > should handle empty body 18ms
+     → expected 406 to be 200 // Object.is equality
+   ✓ Discogs MCP Server > should return 404 for unknown paths
+   ✓ Discogs MCP Server > should return 404 for unknown paths
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/index.spec.ts > Discogs MCP Server > should handle initialize request
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/index.spec.ts:33:27
+     31|   await waitOnExecutionContext(ctx)
+     32| 
+     33|   expect(response.status).toBe(200)
+       |                           ^
+     34|   expect(response.headers.get('content-type')).toBe('application/json')
+     35| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/index.spec.ts > Discogs MCP Server > should handle parse errors
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/index.spec.ts:84:27
+     82|   await waitOnExecutionContext(ctx)
+     83| 
+     84|   expect(response.status).toBe(200) // JSON-RPC errors still return 200
+       |                           ^
+     85|   const result = await response.json()
+     86|   expect(result).toMatchObject({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  test/index.spec.ts > Discogs MCP Server > should handle empty body
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/index.spec.ts:106:27
+    104|   await waitOnExecutionContext(ctx)
+    105| 
+    106|   expect(response.status).toBe(200)
+       |                           ^
+    107|   const result = await response.json()
+    108|   expect(result).toMatchObject({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 3 passed (6)
+   Start at  07:00:23
+   Duration  591ms
+
+ FAIL  Tests failed. Watching for file changes...
+       press h to show help, press q to quit
+c[3J RERUN  test/index.spec.ts x2 
+        Filename pattern: test/index.spec.ts
+
+[vpw:debug] Reusing runtime for vitest.config.mts...
+stdout | test/index.spec.ts > Discogs MCP Server > should handle initialize request
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/index.spec.ts > Discogs MCP Server > should handle parse errors
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/index.spec.ts > Discogs MCP Server > should handle empty body
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+ ❯ test/index.spec.ts (6 tests | 3 failed) 187ms
+   × Discogs MCP Server > should handle initialize request 12ms
+     → expected 406 to be 200 // Object.is equality
+   ✓ Discogs MCP Server > should return server info for GET requests to main endpoint
+   × Discogs MCP Server > should handle parse errors 6ms
+     → expected 406 to be 200 // Object.is equality
+   × Discogs MCP Server > should handle empty body 9ms
+     → expected 406 to be 200 // Object.is equality
+   ✓ Discogs MCP Server > should return 404 for unknown paths
+   ✓ Discogs MCP Server > should return 404 for unknown paths
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/index.spec.ts > Discogs MCP Server > should handle initialize request
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/index.spec.ts:34:27
+     32|   await waitOnExecutionContext(ctx)
+     33| 
+     34|   expect(response.status).toBe(200)
+       |                           ^
+     35|   expect(response.headers.get('content-type')).toBe('application/json')
+     36| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/index.spec.ts > Discogs MCP Server > should handle parse errors
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/index.spec.ts:89:11
+     87|   await waitOnExecutionContext(ctx)
+     88| 
+     89|   expect(response.status).toBe(200) // JSON-RPC errors still return 200
+       |           ^
+     90|   const result = await response.json()
+     91|   expect(result).toMatchObject({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  test/index.spec.ts > Discogs MCP Server > should handle empty body
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/index.spec.ts:115:4
+    113|   await waitOnExecutionContext(ctx)
+    114| 
+    115|   expect(response.status).toBe(200)
+       |    ^
+    116|   const result = await response.json()
+    117|   expect(result).toMatchObject({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 3 passed (6)
+   Start at  07:02:24
+   Duration  792ms
+
+ FAIL  Tests failed. Watching for file changes...
+       press h to show help, press q to quit
+c[3J RERUN  test/index.spec.ts x3 
+        Filename pattern: test/index.spec.ts
+
+[vpw:debug] Reusing runtime for vitest.config.mts...
+stdout | test/index.spec.ts > Discogs MCP Server > should handle initialize request
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/index.spec.ts > Discogs MCP Server > should handle parse errors
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/index.spec.ts > Discogs MCP Server > should handle empty body
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+ ❯ test/index.spec.ts (6 tests | 3 failed) 237ms
+   × Discogs MCP Server > should handle initialize request 8ms
+     → expected 406 to be 200 // Object.is equality
+   ✓ Discogs MCP Server > should return server info for GET requests to main endpoint
+   × Discogs MCP Server > should handle parse errors 24ms
+     → expected 406 to be 200 // Object.is equality
+   × Discogs MCP Server > should handle empty body 10ms
+     → expected 406 to be 200 // Object.is equality
+   ✓ Discogs MCP Server > should return 404 for unknown paths
+   ✓ Discogs MCP Server > should return 404 for unknown paths
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 3 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/index.spec.ts > Discogs MCP Server > should handle initialize request
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/index.spec.ts:34:27
+     32|   await waitOnExecutionContext(ctx)
+     33| 
+     34|   expect(response.status).toBe(200)
+       |                           ^
+     35|   expect(response.headers.get('content-type')).toBe('application/json')
+     36| 
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/3]⎯
+
+ FAIL  test/index.spec.ts > Discogs MCP Server > should handle parse errors
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/index.spec.ts:89:11
+     87|   await waitOnExecutionContext(ctx)
+     88| 
+     89|   expect(response.status).toBe(200) // JSON-RPC errors still return 200
+       |           ^
+     90|   const result = await response.json()
+     91|   expect(result).toMatchObject({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/3]⎯
+
+ FAIL  test/index.spec.ts > Discogs MCP Server > should handle empty body
+AssertionError: expected 406 to be 200 // Object.is equality
+
+- Expected
++ Received
+
+- 200
++ 406
+
+ ❯ test/index.spec.ts:115:4
+    113|   await waitOnExecutionContext(ctx)
+    114| 
+    115|   expect(response.status).toBe(200)
+       |    ^
+    116|   const result = await response.json()
+    117|   expect(result).toMatchObject({
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/3]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  3 failed | 3 passed (6)
+   Start at  07:04:42
+   Duration  550ms
+
+ FAIL  Tests failed. Watching for file changes...
+       press h to show help, press q to quit
+Test removed... [ test/index.spec.ts ]
+

@@ -1,0 +1,545 @@
+
+> discogs-mcp@0.0.0 test
+> vitest test/integration/mcp-client.test.ts
+
+
+ DEV  v3.0.9 /Users/rian/Documents/GitHub/discogs-mcp
+
+[vpw:info] Starting isolated runtimes for vitest.config.mts...
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+Detected SSE: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInfo":{"name":"discogs-mcp","version":"1.0.0"}},"jsonrpc":"2.0","id":1}
+
+
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+Detected SSE: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInfo":{"name":"discogs-mcp","version":"1.0.0"}},"jsonrpc":"2.0","id":1}
+
+
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+Detected SSE: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInfo":{"name":"discogs-mcp","version":"1.0.0"}},"jsonrpc":"2.0","id":1}
+
+
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle tool parameter validation
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle tool parameter validation
+Detected SSE: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInfo":{"name":"discogs-mcp","version":"1.0.0"}},"jsonrpc":"2.0","id":1}
+
+
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle tool parameter validation
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle tool parameter validation
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unknown methods gracefully
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unknown methods gracefully
+Detected SSE: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInfo":{"name":"discogs-mcp","version":"1.0.0"}},"jsonrpc":"2.0","id":1}
+
+
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unknown methods gracefully
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unknown methods gracefully
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should maintain session state across requests
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should maintain session state across requests
+Detected SSE: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInfo":{"name":"discogs-mcp","version":"1.0.0"}},"jsonrpc":"2.0","id":1}
+
+
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should maintain session state across requests
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should maintain session state across requests
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should maintain session state across requests
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should maintain session state across requests
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle concurrent requests properly
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle concurrent requests properly
+Detected SSE: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInfo":{"name":"discogs-mcp","version":"1.0.0"}},"jsonrpc":"2.0","id":1}
+
+
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle concurrent requests properly
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle concurrent requests properly
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Error Handling > should handle malformed JSON gracefully
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Error Handling > should handle network errors to Discogs API
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Error Handling > should handle network errors to Discogs API
+Detected SSE: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInfo":{"name":"discogs-mcp","version":"1.0.0"}},"jsonrpc":"2.0","id":1}
+
+
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Error Handling > should handle network errors to Discogs API
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Error Handling > should handle network errors to Discogs API
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Error Handling > should handle rate limiting correctly
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Error Handling > should handle rate limiting correctly
+Detected SSE: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInfo":{"name":"discogs-mcp","version":"1.0.0"}},"jsonrpc":"2.0","id":1}
+
+
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Error Handling > should handle rate limiting correctly
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Error Handling > should handle rate limiting correctly
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Protocol Compliance > should allow tools/list without initialization (stateless mode)
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Protocol Compliance > should validate JSON-RPC message format
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Protocol Compliance > should handle notifications without returning responses
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Protocol Compliance > should handle notifications without returning responses
+Detected SSE: event: message
+data: {"result":{"protocolVersion":"2024-11-05","capabilities":{"tools":{"listChanged":true},"resources":{"listChanged":true},"completions":{},"prompts":{"listChanged":true}},"serverInfo":{"name":"discogs-mcp","version":"1.0.0"}},"jsonrpc":"2.0","id":1}
+
+
+
+stdout | test/integration/mcp-client.test.ts > MCP Client Integration Tests > Protocol Compliance > should handle notifications without returning responses
+[MCP] Session ID: mcp-efa543eedde602b1b37f96fe50283eb1 (source: deterministic)
+
+ ❯ test/integration/mcp-client.test.ts (13 tests | 13 failed) 129ms
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake 18ms
+     → expected { result: { …(3) }, …(2) } to match object { jsonrpc: '2.0', id: 1, …(1) }
+(1 matching property omitted from actual)
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources 10ms
+     → expected { jsonrpc: '2.0', …(2) } to match object { jsonrpc: '2.0', id: 2, …(1) }
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features 6ms
+     → Cannot read properties of undefined (reading 'resources')
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should handle tool parameter validation 6ms
+     → expected { jsonrpc: '2.0', …(2) } to match object { jsonrpc: '2.0', id: 2, …(1) }
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should handle unknown methods gracefully 5ms
+     → expected { jsonrpc: '2.0', …(2) } to match object { jsonrpc: '2.0', id: 99, …(1) }
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should maintain session state across requests 9ms
+     → expected undefined to be defined
+   × MCP Client Integration Tests > Full MCP Protocol Flow > should handle concurrent requests properly 6ms
+     → expected { code: -32000, …(1) } to be undefined
+   × MCP Client Integration Tests > Error Handling > should handle malformed JSON gracefully 2ms
+     → expected { jsonrpc: '2.0', …(2) } to match object { jsonrpc: '2.0', id: null, …(1) }
+   × MCP Client Integration Tests > Error Handling > should handle network errors to Discogs API 5ms
+     → expected { jsonrpc: '2.0', …(2) } to match object { jsonrpc: '2.0', id: 2, …(1) }
+   × MCP Client Integration Tests > Error Handling > should handle rate limiting correctly 4ms
+     → expected { jsonrpc: '2.0', …(2) } to match object { jsonrpc: '2.0', id: 2, …(1) }
+   × MCP Client Integration Tests > Protocol Compliance > should allow tools/list without initialization (stateless mode) 3ms
+     → expected { jsonrpc: '2.0', …(2) } to match object { jsonrpc: '2.0', id: 1, …(1) }
+(3 matching properties omitted from actual)
+   × MCP Client Integration Tests > Protocol Compliance > should validate JSON-RPC message format 3ms
+     → expected { jsonrpc: '2.0', …(2) } to match object { jsonrpc: '2.0', id: null, …(1) }
+   × MCP Client Integration Tests > Protocol Compliance > should handle notifications without returning responses 3ms
+     → expected 406 to be 204 // Object.is equality
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 13 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should complete full initialization handshake
+AssertionError: expected { result: { …(3) }, …(2) } to match object { jsonrpc: '2.0', id: 1, …(1) }
+(1 matching property omitted from actual)
+
+- Expected
++ Received
+
+  {
+    "id": 1,
+    "jsonrpc": "2.0",
+    "result": {
+      "capabilities": {
+-       "logging": {},
+        "prompts": {
+          "listChanged": true,
+        },
+        "resources": {
+          "listChanged": true,
+-         "subscribe": false,
+        },
+        "tools": {
+          "listChanged": true,
+        },
+      },
+      "protocolVersion": "2024-11-05",
+      "serverInfo": {
+        "name": "discogs-mcp",
+        "version": "1.0.0",
+      },
+    },
+  }
+
+ ❯ Proxy.methodWrapper Users/rian/Documents/GitHub/discogs-mcp/node_modules/.vite/vitest/deps_ssr/chai.js:1537:25
+ ❯ test/integration/mcp-client.test.ts:380:23
+    378|    const initResult = await client.initialize()
+    379| 
+    380|    expect(initResult).toMatchObject({
+       |                       ^
+    381|     jsonrpc: '2.0',
+    382|     id: 1,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/13]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unauthenticated access to protected resources
+AssertionError: expected { jsonrpc: '2.0', …(2) } to match object { jsonrpc: '2.0', id: 2, …(1) }
+
+- Expected
++ Received
+
+  {
+    "error": {
+-     "code": -32001,
+-     "message": "Authentication required. Please use the \"auth_status\" tool for detailed authentication instructions, or visit https://discogs-mcp-prod.rian-db8.workers.dev/login to authenticate with Discogs",
++     "code": -32000,
++     "message": "Not Acceptable: Client must accept both application/json and text/event-stream",
+    },
+-   "id": 2,
++   "id": null,
+    "jsonrpc": "2.0",
+  }
+
+ ❯ Proxy.methodWrapper Users/rian/Documents/GitHub/discogs-mcp/node_modules/.vite/vitest/deps_ssr/chai.js:1537:25
+ ❯ test/integration/mcp-client.test.ts:411:19
+    409|    const result = await client.readResource('discogs://collection')
+    410| 
+    411|    expect(result).toMatchObject({
+       |                   ^
+    412|     jsonrpc: '2.0',
+    413|     id: 2,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/13]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should allow authenticated access to all features
+TypeError: Cannot read properties of undefined (reading 'resources')
+ ❯ test/integration/mcp-client.test.ts:432:32
+    430|    // Test resources
+    431|    const resourcesList = await client.listResources()
+    432|    expect(resourcesList.result.resources).toHaveLength(3)
+       |                                ^
+    433| 
+    434|    const collectionResource = await client.readResource('discogs://col…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/13]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle tool parameter validation
+AssertionError: expected { jsonrpc: '2.0', …(2) } to match object { jsonrpc: '2.0', id: 2, …(1) }
+
+- Expected
++ Received
+
+  {
+    "error": {
+-     "code": -32602,
+-     "message": StringContaining "release_id",
++     "code": -32000,
++     "message": "Not Acceptable: Client must accept both application/json and text/event-stream",
+    },
+-   "id": 2,
++   "id": null,
+    "jsonrpc": "2.0",
+  }
+
+ ❯ Proxy.methodWrapper Users/rian/Documents/GitHub/discogs-mcp/node_modules/.vite/vitest/deps_ssr/chai.js:1537:25
+ ❯ test/integration/mcp-client.test.ts:484:19
+    482|    const result = await client.callTool('get_release', {})
+    483| 
+    484|    expect(result).toMatchObject({
+       |                   ^
+    485|     jsonrpc: '2.0',
+    486|     id: 2,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/13]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle unknown methods gracefully
+AssertionError: expected { jsonrpc: '2.0', …(2) } to match object { jsonrpc: '2.0', id: 99, …(1) }
+
+- Expected
++ Received
+
+  {
+    "error": {
+-     "code": -32601,
+-     "message": "Method not found",
++     "code": -32000,
++     "message": "Not Acceptable: Client must accept both application/json and text/event-stream",
+    },
+-   "id": 99,
++   "id": null,
+    "jsonrpc": "2.0",
+  }
+
+ ❯ Proxy.methodWrapper Users/rian/Documents/GitHub/discogs-mcp/node_modules/.vite/vitest/deps_ssr/chai.js:1537:25
+ ❯ test/integration/mcp-client.test.ts:517:19
+    515|    const result = await client.processResponse(response)
+    516| 
+    517|    expect(result).toMatchObject({
+       |                   ^
+    518|     jsonrpc: '2.0',
+    519|     id: 99,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/13]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should maintain session state across requests
+AssertionError: expected undefined to be defined
+ ❯ test/integration/mcp-client.test.ts:538:27
+    536| 
+    537|    // All should succeed
+    538|    expect(result1.result).toBeDefined()
+       |                           ^
+    539|    expect(result2.result).toBeDefined()
+    540|    expect(result3.result).toBeDefined()
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/13]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Full MCP Protocol Flow > should handle concurrent requests properly
+AssertionError: expected { code: -32000, …(1) } to be undefined
+
+- Expected: 
+undefined
+
++ Received: 
+{
+  "code": -32000,
+  "message": "Not Acceptable: Client must accept both application/json and text/event-stream",
+}
+
+ ❯ test/integration/mcp-client.test.ts:564:26
+    562|    // All should succeed
+    563|    results.forEach((result) => {
+    564|     expect(result.error).toBeUndefined()
+       |                          ^
+    565|     expect(result.result).toBeDefined()
+    566|    })
+ ❯ test/integration/mcp-client.test.ts:563:12
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/13]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Error Handling > should handle malformed JSON gracefully
+AssertionError: expected { jsonrpc: '2.0', …(2) } to match object { jsonrpc: '2.0', id: null, …(1) }
+
+- Expected
++ Received
+
+  {
+    "error": {
+-     "code": -32700,
+-     "message": "Parse error",
++     "code": -32000,
++     "message": "Not Acceptable: Client must accept both application/json and text/event-stream",
+    },
+    "id": null,
+    "jsonrpc": "2.0",
+  }
+
+ ❯ Proxy.methodWrapper Users/rian/Documents/GitHub/discogs-mcp/node_modules/.vite/vitest/deps_ssr/chai.js:1537:25
+ ❯ test/integration/mcp-client.test.ts:588:19
+    586|    const result = await client.processResponse(response)
+    587| 
+    588|    expect(result).toMatchObject({
+       |                   ^
+    589|     jsonrpc: '2.0',
+    590|     id: null,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/13]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Error Handling > should handle network errors to Discogs API
+AssertionError: expected { jsonrpc: '2.0', …(2) } to match object { jsonrpc: '2.0', id: 2, …(1) }
+
+- Expected
++ Received
+
+  {
+    "error": {
+-     "code": -32008,
+-     "message": "Discogs API error",
++     "code": -32000,
++     "message": "Not Acceptable: Client must accept both application/json and text/event-stream",
+    },
+-   "id": 2,
++   "id": null,
+    "jsonrpc": "2.0",
+  }
+
+ ❯ Proxy.methodWrapper Users/rian/Documents/GitHub/discogs-mcp/node_modules/.vite/vitest/deps_ssr/chai.js:1537:25
+ ❯ test/integration/mcp-client.test.ts:608:19
+    606|    const result = await client.callTool('search_collection', { query: …
+    607| 
+    608|    expect(result).toMatchObject({
+       |                   ^
+    609|     jsonrpc: '2.0',
+    610|     id: 2,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/13]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Error Handling > should handle rate limiting correctly
+AssertionError: expected { jsonrpc: '2.0', …(2) } to match object { jsonrpc: '2.0', id: 2, …(1) }
+
+- Expected
++ Received
+
+  {
+    "error": {
+      "code": -32000,
+-     "message": StringContaining "Rate limit exceeded",
++     "message": "Not Acceptable: Client must accept both application/json and text/event-stream",
+    },
+-   "id": 2,
++   "id": null,
+    "jsonrpc": "2.0",
+  }
+
+ ❯ Proxy.methodWrapper Users/rian/Documents/GitHub/discogs-mcp/node_modules/.vite/vitest/deps_ssr/chai.js:1537:25
+ ❯ test/integration/mcp-client.test.ts:627:19
+    625|    const result = await client.listTools()
+    626| 
+    627|    expect(result).toMatchObject({
+       |                   ^
+    628|     jsonrpc: '2.0',
+    629|     id: 2,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/13]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Protocol Compliance > should allow tools/list without initialization (stateless mode)
+AssertionError: expected { jsonrpc: '2.0', …(2) } to match object { jsonrpc: '2.0', id: 1, …(1) }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "id": 1,
++   "id": null,
+    "jsonrpc": "2.0",
+-   "result": {
+-     "tools": Any<Array>,
+-   },
+  }
+
+ ❯ Proxy.methodWrapper Users/rian/Documents/GitHub/discogs-mcp/node_modules/.vite/vitest/deps_ssr/chai.js:1537:25
+ ❯ test/integration/mcp-client.test.ts:643:19
+    641|    const result = await client.listTools()
+    642| 
+    643|    expect(result).toMatchObject({
+       |                   ^
+    644|     jsonrpc: '2.0',
+    645|     id: 1,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/13]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Protocol Compliance > should validate JSON-RPC message format
+AssertionError: expected { jsonrpc: '2.0', …(2) } to match object { jsonrpc: '2.0', id: null, …(1) }
+
+- Expected
++ Received
+
+  {
+    "error": {
+-     "code": -32600,
+-     "message": "Invalid Request",
++     "code": -32000,
++     "message": "Not Acceptable: Client must accept both application/json and text/event-stream",
+    },
+    "id": null,
+    "jsonrpc": "2.0",
+  }
+
+ ❯ Proxy.methodWrapper Users/rian/Documents/GitHub/discogs-mcp/node_modules/.vite/vitest/deps_ssr/chai.js:1537:25
+ ❯ test/integration/mcp-client.test.ts:670:19
+    668|    const result = await client.processResponse(response)
+    669| 
+    670|    expect(result).toMatchObject({
+       |                   ^
+    671|     jsonrpc: '2.0',
+    672|     id: null,
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[12/13]⎯
+
+ FAIL  test/integration/mcp-client.test.ts > MCP Client Integration Tests > Protocol Compliance > should handle notifications without returning responses
+AssertionError: expected 406 to be 204 // Object.is equality
+
+- Expected
++ Received
+
+- 204
++ 406
+
+ ❯ test/integration/mcp-client.test.ts:699:28
+    697| 
+    698|    // Notifications should return 204 with no body
+    699|    expect(response.status).toBe(204)
+       |                            ^
+    700|    const text = await response.text()
+    701|    expect(text).toBe('') // Empty response for notifications
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[13/13]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  13 failed (13)
+   Start at  06:43:42
+   Duration  2.54s (transform 215ms, setup 0ms, collect 609ms, tests 129ms, environment 1ms, prepare 934ms)
+
+ FAIL  Tests failed. Watching for file changes...
+       press h to show help, press q to quit
+Cancelling test run. Press CTRL+c again to exit forcefully.
+
+[vpw:debug] Shutting down runtimes...
