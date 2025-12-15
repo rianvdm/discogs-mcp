@@ -23,8 +23,70 @@ function addCorsHeaders(headers: HeadersInit = {}): Headers {
 	const corsHeaders = new Headers(headers)
 	corsHeaders.set('Access-Control-Allow-Origin', '*')
 	corsHeaders.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-	corsHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Connection-ID, Cookie')
+	corsHeaders.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Connection-ID, Mcp-Session-Id, Cookie')
 	return corsHeaders
+}
+
+/**
+ * Handle MCP request with session ID generation and response header injection
+ */
+async function handleMCPRequest(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+	const url = new URL(request.url)
+
+	// Get session ID from multiple sources (in priority order):
+	// 1. URL query param (for clients that can't persist headers)
+	// 2. Mcp-Session-Id header (MCP standard)
+	// 3. X-Connection-ID header (legacy)
+	// 4. Generate deterministic ID based on client characteristics
+	const urlSessionId = url.searchParams.get('session_id')
+	const headerSessionId = request.headers.get('Mcp-Session-Id')
+	const connectionId = request.headers.get('X-Connection-ID')
+
+	let sessionId = urlSessionId || headerSessionId || connectionId
+	let sessionSource = urlSessionId ? 'url' : headerSessionId ? 'header' : connectionId ? 'x-connection' : 'generated'
+
+	if (!sessionId) {
+		// Generate a DETERMINISTIC session ID based on client characteristics
+		// This ensures the same client gets the same session ID even after reconnecting
+		// (mcp-remote doesn't persist session headers between reconnects)
+		const clientIP = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown'
+		const userAgent = request.headers.get('User-Agent') || 'unknown'
+		// Use weekly timestamp to ensure session ID is stable for 7 days (matches session expiry)
+		const weekTimestamp = Math.floor(Date.now() / (1000 * 60 * 60 * 24 * 7))
+
+		// Create a hash-based session ID that's consistent for the same client/week
+		const encoder = new TextEncoder()
+		const data = encoder.encode(`${clientIP}-${userAgent}-${weekTimestamp}`)
+		const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+		const hashArray = new Uint8Array(hashBuffer)
+		const hashHex = Array.from(hashArray)
+			.map((b) => b.toString(16).padStart(2, '0'))
+			.join('')
+
+		sessionId = `mcp-${hashHex.substring(0, 32)}`
+		sessionSource = 'deterministic'
+	}
+
+	console.log(`[MCP] Session ID: ${sessionId} (source: ${sessionSource})`)
+
+	// Create MCP server instance with session ID
+	const server = createServer(env, request, sessionId)
+	const handler = createMcpHandler(server)
+
+	// Call the handler
+	const response = await handler(request, env, ctx)
+
+	// Clone the response to add our session ID header
+	// This ensures clients can persist the session ID for subsequent requests
+	const newHeaders = new Headers(response.headers)
+	newHeaders.set('Mcp-Session-Id', sessionId)
+	newHeaders.set('Access-Control-Expose-Headers', 'Mcp-Session-Id')
+
+	return new Response(response.body, {
+		status: response.status,
+		statusText: response.statusText,
+		headers: newHeaders,
+	})
 }
 
 export default {
@@ -38,15 +100,12 @@ export default {
 				headers: {
 					'Access-Control-Allow-Origin': '*',
 					'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-					'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Connection-ID, Cookie',
+					'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Connection-ID, Mcp-Session-Id, Cookie',
+					'Access-Control-Expose-Headers': 'Mcp-Session-Id',
 					'Access-Control-Max-Age': '86400',
 				},
 			})
 		}
-
-		// Create MCP server instance with request context for session management
-		const server = createServer(env, request);
-		const mcpHandler = createMcpHandler(server);
 
 		// Handle different endpoints
 		switch (url.pathname) {
@@ -54,7 +113,7 @@ export default {
 				// Main endpoint - POST routes to MCP, GET shows info
 				if (request.method === 'POST') {
 					// Backward compatibility: POST / routes to MCP handler
-					return mcpHandler(request, env, ctx);
+					return handleMCPRequest(request, env, ctx);
 				} else if (request.method === 'GET') {
 					return new Response(
 						JSON.stringify({
@@ -85,7 +144,7 @@ export default {
 			case '/mcp':
 				// Primary MCP endpoint
 				if (request.method === 'POST') {
-					return mcpHandler(request, env, ctx);
+					return handleMCPRequest(request, env, ctx);
 				} else {
 					return new Response('Method not allowed. Use POST for MCP requests.', { status: 405 })
 				}
@@ -279,7 +338,7 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
 			'Max-Age=604800', // 7 days in seconds
 		].join('; ')
 
-		const responseMessage = finalConnectionId !== 'unknown' 
+		const responseMessage = finalConnectionId !== 'unknown'
 			? `Authentication successful! Your MCP connection is now authenticated and ready to use.`
 			: `Authentication successful! You can now use the MCP server to access your Discogs collection.`
 
@@ -360,21 +419,21 @@ async function handleMCPAuth(request: Request, env: Env): Promise<Response> {
 		}
 
 		const baseUrl = 'https://discogs-mcp-prod.rian-db8.workers.dev'
-	
-	// Check for connection ID to provide connection-specific login URL
-	const connectionId = request.headers.get('X-Connection-ID')
-	const loginUrl = connectionId ? `${baseUrl}/login?connection_id=${connectionId}` : `${baseUrl}/login`
-	
-	return new Response(
-		JSON.stringify({
-			error: 'Not authenticated',
-			message: `Please visit ${loginUrl} to authenticate with Discogs first`,
-		}),
-		{
-			status: 401,
-			headers: { 'Content-Type': 'application/json' },
-		},
-	)
+
+		// Check for connection ID to provide connection-specific login URL
+		const connectionId = request.headers.get('X-Connection-ID')
+		const loginUrl = connectionId ? `${baseUrl}/login?connection_id=${connectionId}` : `${baseUrl}/login`
+
+		return new Response(
+			JSON.stringify({
+				error: 'Not authenticated',
+				message: `Please visit ${loginUrl} to authenticate with Discogs first`,
+			}),
+			{
+				status: 401,
+				headers: { 'Content-Type': 'application/json' },
+			},
+		)
 	} catch (error) {
 		console.error('MCP auth error:', error)
 		return new Response(

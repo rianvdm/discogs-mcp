@@ -1,10 +1,13 @@
 # 🎵 Discogs MCP Server
 
+[![Version](https://img.shields.io/badge/version-2.0.0-blue.svg)](https://github.com/rianvdm/discogs-mcp/releases/tag/v2.0.0)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 
 A powerful MCP (Model Context Protocol) server that enables AI assistants to interact with your personal Discogs music collection. Built on Cloudflare Workers using the official **Cloudflare Agents SDK** and **@modelcontextprotocol/sdk** with intelligent mood mapping, advanced search capabilities, and seamless OAuth authentication.
+
+> **v2.0.0** - Now using the official MCP SDK with full Claude Desktop support!
 
 ## ✨ Features
 
@@ -262,6 +265,7 @@ src/
 
 ### Key Features
 - **Factory Pattern**: Server created per-request with session context via closures
+- **Deterministic Session IDs**: Hash-based session ID from client IP + User Agent ensures persistence across reconnections
 - **Session Management**: Cookie-based + connection-specific sessions for mcp-remote compatibility
 - **Mood Mapping**: 850+ lines of emotion-to-genre translation logic preserved from original
 - **Smart Caching**: Multi-tier KV caching with request deduplication
