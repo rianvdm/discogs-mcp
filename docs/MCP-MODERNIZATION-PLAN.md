@@ -1,10 +1,12 @@
 # Discogs MCP Server Modernization Plan
 
 > **📍 CURRENT STATUS (2025-12-14)**
-> **Sessions Complete:** 1-7 ✅ (All core work done!)
-> **Next Session:** 8 (Cleanup & Deploy) 🟡
+> **Sessions Complete:** 1-7 ✅ + 8a ✅
+> **Current Session:** 8b (OAuth & Authentication Testing) 🟡
 > **Branch:** `feature/agents-sdk-migration`
-> **Progress:** 7/8 sessions complete (87.5%)
+> **Progress:** 7.5/8 sessions complete (~94%)
+> **Production URL:** https://discogs-mcp-prod.rian-db8.workers.dev
+> **⚠️ RESUME:** Test OAuth flow with Claude Desktop (see Session 8b)
 
 ## Executive Summary
 
@@ -218,26 +220,80 @@ Use this checklist across multiple coding sessions. Check off items as completed
 - [ ] **7.9** Test authenticated tools (requires OAuth setup - deferred)
 - [ ] **7.10** Test with MCP Inspector/Claude Desktop (deferred to production testing)
 
-### Session 8: Cleanup & Deployment
+### Session 8a: Cleanup & Initial Deployment ✅ COMPLETE
 
-- [ ] **8.1** Remove old files:
-  - [ ] `src/protocol/handlers.ts`
-  - [ ] `src/protocol/parser.ts`
-  - [ ] `src/protocol/validation.ts`
-  - [ ] `src/transport/sse.ts`
-  - [ ] `src/types/mcp.ts`
-  - [ ] `src/types/jsonrpc.ts`
-- [ ] **8.2** Remove unused dependencies (`crypto-js`, `oauth-1.0a` if replaced)
-- [ ] **8.3** Update README.md with new architecture
-- [ ] **8.4** Update documentation with new client configs
-- [ ] **8.5** Run linting: `npm run lint`
-- [ ] **8.6** Run formatting: `npm run format`
-- [ ] **8.7** Final test suite run
-- [ ] **8.8** Deploy to development: `npm run deploy`
-- [ ] **8.9** Test development deployment
-- [ ] **8.10** Deploy to production: `npm run deploy:prod`
-- [ ] **8.11** Verify production deployment
-- [ ] **8.12** Merge PR to main
+- [x] **8.1** Remove old files:
+  - [x] `src/protocol/handlers.ts` (1,773 lines)
+  - [x] `src/protocol/parser.ts`
+  - [x] `src/protocol/validation.ts`
+  - [x] `src/transport/sse.ts`
+  - [x] `src/types/mcp.ts`
+  - [x] `src/types/jsonrpc.ts`
+- [x] **8.2** Update README.md with SDK architecture
+- [x] **8.3** Deploy to production: `npm run deploy:prod`
+- [x] **8.4** Test MCP protocol (initialize, tools/list, resources/list, prompts/list)
+- [x] **8.5** Test public tools (ping, server_info, auth_status)
+- [x] **8.6** Fix connection ID session management:
+  - [x] Made getSessionContext async to properly await session extraction
+  - [x] Updated all tools/resources to await getSessionContext()
+  - [x] Login URLs now include connection_id parameter from X-Connection-ID header
+  - [x] Deployed fix to production
+
+### Session 8b: OAuth & Authentication Testing 🟡 IN PROGRESS
+
+**⚠️ RESUME HERE ON RETURN**
+
+**Current Status:**
+- ✅ Production server deployed and responding: https://discogs-mcp-prod.rian-db8.workers.dev
+- ✅ MCP protocol working: All 8 tools, 3 resources, 3 prompts registered
+- ✅ Public tools working: ping, server_info, auth_status
+- ✅ Connection ID fix deployed: Login URLs include connection_id parameter
+- ⚠️ **OAuth flow not tested yet** - needs manual browser testing
+- ⚠️ **Authenticated tools not tested yet** - needs OAuth completion
+
+**Next Steps:**
+- [ ] **8b.1** Test full OAuth flow:
+  1. Ask Claude Desktop: "Check my Discogs authentication status"
+  2. Visit the login URL provided (should include connection_id)
+  3. Authenticate with Discogs account
+  4. Verify successful authentication message
+  5. Return to Claude Desktop and verify auth_status shows "Authenticated"
+
+- [ ] **8b.2** Test authenticated tools with real Discogs data:
+  - [ ] `search_collection` - Test mood mapping ("mellow jazz", "Sunday evening")
+  - [ ] `get_release` - Fetch specific release details
+  - [ ] `get_collection_stats` - Verify collection statistics
+  - [ ] `get_recommendations` - Test mood-aware recommendations
+  - [ ] `get_cache_stats` - Verify caching works
+
+- [ ] **8b.3** Test resources with authentication:
+  - [ ] `discogs://collection` - Full collection access
+  - [ ] `discogs://release/{id}` - Specific release by ID
+  - [ ] `discogs://search?q={query}` - Search with auth
+
+- [ ] **8b.4** Test prompts:
+  - [ ] `browse_collection` - General exploration
+  - [ ] `find_music` - Targeted search
+  - [ ] `collection_insights` - Analytics
+
+- [ ] **8b.5** Test client compatibility:
+  - [ ] Claude Desktop integration
+  - [ ] MCP Inspector (if available)
+  - [ ] Session persistence across requests
+
+- [ ] **8b.6** Performance validation:
+  - [ ] Verify caching reduces API calls
+  - [ ] Check rate limiting behavior
+  - [ ] Test response times
+
+### Session 8c: Final Validation & Merge
+
+- [ ] **8c.1** Run linting: `npm run lint`
+- [ ] **8c.2** Run formatting: `npm run format`
+- [ ] **8c.3** Fix any issues found during testing
+- [ ] **8c.4** Update documentation with any learnings
+- [ ] **8c.5** Final production verification
+- [ ] **8c.6** Merge PR to main
 
 ---
 
@@ -594,13 +650,38 @@ Legend: ⬜ Not Started | 🟡 In Progress | ✅ Complete | ❌ Blocked
 - ⚠️ **Authentication Testing Deferred:** Requires full OAuth flow setup (production testing)
 - ✅ **Build Clean:** No errors, warnings, or type issues
 
-**Next Steps for Session 8:**
-1. Remove old protocol implementation files (handlers, parser, validation, etc.)
-2. Clean up unused dependencies
-3. Update README with new architecture
-4. Deploy to development environment
-5. Test OAuth flow in production
-6. Deploy to production
+**Session 8a Learnings:**
+- ✅ **Cleanup Completed:** Removed 2,947 lines of old protocol code (6 files)
+  - `src/protocol/handlers.ts` (1,773 lines)
+  - `src/protocol/parser.ts`, `validation.ts`
+  - `src/transport/sse.ts`
+  - `src/types/mcp.ts`, `jsonrpc.ts`
+- ✅ **README Updated:** New SDK-based architecture documented
+- ✅ **Production Deployment:** Successfully deployed to production
+  - Bundle size: 2643 KiB (down 1 KiB after cleanup)
+  - Startup time: 68-71ms
+  - URL: https://discogs-mcp-prod.rian-db8.workers.dev
+- ✅ **MCP Protocol Testing:** All components verified in production
+  - tools/list: 8 tools registered correctly
+  - resources/list: 3 resources registered correctly
+  - prompts/list: 3 prompts registered correctly
+- ✅ **Public Tools Tested:** ping, server_info, auth_status all working
+- ✅ **Connection ID Fix:** Critical session management bug fixed
+  - **Problem:** getSessionContext was sync but session extraction was async
+  - **Symptom:** Connection ID was undefined, login URLs missing connection_id param
+  - **Solution:** Made getSessionContext async, all tools/resources await it
+  - **Result:** Login URLs now include `?connection_id=X` for mcp-remote compatibility
+- ✅ **Code Quality:** Removed duplicate SessionContext interfaces, centralized in server.ts
+- ⚠️ **OAuth Flow:** Not tested yet (requires manual browser authentication)
+- ⚠️ **Authenticated Tools:** Not tested yet (requires OAuth completion first)
+
+**Next Steps for Session 8b:**
+1. Test OAuth flow with Claude Desktop (or manual browser testing)
+2. Verify session persistence and authentication state
+3. Test all 5 authenticated tools with real Discogs data
+4. Validate mood mapping with real queries
+5. Test resources and prompts
+6. Performance testing (caching, rate limiting)
 
 ---
 
