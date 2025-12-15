@@ -14,20 +14,12 @@ import {
 	generateMoodSearchTerms,
 } from "../../utils/moodMapping.js";
 import type { DiscogsCollectionItem } from "../../clients/discogs.js";
+import type { SessionContext } from "../server.js";
 
 /**
  * Type for release with relevance score
  */
 type ReleaseWithRelevance = DiscogsCollectionItem & { relevanceScore?: number };
-
-/**
- * Session context - will be populated from request context
- * TODO: Integrate with SDK request context in Session 6
- */
-interface SessionContext {
-	session: SessionPayload | null;
-	connectionId?: string;
-}
 
 /**
  * Get authentication instructions for unauthenticated requests
@@ -57,7 +49,7 @@ Your authentication will be secure and tied to your specific session.`;
 export function registerAuthenticatedTools(
 	server: McpServer,
 	env: Env,
-	getSessionContext: () => SessionContext
+	getSessionContext: () => Promise<SessionContext>
 ): void {
 	// Create Discogs clients
 	const discogsClient = new DiscogsClient();
@@ -88,7 +80,7 @@ export function registerAuthenticatedTools(
 				.describe("Number of results to return (1-100)"),
 		},
 		async ({ query, per_page }) => {
-			const { session, connectionId } = getSessionContext();
+			const { session, connectionId } = await getSessionContext();
 
 			if (!session) {
 				return {
@@ -234,7 +226,7 @@ export function registerAuthenticatedTools(
 				.describe("The Discogs release ID (e.g., from search results)"),
 		},
 		async ({ release_id }) => {
-			const { session, connectionId } = getSessionContext();
+			const { session, connectionId } = await getSessionContext();
 
 			if (!session) {
 				return {
@@ -308,7 +300,7 @@ export function registerAuthenticatedTools(
 		"Get comprehensive statistics about your Discogs collection including genre breakdown, decade analysis, format distribution, and ratings.",
 		{},
 		async () => {
-			const { session, connectionId } = getSessionContext();
+			const { session, connectionId } = await getSessionContext();
 
 			if (!session) {
 				return {
@@ -424,7 +416,7 @@ export function registerAuthenticatedTools(
 				.describe("Filter by format (e.g., 'Vinyl', 'CD', 'Cassette')"),
 		},
 		async ({ limit, genre, decade, similar_to, query, format }) => {
-			const { session, connectionId } = getSessionContext();
+			const { session, connectionId } = await getSessionContext();
 
 			if (!session) {
 				return {
@@ -888,7 +880,7 @@ export function registerAuthenticatedTools(
 		"Get cache performance statistics including total entries, pending requests, and data type breakdown.",
 		{},
 		async () => {
-			const { session, connectionId } = getSessionContext();
+			const { session, connectionId } = await getSessionContext();
 
 			if (!session) {
 				return {

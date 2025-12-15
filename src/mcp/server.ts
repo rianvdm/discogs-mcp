@@ -108,17 +108,19 @@ export function createServer(env: Env, request: Request): McpServer {
 	let sessionContextPromise: Promise<SessionContext> | null = null;
 
 	// Lazy session extraction - only extract session when first tool is called
-	const getSessionContext = (): SessionContext => {
+	const getSessionContext = async (): Promise<SessionContext> => {
 		// If we've already extracted session, return it immediately
 		if (sessionContextCache) {
 			return sessionContextCache;
 		}
 
-		// If extraction is in progress, this is an error (tools should await)
-		// But we'll handle it gracefully by returning unauthenticated
-		console.warn(
-			"Session context accessed before extraction complete - returning unauthenticated"
-		);
+		// If extraction is in progress, await it
+		if (sessionContextPromise) {
+			return await sessionContextPromise;
+		}
+
+		// This shouldn't happen, but handle it gracefully
+		console.warn("No session promise available - returning unauthenticated");
 		return { session: null, connectionId: undefined };
 	};
 
@@ -130,12 +132,9 @@ export function createServer(env: Env, request: Request): McpServer {
 		}
 	);
 
-	// Ensure session is extracted before server handles any requests
-	// The MCP handler will await this internally
-	(server as any)._sessionPromise = sessionContextPromise;
-
 	// Register public tools (available without authentication)
-	registerPublicTools(server, env);
+	// Pass session context so they can include connection ID in auth URLs
+	registerPublicTools(server, env, getSessionContext);
 
 	// Register authenticated tools with session context provider
 	registerAuthenticatedTools(server, env, getSessionContext);

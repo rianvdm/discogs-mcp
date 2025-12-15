@@ -6,15 +6,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Env } from "../../types/env.js";
 import { DiscogsClient } from "../../clients/discogs.js";
 import { CachedDiscogsClient } from "../../clients/cachedDiscogs.js";
-import type { SessionPayload } from "../../auth/jwt.js";
-
-/**
- * Session context for resources
- */
-interface SessionContext {
-	session: SessionPayload | null;
-	connectionId?: string;
-}
+import type { SessionContext } from "../server.js";
 
 /**
  * Register Discogs resources with the MCP server
@@ -22,7 +14,7 @@ interface SessionContext {
 export function registerResources(
 	server: McpServer,
 	env: Env,
-	getSessionContext: () => SessionContext
+	getSessionContext: () => Promise<SessionContext>
 ): void {
 	// Create Discogs clients
 	const discogsClient = new DiscogsClient();
@@ -37,7 +29,7 @@ export function registerResources(
 		"Complete Discogs collection for the authenticated user",
 		"application/json",
 		async () => {
-			const { session } = getSessionContext();
+			const { session } = await getSessionContext();
 
 			if (!session) {
 				throw new Error(
@@ -87,7 +79,7 @@ export function registerResources(
 		"Detailed information about a specific Discogs release. Replace {id} with the release ID.",
 		"application/json",
 		async (uri: string) => {
-			const { session } = getSessionContext();
+			const { session } = await getSessionContext();
 
 			if (!session) {
 				throw new Error("Authentication required to access release resource");
@@ -131,7 +123,7 @@ export function registerResources(
 		"Search results from user's collection. Replace {query} with search terms.",
 		"application/json",
 		async (uri: string) => {
-			const { session } = getSessionContext();
+			const { session } = await getSessionContext();
 
 			if (!session) {
 				throw new Error("Authentication required to access search resource");

@@ -5,53 +5,12 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Env } from "../../types/env.js";
-import { verifySessionToken, type SessionPayload } from "../../auth/jwt.js";
-import { discogsClient } from "../../clients/discogs.js";
+import type { SessionContext } from "../server.js";
 
 /**
- * Get session from request headers/cookies
+ * Generate authentication URL with connection ID if available
  */
-async function getSession(
-	request: Request,
-	env: Env
-): Promise<SessionPayload | null> {
-	try {
-		// Get session cookie
-		const cookieHeader = request.headers.get("Cookie");
-		if (!cookieHeader) {
-			return null;
-		}
-
-		// Parse cookies
-		const cookies = cookieHeader.split(";").reduce(
-			(acc, cookie) => {
-				const [key, value] = cookie.trim().split("=");
-				if (key && value) {
-					acc[key] = value;
-				}
-				return acc;
-			},
-			{} as Record<string, string>
-		);
-
-		const sessionToken = cookies.session;
-		if (!sessionToken) {
-			return null;
-		}
-
-		// Verify JWT token
-		return await verifySessionToken(sessionToken, env.JWT_SECRET);
-	} catch (error) {
-		console.error("Session verification error:", error);
-		return null;
-	}
-}
-
-/**
- * Get authentication URL for the user
- */
-function getAuthUrl(request: Request): string {
-	const connectionId = request.headers.get("X-Connection-ID");
+function getAuthUrl(connectionId?: string): string {
 	const baseUrl = "https://discogs-mcp-prod.rian-db8.workers.dev";
 	return connectionId
 		? `${baseUrl}/login?connection_id=${connectionId}`
@@ -61,7 +20,11 @@ function getAuthUrl(request: Request): string {
 /**
  * Register all public tools that don't require authentication
  */
-export function registerPublicTools(server: McpServer, env: Env): void {
+export function registerPublicTools(
+	server: McpServer,
+	env: Env,
+	getSessionContext: () => Promise<SessionContext>
+): void {
 	// Ping tool - simple connectivity test
 	server.tool(
 		"ping",
@@ -91,7 +54,8 @@ export function registerPublicTools(server: McpServer, env: Env): void {
 		"Get information about the Discogs MCP server",
 		{},
 		async () => {
-			const authUrl = "https://discogs-mcp-prod.rian-db8.workers.dev/login";
+			const { connectionId } = await getSessionContext();
+			const authUrl = getAuthUrl(connectionId);
 
 			return {
 				content: [
@@ -110,10 +74,35 @@ export function registerPublicTools(server: McpServer, env: Env): void {
 		"Check authentication status and get login instructions if needed",
 		{},
 		async () => {
-			const loginUrl = "https://discogs-mcp-prod.rian-db8.workers.dev/login";
+			const { session, connectionId } = await getSessionContext();
+			const loginUrl = getAuthUrl(connectionId);
 
-			// For now, always return unauthenticated status
-			// TODO: Implement session management with SDK context
+			// Check if user is authenticated
+			if (session) {
+				return {
+					content: [
+						{
+							type: "text",
+							text: `✅ **Authentication Status: Authenticated**
+
+You are successfully authenticated with Discogs!
+
+**Your session:**
+- User ID: ${session.userId}
+- Session expires: ${new Date(session.exp * 1000).toISOString()}
+
+**Available tools:**
+- search_collection: Search your music collection
+- get_release: Get release details
+- get_collection_stats: View collection statistics
+- get_recommendations: Get personalized recommendations
+- get_cache_stats: View cache performance`,
+						},
+					],
+				};
+			}
+
+			// Not authenticated
 			return {
 				content: [
 					{
@@ -137,7 +126,6 @@ You are not currently authenticated with Discogs. To access your personal music 
 - get_release: Get release details
 - get_collection_stats: View collection statistics
 - get_recommendations: Get personalized recommendations
-- get_recent_activity: View recent collection activity
 - get_cache_stats: View cache performance`,
 					},
 				],
