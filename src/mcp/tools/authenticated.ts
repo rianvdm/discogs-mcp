@@ -5,7 +5,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import type { Env } from "../../types/env.js";
-import { verifySessionToken, type SessionPayload } from "../../auth/jwt.js";
+
 import { DiscogsClient } from "../../clients/discogs.js";
 import { CachedDiscogsClient } from "../../clients/cachedDiscogs.js";
 import {
