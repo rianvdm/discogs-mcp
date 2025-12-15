@@ -8,7 +8,6 @@ import { createMcpHandler } from "agents/mcp";
 import { createServer } from "./mcp/server.js";
 import { DiscogsAuth } from './auth/discogs'
 import { createSessionToken, verifySessionToken } from './auth/jwt'
-import { authenticateConnection } from './transport/sse'
 import type { Env } from './types/env'
 import type { ExecutionContext } from '@cloudflare/workers-types'
 
@@ -263,13 +262,7 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
 				await env.MCP_SESSIONS.put(`session:${finalConnectionId}`, JSON.stringify(sessionData), {
 					expirationTtl: 7 * 24 * 60 * 60, // 7 days
 				})
-				
-				// Mark the SSE connection as authenticated (only for non-mcp-remote connections)
-				// mcp-remote connections don't have SSE connections, they use HTTP POST
-				if (!finalConnectionId.startsWith('mcp-remote-')) {
-					authenticateConnection(finalConnectionId, accessToken)
-				}
-				
+
 				console.log(`Session stored for connection ${finalConnectionId}`)
 			} catch (error) {
 				console.warn('Could not save session to KV:', error)
@@ -331,9 +324,7 @@ async function handleMCPAuth(request: Request, env: Env): Promise<Response> {
 		}
 
 		// Fallback: check if user has a valid session cookie
-		const session = await verifyAuthentication(request, env.JWT_SECRET)
-		if (session) {
-			// Extract session token from cookie
+		try {
 			const cookieHeader = request.headers.get('Cookie')
 			if (cookieHeader) {
 				const cookies = cookieHeader.split(';').reduce(
@@ -349,18 +340,23 @@ async function handleMCPAuth(request: Request, env: Env): Promise<Response> {
 
 				const sessionToken = cookies.session
 				if (sessionToken) {
-					return new Response(
-						JSON.stringify({
-							session_token: sessionToken,
-							user_id: session.userId,
-							message: 'Use this token in the Cookie header as: session=' + sessionToken,
-						}),
-						{
-							headers: addCorsHeaders({ 'Content-Type': 'application/json' }),
-						},
-					)
+					const session = await verifySessionToken(sessionToken, env.JWT_SECRET)
+					if (session) {
+						return new Response(
+							JSON.stringify({
+								session_token: sessionToken,
+								user_id: session.userId,
+								message: 'Use this token in the Cookie header as: session=' + sessionToken,
+							}),
+							{
+								headers: addCorsHeaders({ 'Content-Type': 'application/json' }),
+							},
+						)
+					}
 				}
 			}
+		} catch (error) {
+			console.error('Session verification error:', error)
 		}
 
 		const baseUrl = 'https://discogs-mcp-prod.rian-db8.workers.dev'

@@ -4,7 +4,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 
-A powerful MCP (Model Context Protocol) server that enables AI assistants to interact with your personal Discogs music collection. Built on Cloudflare Workers with intelligent mood mapping, advanced search capabilities, and seamless OAuth authentication.
+A powerful MCP (Model Context Protocol) server that enables AI assistants to interact with your personal Discogs music collection. Built on Cloudflare Workers using the official **Cloudflare Agents SDK** and **@modelcontextprotocol/sdk** with intelligent mood mapping, advanced search capabilities, and seamless OAuth authentication.
 
 ## ✨ Features
 
@@ -29,7 +29,7 @@ A powerful MCP (Model Context Protocol) server that enables AI assistants to int
   "mcpServers": {
     "discogs": {
       "command": "npx",
-      "args": ["mcp-remote", "https://discogs-mcp-prod.rian-db8.workers.dev/sse"]
+      "args": ["-y", "mcp-remote", "https://discogs-mcp-prod.rian-db8.workers.dev/mcp"]
     }
   }
 }
@@ -40,13 +40,21 @@ A powerful MCP (Model Context Protocol) server that enables AI assistants to int
 5. **Authenticate**: Visit the provided login URL to connect your Discogs account
 6. **Start exploring**: Try the example queries below!
 
+### Adding to Claude Code
+
+```bash
+claude mcp add --transport http discogs https://discogs-mcp-prod.rian-db8.workers.dev/mcp
+```
+
 ### Adding to Other MCP Clients
 
 For other MCP-compatible clients, use the server endpoint:
 
 ```
-https://discogs-mcp-prod.rian-db8.workers.dev/sse
+https://discogs-mcp-prod.rian-db8.workers.dev/mcp
 ```
+
+**Note:** The `/sse` endpoint has been deprecated. Please use `/mcp` for all new integrations.
 
 ## 🎯 What You Can Ask Your AI Assistant
 
@@ -189,7 +197,7 @@ For local development, copy the configuration from `.devtools/config/claude-desk
   "mcpServers": {
     "discogs-local": {
       "command": "npx",
-      "args": ["mcp-remote", "http://localhost:8787/sse"]
+      "args": ["-y", "mcp-remote", "http://localhost:8787/mcp"]
     }
   }
 }
@@ -215,6 +223,49 @@ npm run build      # Build for production
 npm run deploy     # Deploy to development
 npm run deploy:prod # Deploy to production
 ```
+
+## 🏗️ Architecture
+
+This server is built using the **official Cloudflare Agents SDK** and **@modelcontextprotocol/sdk**, ensuring spec compliance and maintainability:
+
+### Core Stack
+- **MCP SDK**: `@modelcontextprotocol/sdk` v1.24.3 - Official TypeScript implementation
+- **Agents SDK**: `agents` v0.2.32 - Cloudflare's MCP handler (`createMcpHandler`)
+- **Runtime**: Cloudflare Workers with `nodejs_compat` flag
+- **Storage**: Cloudflare KV for sessions, caching, and rate limiting
+
+### Code Structure
+```
+src/
+├── index.ts                 # Worker entry point, OAuth routes
+├── mcp/
+│   ├── server.ts            # MCP server factory with session context
+│   ├── tools/
+│   │   ├── public.ts        # Public tools (ping, server_info, auth_status)
+│   │   └── authenticated.ts # Authenticated tools (search, stats, recommendations)
+│   ├── resources/
+│   │   └── discogs.ts       # Discogs URI resources
+│   └── prompts/
+│       └── collection.ts    # Workflow prompts
+├── auth/
+│   ├── discogs.ts           # OAuth 1.0a implementation
+│   └── jwt.ts               # Session token management
+├── clients/
+│   ├── discogs.ts           # Discogs API client
+│   └── cachedDiscogs.ts     # KV-backed caching layer
+└── utils/
+    ├── moodMapping.ts       # Mood-to-genre intelligence
+    ├── cache.ts             # Smart caching utilities
+    ├── rateLimit.ts         # Dual-window rate limiting
+    └── retry.ts             # Exponential backoff retry logic
+```
+
+### Key Features
+- **Factory Pattern**: Server created per-request with session context via closures
+- **Session Management**: Cookie-based + connection-specific sessions for mcp-remote compatibility
+- **Mood Mapping**: 850+ lines of emotion-to-genre translation logic preserved from original
+- **Smart Caching**: Multi-tier KV caching with request deduplication
+- **Rate Limiting**: Per-user dual-window (per-minute + per-hour) throttling
 
 ## 🚀 Deployment
 
