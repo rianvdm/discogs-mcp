@@ -25,7 +25,7 @@ export const DEFAULT_CACHE_CONFIG: CacheConfig = {
 	collections: 30 * 60, // 30 minutes in seconds
 	releases: 24 * 60 * 60, // 24 hours in seconds
 	stats: 60 * 60, // 1 hour in seconds
-	searches: 15 * 60, // 15 minutes in seconds
+	searches: 30 * 60, // 30 minutes in seconds (increased from 15 to reduce API load)
 	userProfiles: 6 * 60 * 60, // 6 hours in seconds
 }
 
@@ -73,13 +73,13 @@ export class SmartCache {
 		try {
 			const cacheKey = this.getCacheKey(type, identifier)
 			const cached = await this.kv.get(cacheKey)
-			
+
 			if (!cached) {
 				return null
 			}
 
 			const entry: CacheEntry<T> = JSON.parse(cached)
-			
+
 			// Check if cache entry has expired
 			if (Date.now() > entry.expiresAt) {
 				// Clean up expired entry asynchronously
@@ -108,7 +108,7 @@ export class SmartCache {
 		try {
 			const ttl = this.config[type]
 			const now = Date.now()
-			
+
 			const entry: CacheEntry<T> = {
 				data,
 				timestamp: now,
@@ -196,10 +196,10 @@ export class SmartCache {
 		try {
 			console.log(`Fetching fresh data for ${type}:${identifier}`)
 			const data = await fetcher()
-			
+
 			// Cache the fresh data
 			await this.set(type, identifier, data)
-			
+
 			return data
 		} catch (error) {
 			console.error(`Failed to fetch ${type}:${identifier}:`, error)
@@ -214,11 +214,11 @@ export class SmartCache {
 		try {
 			// List keys matching the pattern
 			const keys = await this.kv.list({ prefix: `cache:${pattern}` })
-			
+
 			// Delete matching keys
 			const deletePromises = keys.keys.map(key => this.kv.delete(key.name))
 			await Promise.all(deletePromises)
-			
+
 			console.log(`Invalidated ${keys.keys.length} cache entries matching: ${pattern}`)
 		} catch (error) {
 			console.error('Cache invalidation error:', error)
@@ -236,7 +236,7 @@ export class SmartCache {
 		try {
 			const allKeys = await this.kv.list({ prefix: 'cache:' })
 			const entriesByType: Record<string, number> = {}
-			
+
 			for (const key of allKeys.keys) {
 				const parts = key.name.split(':')
 				if (parts.length >= 2) {
@@ -280,16 +280,16 @@ export class SmartCache {
  * Cache key generators for consistent naming
  */
 export const CacheKeys = {
-	collection: (username: string, page?: number, sort?: string) => 
+	collection: (username: string, page?: number, sort?: string) =>
 		`${username}:${page || 'all'}:${sort || 'default'}`,
-	
-	collectionSearch: (username: string, query: string, page?: number) => 
+
+	collectionSearch: (username: string, query: string, page?: number) =>
 		`${username}:${encodeURIComponent(query)}:${page || 1}`,
-	
+
 	release: (releaseId: string) => releaseId,
-	
+
 	stats: (username: string) => username,
-	
+
 	userProfile: (userId: string) => userId,
 }
 

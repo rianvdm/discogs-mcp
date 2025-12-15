@@ -143,10 +143,10 @@ export default {
 
 			case '/mcp':
 				// Primary MCP endpoint
-				if (request.method === 'POST') {
+				if (request.method === 'POST' || request.method === 'GET') {
 					return handleMCPRequest(request, env, ctx);
 				} else {
-					return new Response('Method not allowed. Use POST for MCP requests.', { status: 405 })
+					return new Response('Method not allowed. Use POST or GET for MCP requests.', { status: 405 })
 				}
 
 			case '/login':
