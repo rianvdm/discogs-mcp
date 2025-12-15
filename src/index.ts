@@ -45,8 +45,8 @@ export default {
 			})
 		}
 
-		// Create MCP server instance
-		const server = createServer(env);
+		// Create MCP server instance with request context for session management
+		const server = createServer(env, request);
 		const mcpHandler = createMcpHandler(server);
 
 		// Handle different endpoints
