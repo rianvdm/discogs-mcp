@@ -132,6 +132,8 @@ export class DiscogsClient {
 	private baseUrl = 'https://api.discogs.com'
 	private userAgent = 'discogs-mcp/1.0.0'
 	private lastRequestTime = 0
+	private kv: KVNamespace | null = null
+	private static readonly THROTTLE_KEY = 'discogs:last_request_time'
 
 	// Discogs-specific retry configuration (more aggressive than default)
 	private readonly discogsRetryOptions: RetryOptions = {
@@ -143,18 +145,58 @@ export class DiscogsClient {
 	}
 
 	// Minimum delay between Discogs API requests (proactive rate limiting)
-	private readonly REQUEST_DELAY_MS = 300 // 300ms between requests = ~200 requests/minute (well under Discogs 60/min limit)
+	// Discogs allows 60 authenticated requests per minute = 1 per second
+	// Using 1100ms to leave a safe buffer
+	private readonly REQUEST_DELAY_MS = 1100
 
 	/**
-	 * Add a small delay between requests to proactively avoid rate limits
+	 * Set KV namespace for persistent throttling across Worker invocations
+	 */
+	setKV(kv: KVNamespace): void {
+		this.kv = kv
+	}
+
+	/**
+	 * Add a delay between requests to proactively avoid rate limits.
+	 * Uses KV storage to persist throttle state across Worker invocations.
 	 */
 	private async throttleRequest(): Promise<void> {
-		const timeSinceLastRequest = Date.now() - this.lastRequestTime
+		let lastRequestTime = this.lastRequestTime
+
+		// Try to get last request time from KV (persistent across invocations)
+		if (this.kv) {
+			try {
+				const stored = await this.kv.get(DiscogsClient.THROTTLE_KEY)
+				if (stored) {
+					lastRequestTime = parseInt(stored, 10)
+				}
+			} catch (error) {
+				console.warn('Failed to read throttle time from KV:', error)
+			}
+		}
+
+		const now = Date.now()
+		const timeSinceLastRequest = now - lastRequestTime
+
 		if (timeSinceLastRequest < this.REQUEST_DELAY_MS) {
 			const delayNeeded = this.REQUEST_DELAY_MS - timeSinceLastRequest
+			console.log(`Throttling Discogs request: waiting ${delayNeeded}ms`)
 			await new Promise((resolve) => setTimeout(resolve, delayNeeded))
 		}
-		this.lastRequestTime = Date.now()
+
+		// Update last request time
+		const newTime = Date.now()
+		this.lastRequestTime = newTime
+
+		// Persist to KV for cross-invocation throttling
+		if (this.kv) {
+			try {
+				// Store with short TTL since we only need it for rate limiting
+				await this.kv.put(DiscogsClient.THROTTLE_KEY, newTime.toString(), { expirationTtl: 60 })
+			} catch (error) {
+				console.warn('Failed to write throttle time to KV:', error)
+			}
+		}
 	}
 
 	/**

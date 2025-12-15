@@ -13,6 +13,8 @@ export class CachedDiscogsClient {
 	constructor(client: DiscogsClient, kv: KVNamespace) {
 		this.client = client
 		this.cache = createDiscogsCache(kv)
+		// Set KV on the underlying client for persistent throttling
+		this.client.setKV(kv)
 	}
 
 	/**
@@ -26,7 +28,7 @@ export class CachedDiscogsClient {
 		consumerSecret?: string,
 	): Promise<DiscogsRelease> {
 		const cacheKey = CacheKeys.release(releaseId)
-		
+
 		return this.cache.getOrFetch(
 			'releases',
 			cacheKey,
@@ -55,7 +57,7 @@ export class CachedDiscogsClient {
 		if (options.query) {
 			// Search queries - shorter cache time since they're context-specific
 			const cacheKey = CacheKeys.collectionSearch(username, options.query, options.page)
-			
+
 			return this.cache.getOrFetch(
 				'searches',
 				cacheKey,
@@ -64,7 +66,7 @@ export class CachedDiscogsClient {
 		} else {
 			// Collection browsing - longer cache time since collections don't change often
 			const cacheKey = CacheKeys.collection(username, options.page, `${options.sort || 'default'}:${options.sort_order || 'desc'}`)
-			
+
 			return this.cache.getOrFetch(
 				'collections',
 				cacheKey,
@@ -85,7 +87,7 @@ export class CachedDiscogsClient {
 		consumerSecret: string,
 	): Promise<DiscogsCollectionStats> {
 		const cacheKey = CacheKeys.stats(username)
-		
+
 		return this.cache.getOrFetch(
 			'stats',
 			cacheKey,
@@ -103,7 +105,7 @@ export class CachedDiscogsClient {
 		consumerSecret: string,
 	): Promise<{ username: string; id: number }> {
 		const cacheKey = CacheKeys.userProfile(accessToken) // Use token as unique identifier
-		
+
 		return this.cache.getOrFetch(
 			'userProfiles',
 			cacheKey,
@@ -128,7 +130,7 @@ export class CachedDiscogsClient {
 	): Promise<DiscogsSearchResponse> {
 		// Database searches are cached for shorter time since they may return different results
 		const cacheKey = `${query}:${options.type || 'all'}:${options.page || 1}:${options.per_page || 50}`
-		
+
 		return this.cache.getOrFetch(
 			'searches',
 			cacheKey,
@@ -166,14 +168,14 @@ export class CachedDiscogsClient {
 		consumerSecret: string,
 	): Promise<void> {
 		console.log(`Warming cache for user: ${username}`)
-		
+
 		try {
 			// Preload first page of collection
 			await this.searchCollection(username, accessToken, accessTokenSecret, { page: 1, per_page: 50 }, consumerKey, consumerSecret)
-			
+
 			// Preload user profile
 			await this.getUserProfile(accessToken, accessTokenSecret, consumerKey, consumerSecret)
-			
+
 			console.log(`Cache warming completed for user: ${username}`)
 		} catch (error) {
 			console.error(`Cache warming failed for user: ${username}:`, error)
@@ -193,18 +195,18 @@ export class CachedDiscogsClient {
 		maxPages: number = 10 // Limit to prevent excessive API calls
 	): Promise<DiscogsCollectionResponse> {
 		const cacheKey = `${username}:complete:${maxPages}`
-		
+
 		return this.cache.getOrFetch(
 			'collections',
 			cacheKey,
 			async () => {
 				console.log(`Fetching complete collection for ${username} (max ${maxPages} pages)`)
-				
+
 				// Start with first page
 				let allReleases: DiscogsCollectionItem[] = []
 				let currentPage = 1
 				let totalPages = 1
-				
+
 				do {
 					const pageResult = await this.searchCollection(
 						username,
@@ -214,17 +216,17 @@ export class CachedDiscogsClient {
 						consumerKey,
 						consumerSecret
 					)
-					
+
 					allReleases = allReleases.concat(pageResult.releases)
 					totalPages = Math.min(pageResult.pagination.pages, maxPages)
 					currentPage++
-					
+
 					// Add small delay between requests to be respectful
 					if (currentPage <= totalPages) {
 						await new Promise(resolve => setTimeout(resolve, 200))
 					}
 				} while (currentPage <= totalPages)
-				
+
 				// Return in the same format as regular collection response
 				return {
 					pagination: {

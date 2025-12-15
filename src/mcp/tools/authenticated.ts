@@ -53,6 +53,10 @@ export function registerAuthenticatedTools(
 ): void {
 	// Create Discogs clients
 	const discogsClient = new DiscogsClient();
+	// Set KV for persistent rate limiting across Worker invocations
+	if (env.MCP_SESSIONS) {
+		discogsClient.setKV(env.MCP_SESSIONS);
+	}
 	const cachedClient = env.MCP_SESSIONS
 		? new CachedDiscogsClient(discogsClient, env.MCP_SESSIONS)
 		: null;
