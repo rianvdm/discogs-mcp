@@ -1,16 +1,14 @@
 /**
  * Discogs MCP Server - Cloudflare Worker
  * Implements Model Context Protocol for Discogs collection access
+ * Now using Cloudflare Agents SDK + @modelcontextprotocol/sdk
  */
 
-import { parseMessage, createError, serializeResponse } from './protocol/parser'
-import { handleMethod, verifyAuthentication } from './protocol/handlers'
-import { createSessionToken } from './auth/jwt'
-import { ErrorCode, JSONRPCError } from './types/jsonrpc'
-import { createSSEResponse, getConnection, authenticateConnection } from './transport/sse'
+import { createMcpHandler } from "agents/mcp";
+import { createServer } from "./mcp/server.js";
 import { DiscogsAuth } from './auth/discogs'
-import { KVLogger } from './utils/kvLogger'
-import { RateLimiter } from './utils/rateLimit'
+import { createSessionToken, verifySessionToken } from './auth/jwt'
+import { authenticateConnection } from './transport/sse'
 import type { Env } from './types/env'
 import type { ExecutionContext } from '@cloudflare/workers-types'
 
@@ -31,7 +29,7 @@ function addCorsHeaders(headers: HeadersInit = {}): Headers {
 }
 
 export default {
-	async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
+	async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
 		const url = new URL(request.url)
 
 		// Handle CORS preflight requests
@@ -47,21 +45,26 @@ export default {
 			})
 		}
 
+		// Create MCP server instance
+		const server = createServer(env);
+		const mcpHandler = createMcpHandler(server);
+
 		// Handle different endpoints
 		switch (url.pathname) {
 			case '/':
-				// Main MCP endpoint - accepts JSON-RPC messages for POST, info for GET
+				// Main endpoint - POST routes to MCP, GET shows info
 				if (request.method === 'POST') {
-					return handleMCPRequest(request, env)
+					// Backward compatibility: POST / routes to MCP handler
+					return mcpHandler(request, env, ctx);
 				} else if (request.method === 'GET') {
 					return new Response(
 						JSON.stringify({
 							name: 'Discogs MCP Server',
 							version: '1.0.0',
-							description: 'Model Context Protocol server for Discogs collection access',
+							description: 'Model Context Protocol server for Discogs collection access (SDK-based)',
 							endpoints: {
-								'/': 'POST - MCP JSON-RPC endpoint',
-								'/sse': 'GET - Server-Sent Events endpoint',
+								'/': 'POST - MCP JSON-RPC endpoint (backward compat)',
+								'/mcp': 'POST - Primary MCP endpoint',
 								'/login': 'GET - OAuth login',
 								'/callback': 'GET - OAuth callback',
 								'/mcp-auth': 'GET - MCP authentication',
@@ -80,17 +83,12 @@ export default {
 					return new Response('Method not allowed', { status: 405 })
 				}
 
-			case '/sse':
-				// SSE endpoint for bidirectional communication
-				if (request.method === 'GET') {
-					return handleSSEConnection()
-				} else if (request.method === 'POST') {
-					// Handle JSON-RPC requests on SSE endpoint for mcp-remote compatibility
-					// For mcp-remote, we need to infer the connection ID from the request context
-					// since it doesn't always include the X-Connection-ID header properly
-					return handleMCPRequestWithSSEContext(request, env)
+			case '/mcp':
+				// Primary MCP endpoint
+				if (request.method === 'POST') {
+					return mcpHandler(request, env, ctx);
 				} else {
-					return new Response('Method not allowed', { status: 405 })
+					return new Response('Method not allowed. Use POST for MCP requests.', { status: 405 })
 				}
 
 			case '/login':
@@ -305,225 +303,6 @@ async function handleCallback(request: Request, env: Env): Promise<Response> {
 	}
 }
 
-/**
- * Handle SSE connection request
- */
-function handleSSEConnection(): Response {
-	const { response, connectionId } = createSSEResponse()
-	console.log(`New SSE connection established: ${connectionId}`)
-	return response as unknown as Response
-}
-
-/**
- * Handle MCP JSON-RPC request with SSE context for mcp-remote compatibility
- * This handles the case where mcp-remote makes POST requests to /sse without proper connection headers
- */
-async function handleMCPRequestWithSSEContext(request: Request, env?: Env): Promise<Response> {
-	// Check if we already have a connection ID header
-	let connectionId = request.headers.get('X-Connection-ID')
-	
-	// If no connection ID, create a consistent one for this client session
-	// This enables mcp-remote to work properly by providing stable connection-specific URLs
-	if (!connectionId) {
-		// Create a deterministic connection ID based on client characteristics
-		// This ensures the same client gets the same connection ID across requests
-		const clientIP = request.headers.get('CF-Connecting-IP') || request.headers.get('X-Forwarded-For') || 'unknown'
-		const userAgent = request.headers.get('User-Agent') || 'unknown'
-		// Use daily timestamp to ensure connection ID is stable for 24 hours
-		const timestamp = Math.floor(Date.now() / (1000 * 60 * 60 * 24)) // Changes every 24 hours
-		
-		// Create a hash-based connection ID that's consistent for the same client/day
-		const encoder = new TextEncoder()
-		const data = encoder.encode(`${clientIP}-${userAgent}-${timestamp}`)
-		const hashBuffer = await crypto.subtle.digest('SHA-256', data)
-		const hashArray = new Uint8Array(hashBuffer)
-		const hashHex = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('')
-		
-		connectionId = `mcp-remote-${hashHex.substring(0, 16)}`
-		
-		// Create a new request with the connection ID header
-		const newHeaders = new Headers(request.headers)
-		newHeaders.set('X-Connection-ID', connectionId)
-		
-		const newRequest = new Request(request.url, {
-			method: request.method,
-			headers: newHeaders,
-			body: request.body,
-		})
-		
-		return handleMCPRequest(newRequest, env)
-	}
-	
-	// If we have a connection ID, use the normal handler
-	return handleMCPRequest(request, env)
-}
-
-/**
- * Handle MCP JSON-RPC request
- */
-async function handleMCPRequest(request: Request, env?: Env): Promise<Response> {
-	const startTime = Date.now()
-	let userId = 'anonymous'
-	let method = 'unknown'
-	let params: unknown = null
-
-	// Initialize utilities
-	const logger = env?.MCP_LOGS ? new KVLogger(env.MCP_LOGS) : null
-	const rateLimiter = env?.MCP_RL
-		? new RateLimiter(env.MCP_RL, {
-				requestsPerMinute: 60, // TODO: Make configurable via env vars
-				requestsPerHour: 1000,
-			})
-		: null
-
-	try {
-		// Check for connection ID header (for SSE-connected clients)
-		const connectionId = request.headers.get('X-Connection-ID')
-		if (connectionId) {
-			const connection = getConnection(connectionId)
-			if (!connection) {
-				console.warn(`Invalid connection ID: ${connectionId}`)
-			}
-		}
-
-		// Parse request body
-		const body = await request.text()
-
-		// Handle empty body
-		if (!body) {
-			const errorResponse = createError(null, ErrorCode.InvalidRequest, 'Empty request body')
-
-			// Log the error
-			if (logger) {
-				const latency = Date.now() - startTime
-				await logger.log(userId, method, params, {
-					status: 'error',
-					latency,
-					errorCode: ErrorCode.InvalidRequest,
-					errorMessage: 'Empty request body',
-				})
-			}
-
-			return new Response(serializeResponse(errorResponse), {
-				headers: addCorsHeaders({ 'Content-Type': 'application/json' }),
-			})
-		}
-
-		// Parse JSON-RPC message
-		let jsonrpcRequest
-		try {
-			jsonrpcRequest = parseMessage(body)
-			method = jsonrpcRequest.method
-			params = jsonrpcRequest.params
-		} catch (error) {
-			// Parse error or invalid request
-			const jsonrpcError = error as JSONRPCError
-			const errorResponse = createError(null, jsonrpcError.code || ErrorCode.ParseError, jsonrpcError.message || 'Parse error')
-
-			// Log the parse error
-			if (logger) {
-				const latency = Date.now() - startTime
-				await logger.log(userId, method, params, {
-					status: 'error',
-					latency,
-					errorCode: jsonrpcError.code || ErrorCode.ParseError,
-					errorMessage: jsonrpcError.message || 'Parse error',
-				})
-			}
-
-			return new Response(serializeResponse(errorResponse), {
-				headers: addCorsHeaders({ 'Content-Type': 'application/json' }),
-			})
-		}
-
-		// Get user ID for rate limiting and logging
-		if (env?.JWT_SECRET) {
-			const session = await verifyAuthentication(request, env.JWT_SECRET)
-			if (session) {
-				userId = session.userId
-			}
-		}
-
-		// Apply rate limiting (skip for initialize method)
-		if (rateLimiter && method !== 'initialize' && method !== 'initialized') {
-			const rateLimitResult = await rateLimiter.checkLimit(userId)
-
-			if (!rateLimitResult.allowed) {
-				const errorResponse = createError(
-					jsonrpcRequest.id || null,
-					rateLimitResult.errorCode || -32000,
-					rateLimitResult.errorMessage || 'Rate limit exceeded',
-				)
-
-				// Log the rate limit error
-				if (logger) {
-					const latency = Date.now() - startTime
-					await logger.log(userId, method, params, {
-						status: 'error',
-						latency,
-						errorCode: rateLimitResult.errorCode || -32000,
-						errorMessage: rateLimitResult.errorMessage || 'Rate limit exceeded',
-					})
-				}
-
-				return new Response(serializeResponse(errorResponse), {
-					status: 429,
-					headers: addCorsHeaders({
-						'Content-Type': 'application/json',
-						'Retry-After': rateLimitResult.resetTime ? Math.ceil((rateLimitResult.resetTime - Date.now()) / 1000).toString() : '60',
-					}),
-				})
-			}
-		}
-
-		// Handle the method
-		const response = await handleMethod(jsonrpcRequest, request, env?.JWT_SECRET, env)
-
-		// Calculate latency
-		const latency = Date.now() - startTime
-
-		// Log successful request
-		if (logger) {
-			await logger.log(userId, method, params, {
-				status: 'success',
-				latency,
-			})
-		}
-
-		// If no response (notification), return 204 No Content
-		if (!response) {
-			return new Response(null, { 
-				status: 204,
-				headers: addCorsHeaders()
-			})
-		}
-
-		// Return JSON-RPC response
-		return new Response(serializeResponse(response), {
-			headers: addCorsHeaders({ 'Content-Type': 'application/json' }),
-		})
-	} catch (error) {
-		// Internal server error
-		console.error('Internal error:', error)
-		const errorResponse = createError(null, ErrorCode.InternalError, 'Internal server error')
-
-		// Log the internal error
-		if (logger) {
-			const latency = Date.now() - startTime
-			await logger.log(userId, method, params, {
-				status: 'error',
-				latency,
-				errorCode: ErrorCode.InternalError,
-				errorMessage: error instanceof Error ? error.message : 'Internal server error',
-			})
-		}
-
-		return new Response(serializeResponse(errorResponse), {
-			status: 500,
-			headers: addCorsHeaders({ 'Content-Type': 'application/json' }),
-		})
-	}
-}
 
 /**
  * Handle MCP authentication endpoint - returns latest session token
