@@ -28,7 +28,7 @@ type ReleaseWithRelevance = DiscogsCollectionItem & { relevanceScore?: number }
 function filterReleasesInMemory(
 	allReleases: DiscogsCollectionItem[],
 	query: string,
-	options: {
+	_options: {
 		hasRecent?: boolean
 		hasOld?: boolean
 		sort?: 'added' | 'artist' | 'title' | 'year'
@@ -48,7 +48,7 @@ function filterReleasesInMemory(
 	}
 
 	// Apply the same filtering logic as searchCollectionWithQuery
-	let filteredReleases = allReleases.filter((item) => {
+	const filteredReleases = allReleases.filter((item) => {
 		const release = item.basic_information
 
 		// For single word queries or exact ID searches, use simple includes
