@@ -241,14 +241,113 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: search_collection
 	 * Search user's Discogs collection with mood-aware queries
 	 */
+	/**
+	 * Detect whether a query is semantic/conceptual (needs LLM interpretation)
+	 * vs a literal/specific search (artist name, album title, genre, year).
+	 *
+	 * Semantic queries describe qualities, feelings, or concepts that don't map
+	 * directly to metadata fields — e.g., "empowering female voice", "road trip
+	 * through the desert", "albums my dad would love".
+	 */
+	function isSemanticQuery(query: string, allReleases: DiscogsCollectionItem[]): boolean {
+		const q = query.toLowerCase().trim()
+
+		// Single word or numeric — always literal
+		if (!q.includes(' ') || /^\d+$/.test(q)) {
+			return false
+		}
+
+		// If the query matches an artist name in the collection, it's literal
+		const matchesArtist = allReleases.some((item) =>
+			item.basic_information.artists?.some((a) => {
+				const name = a.name.toLowerCase()
+				return name.includes(q) || q.includes(name)
+			}),
+		)
+		if (matchesArtist) return false
+
+		// If the query matches an album title in the collection, it's literal
+		const matchesTitle = allReleases.some((item) => {
+			const title = item.basic_information.title?.toLowerCase() || ''
+			return title.includes(q) || q.includes(title)
+		})
+		if (matchesTitle) return false
+
+		// Known music-specific terms that indicate a concrete/literal search
+		const concreteTerms = new Set([
+			'rock', 'jazz', 'blues', 'electronic', 'techno', 'house', 'metal', 'punk',
+			'folk', 'country', 'classical', 'hip-hop', 'rap', 'soul', 'funk', 'disco',
+			'reggae', 'ska', 'indie', 'alternative', 'psychedelic', 'experimental',
+			'ambient', 'downtempo', 'trance', 'dubstep', 'garage', 'post-rock',
+			'post-punk', 'new wave', 'synthpop', 'industrial', 'gothic', 'shoegaze',
+			'grunge', 'hardcore', 'r&b', 'pop', 'latin', 'world', 'soundtrack',
+			'vinyl', 'cd', 'cassette', '7"', '12"', 'lp',
+		])
+
+		// If ALL non-trivial words are concrete music/format terms, it's literal
+		const words = q.split(/\s+/).filter((w) => w.length > 2)
+		const allConcrete = words.length > 0 && words.every((w) => {
+			// Check concrete terms, decade patterns, temporal terms
+			return concreteTerms.has(w) ||
+				/^\d{4}s?$/.test(w) ||
+				['recent', 'recently', 'new', 'newest', 'latest', 'old', 'oldest', 'earliest'].includes(w)
+		})
+		if (allConcrete) return false
+
+		// If mood mapping has high confidence, the existing pipeline handles it
+		if (hasMoodContent(q)) {
+			const moodAnalysis = analyzeMoodQuery(q)
+			if (moodAnalysis.confidence >= 0.6) {
+				return false
+			}
+		}
+
+		// Otherwise, it's likely a semantic/conceptual query
+		return true
+	}
+
+	/**
+	 * Format the full collection compactly so the calling LLM can apply its
+	 * world knowledge to select semantically matching releases.
+	 */
+	function formatCollectionForSemanticSearch(
+		allReleases: DiscogsCollectionItem[],
+		query: string,
+	): { content: Array<{ type: 'text'; text: string }> } {
+		const compactList = allReleases
+			.map((release) => {
+				const info = release.basic_information
+				const artists = info.artists.map((a) => a.name).join(', ')
+				const genres = info.genres?.join(', ') || ''
+				const styles = info.styles?.length ? ` | ${info.styles.join(', ')}` : ''
+				const rating = release.rating > 0 ? ` ★${release.rating}` : ''
+				return `[${info.id}] ${artists} - ${info.title} (${info.year}) | ${genres}${styles}${rating}`
+			})
+			.join('\n')
+
+		return {
+			content: [
+				{
+					type: 'text',
+					text:
+						`**Semantic search mode:** The collection filter could not find direct matches for "${query}". ` +
+						`Below is the complete collection (${allReleases.length} releases). ` +
+						`Please use your knowledge of these artists and albums to select the best matches for the user's intent: "${query}"\n\n` +
+						`${compactList}\n\n` +
+						`**Tip:** Use the release IDs with the get_release tool for detailed information about specific albums.`,
+				},
+			],
+		}
+	}
+
 	server.tool(
 		'search_collection',
-		"Search your Discogs collection with natural language and mood-aware queries. Supports mood descriptors like 'mellow jazz', contextual queries like 'Sunday evening music', and temporal terms like 'recent' or 'oldest'.",
+		"Search your Discogs collection with natural language queries. IMPORTANT: Pass the user's query as-is — do NOT rewrite, decompose, or make multiple searches. The tool handles semantic/conceptual queries internally (e.g., 'strong empowering female voice', 'perfect for a rainy Sunday') by returning the full collection for you to select from using your knowledge. Also supports mood descriptors like 'mellow jazz', temporal terms like 'recent' or 'oldest', and specific searches by artist, album, genre, or year. One call is sufficient for any query.",
 		{
 			query: z
 				.string()
 				.describe(
-					'Search query - can include mood descriptors (mellow, energetic, melancholic), contextual terms (Sunday evening, rainy day), or specific searches (artist, album, genre)',
+					"The user's search query passed verbatim. Do NOT rewrite or decompose the query — pass it exactly as the user said it. The tool handles semantic queries like 'empowering female vocals' or 'road trip music' by returning the full collection for LLM-based selection.",
 				),
 			per_page: z.number().min(1).max(100).optional().default(50).describe('Number of results to return (1-100)'),
 		},
@@ -308,16 +407,24 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				// This avoids paginating the entire collection via API for every search.
 				const allResults: DiscogsCollectionItem[] = []
 				const seenReleaseIds = new Set<string>()
+				let allReleases: DiscogsCollectionItem[] = []
 
 				if (cachedClient) {
 					// Fetch complete collection once (cached for 45 min)
-					const allReleases = await cachedClient.getCompleteCollectionReleases(
+					allReleases = await cachedClient.getCompleteCollectionReleases(
 						userProfile.username,
 						session.accessToken,
 						session.accessTokenSecret,
 						env.DISCOGS_CONSUMER_KEY,
 						env.DISCOGS_CONSUMER_SECRET,
 					)
+
+					// Semantic query detection: if the query is conceptual/descriptive
+					// (not matching artists, albums, genres, or moods), short-circuit
+					// and return the full collection for LLM-based selection.
+					if (isSemanticQuery(query, allReleases)) {
+						return formatCollectionForSemanticSearch(allReleases, query)
+					}
 
 					// Run each query variant as an in-memory filter against the same dataset
 					for (const searchQuery of searchQueries) {
