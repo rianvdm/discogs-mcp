@@ -198,3 +198,6 @@ coverage/
 # Development artifacts
 dist/
 .wrangler/
+
+# Git worktrees
+.worktrees/
