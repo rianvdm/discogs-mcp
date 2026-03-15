@@ -620,15 +620,19 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				// This reuses the same cached dataset as search_collection and
 				// get_recommendations, so if either was called first, this is free.
 				let stats
+				let collectionTotalItems = 0
+				let collectionIndexedItems = 0
 				if (cachedClient) {
-					const allReleases = await cachedClient.getCompleteCollectionReleases(
+					const collection = await cachedClient.getCompleteCollection(
 						userProfile.username,
 						session.accessToken,
 						session.accessTokenSecret,
 						env.DISCOGS_CONSUMER_KEY,
 						env.DISCOGS_CONSUMER_SECRET,
 					)
-					stats = cachedClient.computeStatsFromReleases(allReleases)
+					stats = cachedClient.computeStatsFromReleases(collection.releases)
+					collectionTotalItems = collection.pagination.items
+					collectionIndexedItems = collection.releases.length
 				} else {
 					stats = await client.getCollectionStats(
 						userProfile.username,
@@ -637,10 +641,18 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 						env.DISCOGS_CONSUMER_KEY,
 						env.DISCOGS_CONSUMER_SECRET,
 					)
+					collectionTotalItems = stats.totalReleases
+					collectionIndexedItems = stats.totalReleases
 				}
 
+				const isIncomplete = collectionTotalItems > collectionIndexedItems
+
 				let text = `**Collection Statistics for ${userProfile.username}**\n\n`
-				text += `Total Releases: ${stats.totalReleases}\n`
+				if (isIncomplete) {
+					text += `Total Releases: ${collectionIndexedItems} indexed of ${collectionTotalItems} total\n`
+				} else {
+					text += `Total Releases: ${stats.totalReleases}\n`
+				}
 				text += `Average Rating: ${stats.averageRating.toFixed(1)} (${stats.ratedReleases} rated releases)\n\n`
 
 				text += `**Top Genres:**\n`
@@ -666,6 +678,10 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				topFormats.forEach(([format, count]) => {
 					text += `• ${format}: ${count} releases\n`
 				})
+
+				if (isIncomplete) {
+					text += `\n⚠️ Only ${collectionIndexedItems} of your ${collectionTotalItems} releases have been indexed. Stats above reflect the indexed portion only.`
+				}
 
 				return {
 					content: [
