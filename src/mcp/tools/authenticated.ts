@@ -408,22 +408,31 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				const allResults: DiscogsCollectionItem[] = []
 				const seenReleaseIds = new Set<string>()
 				let allReleases: DiscogsCollectionItem[] = []
+				let collectionTruncationNote = ''
 
 				if (cachedClient) {
 					// Fetch complete collection once (cached for 45 min)
-					allReleases = await cachedClient.getCompleteCollectionReleases(
+					const collection = await cachedClient.getCompleteCollection(
 						userProfile.username,
 						session.accessToken,
 						session.accessTokenSecret,
 						env.DISCOGS_CONSUMER_KEY,
 						env.DISCOGS_CONSUMER_SECRET,
 					)
+					allReleases = collection.releases
+					if (collection.pagination.items > collection.releases.length) {
+						collectionTruncationNote = `\n\n⚠️ Your collection has ${collection.pagination.items} releases but only ${collection.releases.length} were indexed. Some results may be missing.`
+					}
 
 					// Semantic query detection: if the query is conceptual/descriptive
 					// (not matching artists, albums, genres, or moods), short-circuit
 					// and return the full collection for LLM-based selection.
 					if (isSemanticQuery(query, allReleases)) {
-						return formatCollectionForSemanticSearch(allReleases, query)
+						const semanticResult = formatCollectionForSemanticSearch(allReleases, query)
+						if (collectionTruncationNote && semanticResult.content?.[0]?.type === 'text') {
+							semanticResult.content[0].text += collectionTruncationNote
+						}
+						return semanticResult
 					}
 
 					// Run each query variant as an in-memory filter against the same dataset
@@ -506,7 +515,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					content: [
 						{
 							type: 'text',
-							text: `${summary}${temporalInfo}${moodInfo}\n${releaseList}\n\n**Tip:** Use the release IDs with the get_release tool for detailed information about specific albums.`,
+							text: `${summary}${temporalInfo}${moodInfo}\n${releaseList}\n\n**Tip:** Use the release IDs with the get_release tool for detailed information about specific albums.${collectionTruncationNote}`,
 						},
 					],
 				}
