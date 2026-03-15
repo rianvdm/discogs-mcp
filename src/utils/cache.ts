@@ -299,7 +299,7 @@ export const CacheKeys = {
 export function createDiscogsCache(kv: KVNamespace): SmartCache {
 	return new SmartCache(kv, {
 		// Tune cache TTLs based on data freshness requirements
-		collections: 30 * 60, // Collections don't change often
+		collections: 45 * 60, // Complete collection cache; aligns with getCompleteCollection's 45-min intent
 		releases: 24 * 60 * 60, // Release data is mostly static
 		stats: 60 * 60, // Stats can be cached for an hour
 		searches: 15 * 60, // Search results cached for 15 minutes
