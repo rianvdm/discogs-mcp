@@ -117,6 +117,23 @@ export interface DiscogsSearchResponse {
 	}>
 }
 
+export interface DiscogsFolder {
+	id: number
+	name: string
+	count: number
+	resource_url: string
+}
+
+export interface DiscogsCustomField {
+	id: number
+	name: string
+	type: string // 'textarea' | 'dropdown'
+	public: boolean
+	position: number
+	options?: string[] // for dropdown fields
+	lines?: number // for textarea fields
+}
+
 export interface DiscogsCollectionStats {
 	totalReleases: number
 	totalValue: number
@@ -911,6 +928,352 @@ export class DiscogsClient {
 				throw new Error('Discogs API rate limit exceeded for database search. Please try again later.')
 			}
 			throw new Error(`Failed to search database: ${error instanceof Error ? error.message : 'Unknown error'}`)
+		}
+	}
+
+	// ──────────────────────────────────────────────
+	// Collection write operations
+	// ──────────────────────────────────────────────
+
+	/**
+	 * List all collection folders for a user
+	 */
+	async listFolders(
+		username: string,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<DiscogsFolder[]> {
+		const url = `${this.baseUrl}/users/${username}/collection/folders`
+		const authHeader = await this.createOAuthHeader(url, 'GET', accessToken, accessTokenSecret, consumerKey, consumerSecret)
+
+		try {
+			await this.throttleRequest()
+			const response = await fetchWithRetry(
+				url,
+				{
+					headers: {
+						Authorization: authHeader,
+						'User-Agent': this.userAgent,
+					},
+				},
+				this.discogsRetryOptions,
+			)
+
+			const data: { folders: DiscogsFolder[] } = await response.json()
+			return data.folders
+		} catch (error) {
+			if (error instanceof Error && error.message.includes('429')) {
+				throw new Error('Discogs API rate limit exceeded for listing folders. Please try again later.')
+			}
+			throw new Error(`Failed to list folders: ${error instanceof Error ? error.message : 'Unknown error'}`)
+		}
+	}
+
+	/**
+	 * Create a new collection folder
+	 */
+	async createFolder(
+		username: string,
+		name: string,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<DiscogsFolder> {
+		const url = `${this.baseUrl}/users/${username}/collection/folders`
+		const authHeader = await this.createOAuthHeader(url, 'POST', accessToken, accessTokenSecret, consumerKey, consumerSecret)
+
+		try {
+			await this.throttleRequest()
+			const response = await fetchWithRetry(
+				url,
+				{
+					method: 'POST',
+					headers: {
+						Authorization: authHeader,
+						'User-Agent': this.userAgent,
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({ name }),
+				},
+				this.discogsRetryOptions,
+			)
+
+			return response.json()
+		} catch (error) {
+			if (error instanceof Error && error.message.includes('429')) {
+				throw new Error('Discogs API rate limit exceeded. Please try again later.')
+			}
+			throw new Error(`Failed to create folder: ${error instanceof Error ? error.message : 'Unknown error'}`)
+		}
+	}
+
+	/**
+	 * Edit (rename) a collection folder
+	 */
+	async editFolder(
+		username: string,
+		folderId: number,
+		name: string,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<DiscogsFolder> {
+		const url = `${this.baseUrl}/users/${username}/collection/folders/${folderId}`
+		const authHeader = await this.createOAuthHeader(url, 'POST', accessToken, accessTokenSecret, consumerKey, consumerSecret)
+
+		try {
+			await this.throttleRequest()
+			const response = await fetchWithRetry(
+				url,
+				{
+					method: 'POST',
+					headers: {
+						Authorization: authHeader,
+						'User-Agent': this.userAgent,
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({ name }),
+				},
+				this.discogsRetryOptions,
+			)
+
+			return response.json()
+		} catch (error) {
+			if (error instanceof Error && error.message.includes('429')) {
+				throw new Error('Discogs API rate limit exceeded. Please try again later.')
+			}
+			throw new Error(`Failed to edit folder: ${error instanceof Error ? error.message : 'Unknown error'}`)
+		}
+	}
+
+	/**
+	 * Delete a collection folder (must be empty)
+	 */
+	async deleteFolder(
+		username: string,
+		folderId: number,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<void> {
+		const url = `${this.baseUrl}/users/${username}/collection/folders/${folderId}`
+		const authHeader = await this.createOAuthHeader(url, 'DELETE', accessToken, accessTokenSecret, consumerKey, consumerSecret)
+
+		try {
+			await this.throttleRequest()
+			await fetchWithRetry(
+				url,
+				{
+					method: 'DELETE',
+					headers: {
+						Authorization: authHeader,
+						'User-Agent': this.userAgent,
+					},
+				},
+				this.discogsRetryOptions,
+			)
+		} catch (error) {
+			if (error instanceof Error && error.message.includes('429')) {
+				throw new Error('Discogs API rate limit exceeded. Please try again later.')
+			}
+			throw new Error(`Failed to delete folder: ${error instanceof Error ? error.message : 'Unknown error'}`)
+		}
+	}
+
+	/**
+	 * Add a release to a collection folder
+	 */
+	async addToFolder(
+		username: string,
+		folderId: number,
+		releaseId: number,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<{ instance_id: number; resource_url: string }> {
+		const url = `${this.baseUrl}/users/${username}/collection/folders/${folderId}/releases/${releaseId}`
+		const authHeader = await this.createOAuthHeader(url, 'POST', accessToken, accessTokenSecret, consumerKey, consumerSecret)
+
+		try {
+			await this.throttleRequest()
+			const response = await fetchWithRetry(
+				url,
+				{
+					method: 'POST',
+					headers: {
+						Authorization: authHeader,
+						'User-Agent': this.userAgent,
+					},
+				},
+				this.discogsRetryOptions,
+			)
+
+			return response.json()
+		} catch (error) {
+			if (error instanceof Error && error.message.includes('429')) {
+				throw new Error('Discogs API rate limit exceeded. Please try again later.')
+			}
+			throw new Error(`Failed to add release to folder: ${error instanceof Error ? error.message : 'Unknown error'}`)
+		}
+	}
+
+	/**
+	 * Remove a release instance from a collection folder
+	 */
+	async removeFromFolder(
+		username: string,
+		folderId: number,
+		releaseId: number,
+		instanceId: number,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<void> {
+		const url = `${this.baseUrl}/users/${username}/collection/folders/${folderId}/releases/${releaseId}/instances/${instanceId}`
+		const authHeader = await this.createOAuthHeader(url, 'DELETE', accessToken, accessTokenSecret, consumerKey, consumerSecret)
+
+		try {
+			await this.throttleRequest()
+			await fetchWithRetry(
+				url,
+				{
+					method: 'DELETE',
+					headers: {
+						Authorization: authHeader,
+						'User-Agent': this.userAgent,
+					},
+				},
+				this.discogsRetryOptions,
+			)
+		} catch (error) {
+			if (error instanceof Error && error.message.includes('429')) {
+				throw new Error('Discogs API rate limit exceeded. Please try again later.')
+			}
+			throw new Error(`Failed to remove release from folder: ${error instanceof Error ? error.message : 'Unknown error'}`)
+		}
+	}
+
+	/**
+	 * Edit a collection instance (move to folder and/or change rating)
+	 */
+	async editInstance(
+		username: string,
+		folderId: number,
+		releaseId: number,
+		instanceId: number,
+		changes: { folder_id?: number; rating?: number },
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<void> {
+		const url = `${this.baseUrl}/users/${username}/collection/folders/${folderId}/releases/${releaseId}/instances/${instanceId}`
+		const authHeader = await this.createOAuthHeader(url, 'POST', accessToken, accessTokenSecret, consumerKey, consumerSecret)
+
+		try {
+			await this.throttleRequest()
+			await fetchWithRetry(
+				url,
+				{
+					method: 'POST',
+					headers: {
+						Authorization: authHeader,
+						'User-Agent': this.userAgent,
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify(changes),
+				},
+				this.discogsRetryOptions,
+			)
+		} catch (error) {
+			if (error instanceof Error && error.message.includes('429')) {
+				throw new Error('Discogs API rate limit exceeded. Please try again later.')
+			}
+			throw new Error(`Failed to edit instance: ${error instanceof Error ? error.message : 'Unknown error'}`)
+		}
+	}
+
+	/**
+	 * List custom fields for a user's collection
+	 */
+	async listCustomFields(
+		username: string,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<DiscogsCustomField[]> {
+		const url = `${this.baseUrl}/users/${username}/collection/fields`
+		const authHeader = await this.createOAuthHeader(url, 'GET', accessToken, accessTokenSecret, consumerKey, consumerSecret)
+
+		try {
+			await this.throttleRequest()
+			const response = await fetchWithRetry(
+				url,
+				{
+					headers: {
+						Authorization: authHeader,
+						'User-Agent': this.userAgent,
+					},
+				},
+				this.discogsRetryOptions,
+			)
+
+			const data: { fields: DiscogsCustomField[] } = await response.json()
+			return data.fields
+		} catch (error) {
+			if (error instanceof Error && error.message.includes('429')) {
+				throw new Error('Discogs API rate limit exceeded. Please try again later.')
+			}
+			throw new Error(`Failed to list custom fields: ${error instanceof Error ? error.message : 'Unknown error'}`)
+		}
+	}
+
+	/**
+	 * Edit a custom field value on a collection instance
+	 */
+	async editCustomFieldValue(
+		username: string,
+		folderId: number,
+		releaseId: number,
+		instanceId: number,
+		fieldId: number,
+		value: string,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<void> {
+		const url = `${this.baseUrl}/users/${username}/collection/folders/${folderId}/releases/${releaseId}/instances/${instanceId}/fields/${fieldId}`
+		const authHeader = await this.createOAuthHeader(url, 'POST', accessToken, accessTokenSecret, consumerKey, consumerSecret)
+
+		try {
+			await this.throttleRequest()
+			await fetchWithRetry(
+				url,
+				{
+					method: 'POST',
+					headers: {
+						Authorization: authHeader,
+						'User-Agent': this.userAgent,
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({ value }),
+				},
+				this.discogsRetryOptions,
+			)
+		} catch (error) {
+			if (error instanceof Error && error.message.includes('429')) {
+				throw new Error('Discogs API rate limit exceeded. Please try again later.')
+			}
+			throw new Error(`Failed to edit custom field: ${error instanceof Error ? error.message : 'Unknown error'}`)
 		}
 	}
 }

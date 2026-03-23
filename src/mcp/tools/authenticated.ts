@@ -1298,4 +1298,598 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			}
 		},
 	)
+
+	// ──────────────────────────────────────────────
+	// Collection write tools
+	// ──────────────────────────────────────────────
+
+	/**
+	 * Tool: list_folders
+	 * List all collection folders
+	 */
+	server.tool(
+		'list_folders',
+		'List all folders in your Discogs collection. Shows folder ID, name, and release count for each folder. Folder 0 is "All" (virtual), folder 1 is "Uncategorized" (default).',
+		{},
+		async () => {
+			const { session, connectionId } = await getSessionContext()
+
+			if (!session) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: generateAuthInstructions(connectionId),
+						},
+					],
+				}
+			}
+
+			try {
+				const userProfile = await client.getUserProfile(
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				const folders = await client.listFolders(
+					userProfile.username,
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				let text = `**Collection Folders for ${userProfile.username}**\n\n`
+				text += `Total folders: ${folders.length}\n\n`
+
+				for (const folder of folders) {
+					text += `• **${folder.name}** (ID: ${folder.id}) — ${folder.count} releases\n`
+				}
+
+				return {
+					content: [{ type: 'text', text }],
+				}
+			} catch (error) {
+				throw new Error(`Failed to list folders: ${error instanceof Error ? error.message : 'Unknown error'}`)
+			}
+		},
+	)
+
+	/**
+	 * Tool: create_folder
+	 * Create a new collection folder
+	 */
+	server.tool(
+		'create_folder',
+		'Create a new folder in your Discogs collection for organizing releases.',
+		{
+			name: z.string().min(1).max(100).describe('Name for the new folder'),
+		},
+		async ({ name }) => {
+			const { session, connectionId } = await getSessionContext()
+
+			if (!session) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: generateAuthInstructions(connectionId),
+						},
+					],
+				}
+			}
+
+			try {
+				const userProfile = await client.getUserProfile(
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				const folder = await client.createFolder(
+					userProfile.username,
+					name,
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `Created folder **${folder.name}** (ID: ${folder.id})`,
+						},
+					],
+				}
+			} catch (error) {
+				throw new Error(`Failed to create folder: ${error instanceof Error ? error.message : 'Unknown error'}`)
+			}
+		},
+	)
+
+	/**
+	 * Tool: edit_folder
+	 * Rename a collection folder
+	 */
+	server.tool(
+		'edit_folder',
+		'Rename an existing folder in your Discogs collection. Cannot rename the system folders (All or Uncategorized).',
+		{
+			folder_id: z.number().min(2).describe('ID of the folder to rename (must be 2 or higher — system folders cannot be renamed)'),
+			name: z.string().min(1).max(100).describe('New name for the folder'),
+		},
+		async ({ folder_id, name }) => {
+			const { session, connectionId } = await getSessionContext()
+
+			if (!session) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: generateAuthInstructions(connectionId),
+						},
+					],
+				}
+			}
+
+			try {
+				const userProfile = await client.getUserProfile(
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				const folder = await client.editFolder(
+					userProfile.username,
+					folder_id,
+					name,
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `Renamed folder ${folder_id} to **${folder.name}**`,
+						},
+					],
+				}
+			} catch (error) {
+				throw new Error(`Failed to edit folder: ${error instanceof Error ? error.message : 'Unknown error'}`)
+			}
+		},
+	)
+
+	/**
+	 * Tool: delete_folder
+	 * Delete a collection folder (must be empty)
+	 */
+	server.tool(
+		'delete_folder',
+		'Delete a folder from your Discogs collection. The folder must be empty (no releases). Cannot delete system folders (All or Uncategorized).',
+		{
+			folder_id: z.number().min(2).describe('ID of the folder to delete (must be 2 or higher — system folders cannot be deleted)'),
+		},
+		async ({ folder_id }) => {
+			const { session, connectionId } = await getSessionContext()
+
+			if (!session) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: generateAuthInstructions(connectionId),
+						},
+					],
+				}
+			}
+
+			try {
+				const userProfile = await client.getUserProfile(
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				await client.deleteFolder(
+					userProfile.username,
+					folder_id,
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `Deleted folder ${folder_id}`,
+						},
+					],
+				}
+			} catch (error) {
+				throw new Error(`Failed to delete folder: ${error instanceof Error ? error.message : 'Unknown error'}`)
+			}
+		},
+	)
+
+	/**
+	 * Tool: add_to_collection
+	 * Add a release to a collection folder
+	 */
+	server.tool(
+		'add_to_collection',
+		'Add a release to a folder in your Discogs collection. If no folder is specified, adds to the Uncategorized folder (ID 1).',
+		{
+			release_id: z.number().describe('The Discogs release ID to add'),
+			folder_id: z.number().optional().default(1).describe('Folder ID to add the release to (default: 1 = Uncategorized)'),
+		},
+		async ({ release_id, folder_id }) => {
+			const { session, connectionId } = await getSessionContext()
+
+			if (!session) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: generateAuthInstructions(connectionId),
+						},
+					],
+				}
+			}
+
+			try {
+				const userProfile = await client.getUserProfile(
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				const result = await client.addToFolder(
+					userProfile.username,
+					folder_id,
+					release_id,
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `Added release ${release_id} to folder ${folder_id} (instance ID: ${result.instance_id})`,
+						},
+					],
+				}
+			} catch (error) {
+				throw new Error(`Failed to add to collection: ${error instanceof Error ? error.message : 'Unknown error'}`)
+			}
+		},
+	)
+
+	/**
+	 * Tool: remove_from_collection
+	 * Remove a release instance from a collection folder
+	 */
+	server.tool(
+		'remove_from_collection',
+		'Remove a specific release instance from a folder in your Discogs collection. Use search_collection to find the instance_id for a release.',
+		{
+			folder_id: z.number().describe('Folder ID containing the release'),
+			release_id: z.number().describe('The Discogs release ID'),
+			instance_id: z.number().describe('The specific instance ID to remove (from search_collection results)'),
+		},
+		async ({ folder_id, release_id, instance_id }) => {
+			const { session, connectionId } = await getSessionContext()
+
+			if (!session) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: generateAuthInstructions(connectionId),
+						},
+					],
+				}
+			}
+
+			try {
+				const userProfile = await client.getUserProfile(
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				await client.removeFromFolder(
+					userProfile.username,
+					folder_id,
+					release_id,
+					instance_id,
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `Removed release ${release_id} (instance ${instance_id}) from folder ${folder_id}`,
+						},
+					],
+				}
+			} catch (error) {
+				throw new Error(`Failed to remove from collection: ${error instanceof Error ? error.message : 'Unknown error'}`)
+			}
+		},
+	)
+
+	/**
+	 * Tool: move_release
+	 * Move a release instance to a different folder
+	 */
+	server.tool(
+		'move_release',
+		'Move a release instance to a different folder in your Discogs collection. Use search_collection to find release and instance IDs, and list_folders to see available folders.',
+		{
+			folder_id: z.number().describe('Current folder ID containing the release'),
+			release_id: z.number().describe('The Discogs release ID'),
+			instance_id: z.number().describe('The specific instance ID to move'),
+			target_folder_id: z.number().describe('Destination folder ID'),
+		},
+		async ({ folder_id, release_id, instance_id, target_folder_id }) => {
+			const { session, connectionId } = await getSessionContext()
+
+			if (!session) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: generateAuthInstructions(connectionId),
+						},
+					],
+				}
+			}
+
+			try {
+				const userProfile = await client.getUserProfile(
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				await client.editInstance(
+					userProfile.username,
+					folder_id,
+					release_id,
+					instance_id,
+					{ folder_id: target_folder_id },
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `Moved release ${release_id} (instance ${instance_id}) from folder ${folder_id} to folder ${target_folder_id}`,
+						},
+					],
+				}
+			} catch (error) {
+				throw new Error(`Failed to move release: ${error instanceof Error ? error.message : 'Unknown error'}`)
+			}
+		},
+	)
+
+	/**
+	 * Tool: rate_release
+	 * Rate a release in your collection (0-5 stars)
+	 */
+	server.tool(
+		'rate_release',
+		'Rate a release in your Discogs collection from 0 (no rating) to 5 stars. Use search_collection to find release and instance IDs.',
+		{
+			folder_id: z.number().describe('Folder ID containing the release'),
+			release_id: z.number().describe('The Discogs release ID'),
+			instance_id: z.number().describe('The specific instance ID to rate'),
+			rating: z.number().min(0).max(5).describe('Rating from 0 (remove rating) to 5 stars'),
+		},
+		async ({ folder_id, release_id, instance_id, rating }) => {
+			const { session, connectionId } = await getSessionContext()
+
+			if (!session) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: generateAuthInstructions(connectionId),
+						},
+					],
+				}
+			}
+
+			try {
+				const userProfile = await client.getUserProfile(
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				await client.editInstance(
+					userProfile.username,
+					folder_id,
+					release_id,
+					instance_id,
+					{ rating },
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				const ratingText = rating === 0 ? 'Removed rating from' : `Rated ${rating}/5 stars:`
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `${ratingText} release ${release_id} (instance ${instance_id})`,
+						},
+					],
+				}
+			} catch (error) {
+				throw new Error(`Failed to rate release: ${error instanceof Error ? error.message : 'Unknown error'}`)
+			}
+		},
+	)
+
+	/**
+	 * Tool: list_custom_fields
+	 * List custom fields defined in the user's collection
+	 */
+	server.tool(
+		'list_custom_fields',
+		'List all custom fields defined in your Discogs collection. Custom fields allow you to add metadata like notes, tags, or categories to releases.',
+		{},
+		async () => {
+			const { session, connectionId } = await getSessionContext()
+
+			if (!session) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: generateAuthInstructions(connectionId),
+						},
+					],
+				}
+			}
+
+			try {
+				const userProfile = await client.getUserProfile(
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				const fields = await client.listCustomFields(
+					userProfile.username,
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				if (fields.length === 0) {
+					return {
+						content: [
+							{
+								type: 'text',
+								text: `**Custom Fields for ${userProfile.username}**\n\nNo custom fields defined. You can create custom fields in your Discogs collection settings at discogs.com.`,
+							},
+						],
+					}
+				}
+
+				let text = `**Custom Fields for ${userProfile.username}**\n\n`
+				for (const field of fields) {
+					text += `• **${field.name}** (ID: ${field.id}, type: ${field.type})`
+					if (field.options && field.options.length > 0) {
+						text += `\n  Options: ${field.options.join(', ')}`
+					}
+					text += '\n'
+				}
+
+				return {
+					content: [{ type: 'text', text }],
+				}
+			} catch (error) {
+				throw new Error(`Failed to list custom fields: ${error instanceof Error ? error.message : 'Unknown error'}`)
+			}
+		},
+	)
+
+	/**
+	 * Tool: edit_custom_field
+	 * Set a custom field value on a collection instance
+	 */
+	server.tool(
+		'edit_custom_field',
+		'Set a custom field value on a release in your Discogs collection. Use list_custom_fields to see available fields and their IDs. For dropdown fields, the value must match one of the defined options.',
+		{
+			folder_id: z.number().describe('Folder ID containing the release'),
+			release_id: z.number().describe('The Discogs release ID'),
+			instance_id: z.number().describe('The specific instance ID'),
+			field_id: z.number().describe('Custom field ID (from list_custom_fields)'),
+			value: z.string().describe('Value to set for the field'),
+		},
+		async ({ folder_id, release_id, instance_id, field_id, value }) => {
+			const { session, connectionId } = await getSessionContext()
+
+			if (!session) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: generateAuthInstructions(connectionId),
+						},
+					],
+				}
+			}
+
+			try {
+				const userProfile = await client.getUserProfile(
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				await client.editCustomFieldValue(
+					userProfile.username,
+					folder_id,
+					release_id,
+					instance_id,
+					field_id,
+					value,
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `Updated field ${field_id} to "${value}" on release ${release_id} (instance ${instance_id})`,
+						},
+					],
+				}
+			} catch (error) {
+				throw new Error(`Failed to edit custom field: ${error instanceof Error ? error.message : 'Unknown error'}`)
+			}
+		},
+	)
 }

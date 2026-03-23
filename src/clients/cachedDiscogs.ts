@@ -16,6 +16,8 @@ import {
 	type DiscogsCollectionStats,
 	type DiscogsSearchResponse,
 	type DiscogsCollectionItem,
+	type DiscogsFolder,
+	type DiscogsCustomField,
 } from './discogs'
 import { SmartCache, CacheKeys, createDiscogsCache } from '../utils/cache'
 
@@ -427,6 +429,128 @@ export class CachedDiscogsClient {
 		stats.ratedReleases = ratedCount
 
 		return stats
+	}
+
+	// ──────────────────────────────────────────────
+	// Collection write operations (pass-through with cache invalidation)
+	// ──────────────────────────────────────────────
+
+	async listFolders(
+		username: string,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<DiscogsFolder[]> {
+		return this.client.listFolders(username, accessToken, accessTokenSecret, consumerKey, consumerSecret)
+	}
+
+	async createFolder(
+		username: string,
+		name: string,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<DiscogsFolder> {
+		const result = await this.client.createFolder(username, name, accessToken, accessTokenSecret, consumerKey, consumerSecret)
+		await this.invalidateUserCache(username)
+		return result
+	}
+
+	async editFolder(
+		username: string,
+		folderId: number,
+		name: string,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<DiscogsFolder> {
+		const result = await this.client.editFolder(username, folderId, name, accessToken, accessTokenSecret, consumerKey, consumerSecret)
+		await this.invalidateUserCache(username)
+		return result
+	}
+
+	async deleteFolder(
+		username: string,
+		folderId: number,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<void> {
+		await this.client.deleteFolder(username, folderId, accessToken, accessTokenSecret, consumerKey, consumerSecret)
+		await this.invalidateUserCache(username)
+	}
+
+	async addToFolder(
+		username: string,
+		folderId: number,
+		releaseId: number,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<{ instance_id: number; resource_url: string }> {
+		const result = await this.client.addToFolder(username, folderId, releaseId, accessToken, accessTokenSecret, consumerKey, consumerSecret)
+		await this.invalidateUserCache(username)
+		return result
+	}
+
+	async removeFromFolder(
+		username: string,
+		folderId: number,
+		releaseId: number,
+		instanceId: number,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<void> {
+		await this.client.removeFromFolder(username, folderId, releaseId, instanceId, accessToken, accessTokenSecret, consumerKey, consumerSecret)
+		await this.invalidateUserCache(username)
+	}
+
+	async editInstance(
+		username: string,
+		folderId: number,
+		releaseId: number,
+		instanceId: number,
+		changes: { folder_id?: number; rating?: number },
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<void> {
+		await this.client.editInstance(username, folderId, releaseId, instanceId, changes, accessToken, accessTokenSecret, consumerKey, consumerSecret)
+		await this.invalidateUserCache(username)
+	}
+
+	async listCustomFields(
+		username: string,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<DiscogsCustomField[]> {
+		return this.client.listCustomFields(username, accessToken, accessTokenSecret, consumerKey, consumerSecret)
+	}
+
+	async editCustomFieldValue(
+		username: string,
+		folderId: number,
+		releaseId: number,
+		instanceId: number,
+		fieldId: number,
+		value: string,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<void> {
+		await this.client.editCustomFieldValue(username, folderId, releaseId, instanceId, fieldId, value, accessToken, accessTokenSecret, consumerKey, consumerSecret)
+		// No cache invalidation needed — custom fields don't affect collection structure
 	}
 
 	/**
