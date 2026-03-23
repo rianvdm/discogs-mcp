@@ -129,14 +129,12 @@ class MockMCPClient {
 	}
 
 	private async makeRequest(body: any): Promise<any> {
-		const url = this.sessionId
-			? `http://localhost:8787/mcp?session_id=${this.sessionId}`
-			: 'http://localhost:8787/mcp'
+		const url = this.sessionId ? `http://localhost:8787/mcp?session_id=${this.sessionId}` : 'http://localhost:8787/mcp'
 		const request = new Request(url, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				'Accept': 'application/json, text/event-stream',
+				Accept: 'application/json, text/event-stream',
 			},
 			body: JSON.stringify(body),
 		})
@@ -368,7 +366,7 @@ describe('MCP Client Integration Tests', () => {
 
 			// Test tools
 			const toolsList = await client.listTools()
-			expect(toolsList.result.tools).toHaveLength(8)
+			expect(toolsList.result.tools).toHaveLength(18)
 
 			const searchResult = await client.callTool('search_collection', { query: 'Beatles' })
 			expect(searchResult.result).toBeDefined()
