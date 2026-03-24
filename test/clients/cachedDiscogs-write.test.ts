@@ -30,7 +30,6 @@ function makeMockClient() {
 		editInstance: vi.fn(async () => undefined),
 		listCustomFields: vi.fn(async () => [{ id: 1, name: 'Notes', type: 'textarea', public: true, position: 1 }]),
 		editCustomFieldValue: vi.fn(async () => undefined),
-		createCustomField: vi.fn(async () => ({ id: 3, name: 'Notes', type: 'textarea', public: false, position: 3 })),
 	} as unknown as DiscogsClient
 }
 
@@ -101,13 +100,6 @@ describe('CachedDiscogsClient — write operations & cache invalidation', () => 
 		it('editInstance invalidates user cache', async () => {
 			await cached.editInstance('user', 1, 12345, 99, { rating: 5 }, ...a)
 
-			expect(invalidateSpy).toHaveBeenCalledWith('user')
-		})
-
-		it('createCustomField invalidates user cache', async () => {
-			const result = await cached.createCustomField('user', { name: 'Notes', type: 'textarea' }, ...a)
-
-			expect(result.name).toBe('Notes')
 			expect(invalidateSpy).toHaveBeenCalledWith('user')
 		})
 	})

@@ -1831,61 +1831,6 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	)
 
 	/**
-	 * Tool: create_custom_field
-	 * Create a new custom field for the user's collection
-	 */
-	server.tool(
-		'create_custom_field',
-		'Create a new custom field for your Discogs collection. Use type "textarea" for free-form text notes, or "dropdown" for a fixed list of options. Use list_custom_fields to see existing fields.',
-		{
-			name: z.string().min(1).max(255).describe('Name for the custom field'),
-			type: z.enum(['textarea', 'dropdown']).describe('Field type: "textarea" for free-form text, "dropdown" for a fixed list of options'),
-			public: z.boolean().optional().default(false).describe('Whether the field is publicly visible on your profile (default: false)'),
-			lines: z.number().min(1).max(10).optional().describe('Number of lines for textarea fields'),
-			options: z.array(z.string().min(1)).min(1).optional().describe('List of options for dropdown fields'),
-		},
-		async ({ name, type, public: isPublic, lines, options }) => {
-			const { session, connectionId } = await getSessionContext()
-
-			if (!session) {
-				return {
-					content: [{ type: 'text', text: generateAuthInstructions(connectionId) }],
-				}
-			}
-
-			try {
-				const userProfile = await client.getUserProfile(
-					session.accessToken,
-					session.accessTokenSecret,
-					env.DISCOGS_CONSUMER_KEY,
-					env.DISCOGS_CONSUMER_SECRET,
-				)
-
-				const field = await client.createCustomField(
-					userProfile.username,
-					{
-						name,
-						type,
-						public: isPublic,
-						...(lines !== undefined && { lines }),
-						...(options !== undefined && { options }),
-					},
-					session.accessToken,
-					session.accessTokenSecret,
-					env.DISCOGS_CONSUMER_KEY,
-					env.DISCOGS_CONSUMER_SECRET,
-				)
-
-				return {
-					content: [{ type: 'text', text: `Created custom field **${field.name}** (ID: ${field.id}, type: ${field.type})` }],
-				}
-			} catch (error) {
-				throw new Error(`Failed to create custom field: ${error instanceof Error ? error.message : 'Unknown error'}`)
-			}
-		},
-	)
-
-	/**
 	 * Tool: edit_custom_field
 	 * Set a custom field value on a collection instance
 	 */

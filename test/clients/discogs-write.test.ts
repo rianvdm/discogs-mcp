@@ -223,46 +223,6 @@ describe('Discogs Client — Collection Write Operations', () => {
 		})
 	})
 
-	describe('createCustomField', () => {
-		it('should create a textarea field and return it', async () => {
-			const field = { id: 3, name: 'Notes', type: 'textarea', public: false, position: 3, lines: 5 }
-			mockOk(field)
-
-			const result = await discogsClient.createCustomField(
-				auth.username,
-				{ name: 'Notes', type: 'textarea', public: false, lines: 5 },
-				auth.accessToken,
-				auth.accessTokenSecret,
-				auth.consumerKey,
-				auth.consumerSecret,
-			)
-
-			expect(result.id).toBe(3)
-			expect(result.name).toBe('Notes')
-			expect(result.type).toBe('textarea')
-			expect(mockFetch).toHaveBeenCalledWith(
-				expect.stringContaining('/users/testuser/collection/fields'),
-				expect.objectContaining({ method: 'POST' }),
-			)
-		})
-
-		it('should send field definition in request body', async () => {
-			mockOk({ id: 4, name: 'Condition', type: 'dropdown', public: false, position: 4, options: ['Mint', 'Good'] })
-
-			await discogsClient.createCustomField(
-				auth.username,
-				{ name: 'Condition', type: 'dropdown', options: ['Mint', 'Good'] },
-				auth.accessToken,
-				auth.accessTokenSecret,
-				auth.consumerKey,
-				auth.consumerSecret,
-			)
-
-			const callArgs = mockFetch.mock.calls[0]
-			expect(JSON.parse(callArgs[1].body)).toEqual({ name: 'Condition', type: 'dropdown', options: ['Mint', 'Good'] })
-		})
-	})
-
 	describe('listCustomFields', () => {
 		it('should return fields array', async () => {
 			const fields = [
@@ -393,19 +353,6 @@ describe('Discogs Client — 429 rate limit handling', () => {
 				99,
 				2,
 				'test',
-				auth.accessToken,
-				auth.accessTokenSecret,
-				auth.consumerKey,
-				auth.consumerSecret,
-			),
-		)
-	})
-
-	it('createCustomField throws rate limit error', async () => {
-		await expectRateLimitError(
-			discogsClient.createCustomField(
-				auth.username,
-				{ name: 'Notes', type: 'textarea' },
 				auth.accessToken,
 				auth.accessTokenSecret,
 				auth.consumerKey,
