@@ -537,6 +537,19 @@ export class CachedDiscogsClient {
 		return this.client.listCustomFields(username, accessToken, accessTokenSecret, consumerKey, consumerSecret)
 	}
 
+	async createCustomField(
+		username: string,
+		field: { name: string; type: 'textarea' | 'dropdown'; public?: boolean; lines?: number; options?: string[] },
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<DiscogsCustomField> {
+		const result = await this.client.createCustomField(username, field, accessToken, accessTokenSecret, consumerKey, consumerSecret)
+		await this.invalidateUserCache(username)
+		return result
+	}
+
 	async editCustomFieldValue(
 		username: string,
 		folderId: number,

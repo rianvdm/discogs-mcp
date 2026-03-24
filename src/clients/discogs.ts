@@ -1237,6 +1237,44 @@ export class DiscogsClient {
 	}
 
 	/**
+	 * Create a new custom field for the user's collection
+	 */
+	async createCustomField(
+		username: string,
+		field: { name: string; type: 'textarea' | 'dropdown'; public?: boolean; lines?: number; options?: string[] },
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<DiscogsCustomField> {
+		const url = `${this.baseUrl}/users/${username}/collection/fields`
+		const authHeader = await this.createOAuthHeader(url, 'POST', accessToken, accessTokenSecret, consumerKey, consumerSecret)
+
+		try {
+			await this.throttleRequest()
+			const response = await fetchWithRetry(
+				url,
+				{
+					method: 'POST',
+					headers: {
+						Authorization: authHeader,
+						'User-Agent': this.userAgent,
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify(field),
+				},
+				this.discogsRetryOptions,
+			)
+			return response.json()
+		} catch (error) {
+			if (error instanceof Error && error.message.includes('429')) {
+				throw new Error('Discogs API rate limit exceeded. Please try again later.')
+			}
+			throw new Error(`Failed to create custom field: ${error instanceof Error ? error.message : 'Unknown error'}`)
+		}
+	}
+
+	/**
 	 * Edit a custom field value on a collection instance
 	 */
 	async editCustomFieldValue(

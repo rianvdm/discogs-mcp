@@ -366,7 +366,7 @@ describe('MCP Client Integration Tests', () => {
 
 			// Test tools
 			const toolsList = await client.listTools()
-			expect(toolsList.result.tools).toHaveLength(18)
+			expect(toolsList.result.tools).toHaveLength(19)
 
 			const searchResult = await client.callTool('search_collection', { query: 'Beatles' })
 			expect(searchResult.result).toBeDefined()
