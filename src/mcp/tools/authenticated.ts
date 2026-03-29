@@ -550,7 +550,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 						env.DISCOGS_CONSUMER_KEY,
 						env.DISCOGS_CONSUMER_SECRET,
 						50,
-						30000,
+						45000,
 					)
 					while (collection.partial && Date.now() - toolStart < TOOL_BUDGET_MS - 5000) {
 						const remaining = Math.max(TOOL_BUDGET_MS - (Date.now() - toolStart), 5000)
@@ -837,7 +837,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 						env.DISCOGS_CONSUMER_KEY,
 						env.DISCOGS_CONSUMER_SECRET,
 						50,
-						30000,
+						45000,
 					)
 					while (collection.partial && Date.now() - toolStart < TOOL_BUDGET_MS - 5000) {
 						const remaining = Math.max(TOOL_BUDGET_MS - (Date.now() - toolStart), 5000)
@@ -996,7 +996,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 						session.accessTokenSecret,
 						env.DISCOGS_CONSUMER_KEY,
 						env.DISCOGS_CONSUMER_SECRET,
-						30000,
+						45000,
 					)
 					while (collectionResult.partial && Date.now() - toolStart < TOOL_BUDGET_MS - 5000) {
 						const remaining = Math.max(TOOL_BUDGET_MS - (Date.now() - toolStart), 5000)
