@@ -54,12 +54,17 @@ export class DiscogsRateLimiter implements DurableObject {
       const stored = await state.storage.get<BudgetState>('budget')
       if (stored) {
         this.budget = stored
+        console.log('[RL] Restored budget from storage:', stored)
+      } else {
+        console.log('[RL] Cold start, assuming remaining=60')
       }
     })
   }
 
   async fetch(request: Request): Promise<Response> {
     const limiterReq: RateLimiterRequest = await request.json()
+    const path = new URL(limiterReq.url).pathname
+    console.log(`[RL] Request: ${limiterReq.method} ${path} | budget: ${this.budget.remaining}/${this.budget.limit} | queue: ${this.queue.length}`)
     const response = await this.enqueue(limiterReq)
     return new Response(JSON.stringify(response), {
       status: response.status,
@@ -68,6 +73,7 @@ export class DiscogsRateLimiter implements DurableObject {
   }
 
   async alarm(): Promise<void> {
+    console.log(`[RL] Alarm fired — resetting budget to ${this.budget.limit}, queued: ${this.queue.length}`)
     this.budget.remaining = this.budget.limit
     this.budget.lastUpdated = Date.now()
     await this.state.storage.put('budget', this.budget)
@@ -80,6 +86,7 @@ export class DiscogsRateLimiter implements DurableObject {
 
   private enqueue(request: RateLimiterRequest): Promise<RateLimiterResponse> {
     if (shouldRejectQueue(this.queue.length)) {
+      console.warn(`[RL] Queue full (${this.queue.length}), rejecting request`)
       return Promise.resolve({
         status: 503,
         headers: {},
@@ -133,6 +140,7 @@ export class DiscogsRateLimiter implements DurableObject {
 
       const delay = getDelay(this.budget.remaining)
       if (delay === -1) {
+        console.warn(`[RL] Budget exhausted (remaining=0), pausing until window reset | queued: ${this.queue.length}`)
         await this.scheduleWindowReset()
         this.paused = true
         this.processing = false
@@ -140,6 +148,7 @@ export class DiscogsRateLimiter implements DurableObject {
       }
 
       if (delay > 0) {
+        console.log(`[RL] Throttling ${delay}ms (remaining=${this.budget.remaining})`)
         await this.sleep(delay)
       }
 
@@ -147,11 +156,12 @@ export class DiscogsRateLimiter implements DurableObject {
       const response = await this.executeRequest(entry.request)
 
       if (response.status === 429) {
-        this.budget.remaining = 0
-        await this.state.storage.put('budget', this.budget)
-
         const retryAfter = response.headers['retry-after']
         const pauseMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : DEFAULT_PAUSE_MS
+        console.warn(`[RL] 429 from Discogs! Pausing ${pauseMs}ms, re-queuing request | queue: ${this.queue.length + 1}`)
+
+        this.budget.remaining = 0
+        await this.state.storage.put('budget', this.budget)
 
         this.queue.unshift(entry)
 
@@ -161,8 +171,12 @@ export class DiscogsRateLimiter implements DurableObject {
         return
       }
 
+      const prevRemaining = this.budget.remaining
       this.budget = updateBudgetFromHeaders(this.budget, response.headers)
       await this.state.storage.put('budget', this.budget)
+      if (this.budget.remaining !== prevRemaining) {
+        console.log(`[RL] Budget updated: ${prevRemaining} → ${this.budget.remaining}/${this.budget.limit}`)
+      }
 
       await this.scheduleWindowReset()
 
@@ -189,6 +203,7 @@ export class DiscogsRateLimiter implements DurableObject {
 
       return { status: response.status, headers, body }
     } catch (error) {
+      console.error(`[RL] Fetch error for ${req.url}:`, error instanceof Error ? error.message : error)
       return {
         status: 502,
         headers: {},
