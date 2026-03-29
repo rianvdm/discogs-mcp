@@ -2,7 +2,7 @@
 import type { RateLimiterRequest, RateLimiterResponse, BudgetState } from './types'
 
 const MAX_QUEUE_DEPTH = 20
-const QUEUE_TIMEOUT_MS = 30_000
+const QUEUE_TIMEOUT_MS = 90_000
 const DEFAULT_PAUSE_MS = 60_000
 const WINDOW_RESET_MS = 60_000
 
