@@ -1,8 +1,9 @@
 // Discogs API client for interacting with user collections and releases
 
 import { DiscogsAuth } from '../auth/discogs'
-import { fetchWithRetry, RetryOptions } from '../utils/retry'
 import { hasMoodContent, analyzeMoodQuery } from '../utils/moodMapping'
+import { rateLimitedFetch } from '../rate-limiter/client'
+import type { RateLimiterStub } from '../rate-limiter/types'
 
 export interface DiscogsRelease {
 	id: number
@@ -149,95 +150,21 @@ export interface DiscogsCollectionStats {
 export class DiscogsClient {
 	private baseUrl = 'https://api.discogs.com'
 	private userAgent = 'discogs-mcp/1.0.0'
-	private lastRequestTime = 0
-	private kv: KVNamespace | null = null
-	private throttleUser: string | null = null
+	private rateLimiterStub: RateLimiterStub | null = null
 
-	// Discogs-specific retry configuration (more aggressive than default)
-	private readonly discogsRetryOptions: RetryOptions = {
-		maxRetries: 3, // Balanced for both production and testing
-		initialDelayMs: 3000, // Increased from 1500ms to better handle rate limits
-		maxDelayMs: 60000, // Increased from 20000ms to allow longer waits on repeated 429s
-		backoffMultiplier: 2,
-		jitterFactor: 0.1,
+	setRateLimiter(stub: RateLimiterStub): void {
+		this.rateLimiterStub = stub
 	}
 
-	// Minimum delay between Discogs API requests (proactive rate limiting).
-	// Discogs allows 60 authenticated requests per minute = 1000ms minimum.
-	// Reduced from 1500ms to 500ms: fetchWithRetry handles 429s with
-	// exponential backoff, so we can be less conservative on the proactive
-	// side. This roughly halves cold-cache fetch time.
-	private readonly REQUEST_DELAY_MS = 500
-
-	/**
-	 * Set KV namespace for persistent throttling across Worker invocations
-	 */
-	setKV(kv: KVNamespace): void {
-		this.kv = kv
-	}
-
-	/**
-	 * Set the user identifier for per-user throttle keys.
-	 * Must be called before making API requests so that each user
-	 * gets their own rate budget (instead of a global shared throttle).
-	 */
-	setThrottleUser(username: string): void {
-		this.throttleUser = username
-	}
-
-	/**
-	 * Get the KV key for this user's throttle timestamp.
-	 * Per-user keys prevent one user's requests from blocking another user.
-	 */
-	private getThrottleKey(): string {
-		return this.throttleUser
-			? `discogs:throttle:${this.throttleUser}`
-			: 'discogs:throttle:global'
-	}
-
-	/**
-	 * Add a delay between requests to proactively avoid rate limits.
-	 * Uses KV storage to persist throttle state across Worker invocations.
-	 * Throttle key is per-user so users don't interfere with each other.
-	 */
-	private async throttleRequest(): Promise<void> {
-		let lastRequestTime = this.lastRequestTime
-		const throttleKey = this.getThrottleKey()
-
-		// Try to get last request time from KV (persistent across invocations)
-		if (this.kv) {
-			try {
-				const stored = await this.kv.get(throttleKey)
-				if (stored) {
-					lastRequestTime = parseInt(stored, 10)
-				}
-			} catch (error) {
-				console.warn('Failed to read throttle time from KV:', error)
-			}
+	private async discogsApiFetch(url: string, init: RequestInit): Promise<Response> {
+		if (this.rateLimiterStub) {
+			return rateLimitedFetch(this.rateLimiterStub, url, {
+				method: init.method ?? 'GET',
+				headers: init.headers as Record<string, string>,
+				body: init.body as string | undefined,
+			})
 		}
-
-		const now = Date.now()
-		const timeSinceLastRequest = now - lastRequestTime
-
-		if (timeSinceLastRequest < this.REQUEST_DELAY_MS) {
-			const delayNeeded = this.REQUEST_DELAY_MS - timeSinceLastRequest
-			console.log(`Throttling Discogs request: waiting ${delayNeeded}ms`)
-			await new Promise((resolve) => setTimeout(resolve, delayNeeded))
-		}
-
-		// Update last request time
-		const newTime = Date.now()
-		this.lastRequestTime = newTime
-
-		// Persist to KV for cross-invocation throttling (per-user key)
-		if (this.kv) {
-			try {
-				// Store with short TTL since we only need it for rate limiting
-				await this.kv.put(throttleKey, newTime.toString(), { expirationTtl: 60 })
-			} catch (error) {
-				console.warn('Failed to write throttle time to KV:', error)
-			}
-		}
+		return fetch(url, init)
 	}
 
 	/**
@@ -287,20 +214,13 @@ export class DiscogsClient {
 		}
 
 		try {
-			await this.throttleRequest()
-			const response = await fetchWithRetry(
-				url,
-				{
-					headers,
-				},
-				this.discogsRetryOptions,
-			)
+			const response = await this.discogsApiFetch(url, { method: 'GET', headers })
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+			}
 
 			return response.json()
 		} catch (error) {
-			if (error instanceof Error && error.message.includes('429')) {
-				throw new Error(`Discogs API rate limit exceeded for release ${releaseId}. Please try again later.`)
-			}
 			throw new Error(`Failed to fetch release ${releaseId}: ${error instanceof Error ? error.message : 'Unknown error'}`)
 		}
 	}
@@ -341,23 +261,19 @@ export class DiscogsClient {
 		const authHeader = await this.createOAuthHeader(url, 'GET', accessToken, accessTokenSecret, consumerKey, consumerSecret)
 
 		try {
-			await this.throttleRequest()
-			const response = await fetchWithRetry(
-				url,
-				{
-					headers: {
-						Authorization: authHeader,
-						'User-Agent': this.userAgent,
-					},
+			const response = await this.discogsApiFetch(url, {
+				method: 'GET',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
 				},
-				this.discogsRetryOptions,
-			)
+			})
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+			}
 
 			return response.json()
 		} catch (error) {
-			if (error instanceof Error && error.message.includes('429')) {
-				throw new Error('Discogs API rate limit exceeded for collection search. Please try again later.')
-			}
 			throw new Error(`Failed to search collection: ${error instanceof Error ? error.message : 'Unknown error'}`)
 		}
 	}
@@ -422,26 +338,22 @@ export class DiscogsClient {
 			const authHeader = await this.createOAuthHeader(url, 'GET', accessToken, accessTokenSecret, consumerKey, consumerSecret)
 
 			try {
-				await this.throttleRequest()
-				const response = await fetchWithRetry(
-					url,
-					{
-						headers: {
-							Authorization: authHeader,
-							'User-Agent': this.userAgent,
-						},
+				const response = await this.discogsApiFetch(url, {
+					method: 'GET',
+					headers: {
+						Authorization: authHeader,
+						'User-Agent': this.userAgent,
 					},
-					this.discogsRetryOptions,
-				)
+				})
+				if (!response.ok) {
+					throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+				}
 
 				const data: DiscogsCollectionResponse = await response.json()
 				allReleases = allReleases.concat(data.releases)
 				totalPages = data.pagination.pages
 				page++
 			} catch (error) {
-				if (error instanceof Error && error.message.includes('429')) {
-					throw new Error(`Discogs API rate limit exceeded while fetching collection page ${page}. Please try again later.`)
-				}
 				throw new Error(`Failed to fetch collection page ${page}: ${error instanceof Error ? error.message : 'Unknown error'}`)
 			}
 		} while (page <= totalPages)
@@ -876,23 +788,19 @@ export class DiscogsClient {
 		const authHeader = await this.createOAuthHeader(url, 'GET', accessToken, accessTokenSecret, consumerKey, consumerSecret)
 
 		try {
-			await this.throttleRequest()
-			const response = await fetchWithRetry(
-				url,
-				{
-					headers: {
-						Authorization: authHeader,
-						'User-Agent': this.userAgent,
-					},
+			const response = await this.discogsApiFetch(url, {
+				method: 'GET',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
 				},
-				this.discogsRetryOptions,
-			)
+			})
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+			}
 
 			return response.json()
 		} catch (error) {
-			if (error instanceof Error && error.message.includes('429')) {
-				throw new Error('Discogs API rate limit exceeded for user profile. Please try again later.')
-			}
 			const errorText = error instanceof Error ? error.message : 'Unknown error'
 			console.log('Error response:', errorText)
 			throw new Error(`Failed to get user profile: ${errorText}`)
@@ -934,20 +842,13 @@ export class DiscogsClient {
 		}
 
 		try {
-			await this.throttleRequest()
-			const response = await fetchWithRetry(
-				url,
-				{
-					headers,
-				},
-				this.discogsRetryOptions,
-			)
+			const response = await this.discogsApiFetch(url, { method: 'GET', headers })
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+			}
 
 			return response.json()
 		} catch (error) {
-			if (error instanceof Error && error.message.includes('429')) {
-				throw new Error('Discogs API rate limit exceeded for database search. Please try again later.')
-			}
 			throw new Error(`Failed to search database: ${error instanceof Error ? error.message : 'Unknown error'}`)
 		}
 	}
@@ -970,24 +871,20 @@ export class DiscogsClient {
 		const authHeader = await this.createOAuthHeader(url, 'GET', accessToken, accessTokenSecret, consumerKey, consumerSecret)
 
 		try {
-			await this.throttleRequest()
-			const response = await fetchWithRetry(
-				url,
-				{
-					headers: {
-						Authorization: authHeader,
-						'User-Agent': this.userAgent,
-					},
+			const response = await this.discogsApiFetch(url, {
+				method: 'GET',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
 				},
-				this.discogsRetryOptions,
-			)
+			})
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+			}
 
 			const data: { folders: DiscogsFolder[] } = await response.json()
 			return data.folders
 		} catch (error) {
-			if (error instanceof Error && error.message.includes('429')) {
-				throw new Error('Discogs API rate limit exceeded for listing folders. Please try again later.')
-			}
 			throw new Error(`Failed to list folders: ${error instanceof Error ? error.message : 'Unknown error'}`)
 		}
 	}
@@ -1007,26 +904,21 @@ export class DiscogsClient {
 		const authHeader = await this.createOAuthHeader(url, 'POST', accessToken, accessTokenSecret, consumerKey, consumerSecret)
 
 		try {
-			await this.throttleRequest()
-			const response = await fetchWithRetry(
-				url,
-				{
-					method: 'POST',
-					headers: {
-						Authorization: authHeader,
-						'User-Agent': this.userAgent,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ name }),
+			const response = await this.discogsApiFetch(url, {
+				method: 'POST',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
+					'Content-Type': 'application/json',
 				},
-				this.discogsRetryOptions,
-			)
+				body: JSON.stringify({ name }),
+			})
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+			}
 
 			return response.json()
 		} catch (error) {
-			if (error instanceof Error && error.message.includes('429')) {
-				throw new Error('Discogs API rate limit exceeded. Please try again later.')
-			}
 			throw new Error(`Failed to create folder: ${error instanceof Error ? error.message : 'Unknown error'}`)
 		}
 	}
@@ -1047,26 +939,21 @@ export class DiscogsClient {
 		const authHeader = await this.createOAuthHeader(url, 'POST', accessToken, accessTokenSecret, consumerKey, consumerSecret)
 
 		try {
-			await this.throttleRequest()
-			const response = await fetchWithRetry(
-				url,
-				{
-					method: 'POST',
-					headers: {
-						Authorization: authHeader,
-						'User-Agent': this.userAgent,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ name }),
+			const response = await this.discogsApiFetch(url, {
+				method: 'POST',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
+					'Content-Type': 'application/json',
 				},
-				this.discogsRetryOptions,
-			)
+				body: JSON.stringify({ name }),
+			})
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+			}
 
 			return response.json()
 		} catch (error) {
-			if (error instanceof Error && error.message.includes('429')) {
-				throw new Error('Discogs API rate limit exceeded. Please try again later.')
-			}
 			throw new Error(`Failed to edit folder: ${error instanceof Error ? error.message : 'Unknown error'}`)
 		}
 	}
@@ -1086,22 +973,17 @@ export class DiscogsClient {
 		const authHeader = await this.createOAuthHeader(url, 'DELETE', accessToken, accessTokenSecret, consumerKey, consumerSecret)
 
 		try {
-			await this.throttleRequest()
-			await fetchWithRetry(
-				url,
-				{
-					method: 'DELETE',
-					headers: {
-						Authorization: authHeader,
-						'User-Agent': this.userAgent,
-					},
+			const response = await this.discogsApiFetch(url, {
+				method: 'DELETE',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
 				},
-				this.discogsRetryOptions,
-			)
-		} catch (error) {
-			if (error instanceof Error && error.message.includes('429')) {
-				throw new Error('Discogs API rate limit exceeded. Please try again later.')
+			})
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
 			}
+		} catch (error) {
 			throw new Error(`Failed to delete folder: ${error instanceof Error ? error.message : 'Unknown error'}`)
 		}
 	}
@@ -1122,24 +1004,19 @@ export class DiscogsClient {
 		const authHeader = await this.createOAuthHeader(url, 'POST', accessToken, accessTokenSecret, consumerKey, consumerSecret)
 
 		try {
-			await this.throttleRequest()
-			const response = await fetchWithRetry(
-				url,
-				{
-					method: 'POST',
-					headers: {
-						Authorization: authHeader,
-						'User-Agent': this.userAgent,
-					},
+			const response = await this.discogsApiFetch(url, {
+				method: 'POST',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
 				},
-				this.discogsRetryOptions,
-			)
+			})
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+			}
 
 			return response.json()
 		} catch (error) {
-			if (error instanceof Error && error.message.includes('429')) {
-				throw new Error('Discogs API rate limit exceeded. Please try again later.')
-			}
 			throw new Error(`Failed to add release to folder: ${error instanceof Error ? error.message : 'Unknown error'}`)
 		}
 	}
@@ -1161,22 +1038,17 @@ export class DiscogsClient {
 		const authHeader = await this.createOAuthHeader(url, 'DELETE', accessToken, accessTokenSecret, consumerKey, consumerSecret)
 
 		try {
-			await this.throttleRequest()
-			await fetchWithRetry(
-				url,
-				{
-					method: 'DELETE',
-					headers: {
-						Authorization: authHeader,
-						'User-Agent': this.userAgent,
-					},
+			const response = await this.discogsApiFetch(url, {
+				method: 'DELETE',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
 				},
-				this.discogsRetryOptions,
-			)
-		} catch (error) {
-			if (error instanceof Error && error.message.includes('429')) {
-				throw new Error('Discogs API rate limit exceeded. Please try again later.')
+			})
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
 			}
+		} catch (error) {
 			throw new Error(`Failed to remove release from folder: ${error instanceof Error ? error.message : 'Unknown error'}`)
 		}
 	}
@@ -1199,24 +1071,19 @@ export class DiscogsClient {
 		const authHeader = await this.createOAuthHeader(url, 'POST', accessToken, accessTokenSecret, consumerKey, consumerSecret)
 
 		try {
-			await this.throttleRequest()
-			await fetchWithRetry(
-				url,
-				{
-					method: 'POST',
-					headers: {
-						Authorization: authHeader,
-						'User-Agent': this.userAgent,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify(changes),
+			const response = await this.discogsApiFetch(url, {
+				method: 'POST',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
+					'Content-Type': 'application/json',
 				},
-				this.discogsRetryOptions,
-			)
-		} catch (error) {
-			if (error instanceof Error && error.message.includes('429')) {
-				throw new Error('Discogs API rate limit exceeded. Please try again later.')
+				body: JSON.stringify(changes),
+			})
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
 			}
+		} catch (error) {
 			throw new Error(`Failed to edit instance: ${error instanceof Error ? error.message : 'Unknown error'}`)
 		}
 	}
@@ -1235,24 +1102,20 @@ export class DiscogsClient {
 		const authHeader = await this.createOAuthHeader(url, 'GET', accessToken, accessTokenSecret, consumerKey, consumerSecret)
 
 		try {
-			await this.throttleRequest()
-			const response = await fetchWithRetry(
-				url,
-				{
-					headers: {
-						Authorization: authHeader,
-						'User-Agent': this.userAgent,
-					},
+			const response = await this.discogsApiFetch(url, {
+				method: 'GET',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
 				},
-				this.discogsRetryOptions,
-			)
+			})
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+			}
 
 			const data: { fields: DiscogsCustomField[] } = await response.json()
 			return data.fields
 		} catch (error) {
-			if (error instanceof Error && error.message.includes('429')) {
-				throw new Error('Discogs API rate limit exceeded. Please try again later.')
-			}
 			throw new Error(`Failed to list custom fields: ${error instanceof Error ? error.message : 'Unknown error'}`)
 		}
 	}
@@ -1276,28 +1139,20 @@ export class DiscogsClient {
 		const authHeader = await this.createOAuthHeader(url, 'POST', accessToken, accessTokenSecret, consumerKey, consumerSecret)
 
 		try {
-			await this.throttleRequest()
-			await fetchWithRetry(
-				url,
-				{
-					method: 'POST',
-					headers: {
-						Authorization: authHeader,
-						'User-Agent': this.userAgent,
-						'Content-Type': 'application/json',
-					},
-					body: JSON.stringify({ value }),
+			const response = await this.discogsApiFetch(url, {
+				method: 'POST',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
+					'Content-Type': 'application/json',
 				},
-				this.discogsRetryOptions,
-			)
-		} catch (error) {
-			if (error instanceof Error && error.message.includes('429')) {
-				throw new Error('Discogs API rate limit exceeded. Please try again later.')
+				body: JSON.stringify({ value }),
+			})
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
 			}
+		} catch (error) {
 			throw new Error(`Failed to edit custom field: ${error instanceof Error ? error.message : 'Unknown error'}`)
 		}
 	}
 }
-
-// Export singleton instance
-export const discogsClient = new DiscogsClient()

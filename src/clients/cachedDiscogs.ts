@@ -20,6 +20,7 @@ import {
 	type DiscogsCustomField,
 } from './discogs'
 import { SmartCache, CacheKeys, createDiscogsCache } from '../utils/cache'
+import type { RateLimiterStub } from '../rate-limiter/types'
 
 export class CachedDiscogsClient {
 	private client: DiscogsClient
@@ -29,15 +30,13 @@ export class CachedDiscogsClient {
 	constructor(client: DiscogsClient, kv: KVNamespace) {
 		this.client = client
 		this.cache = createDiscogsCache(kv)
-		// Set KV on the underlying client for persistent throttling
-		this.client.setKV(kv)
 	}
 
 	/**
-	 * Forward throttle user to the underlying client so throttle keys are per-user.
+	 * Forward rate limiter stub to the underlying client.
 	 */
-	setThrottleUser(username: string): void {
-		this.client.setThrottleUser(username)
+	setRateLimiter(stub: RateLimiterStub): void {
+		this.client.setRateLimiter(stub)
 	}
 
 	/**
