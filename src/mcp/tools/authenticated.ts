@@ -280,16 +280,17 @@ Your authentication will be secure and tied to your specific session.`
 export function registerAuthenticatedTools(server: McpServer, env: Env, getSessionContext: () => Promise<SessionContext>): void {
 	// Create Discogs clients
 	const discogsClient = new DiscogsClient()
-	// Set KV for persistent rate limiting across Worker invocations
-	if (env.MCP_SESSIONS) {
-		discogsClient.setKV(env.MCP_SESSIONS)
+	// Set up rate limiter DO for coordinated rate limiting
+	if (env.RATE_LIMITER) {
+		const id = env.RATE_LIMITER.idFromName('discogs-rate-limiter')
+		const stub = env.RATE_LIMITER.get(id)
+		discogsClient.setRateLimiter(stub)
 	}
 	const cachedClient = env.MCP_SESSIONS ? new CachedDiscogsClient(discogsClient, env.MCP_SESSIONS) : null
 	const client = cachedClient || discogsClient
 
 	/**
-	 * Helper: get user profile and set per-user throttle key.
-	 * All authenticated tools should use this instead of calling getUserProfile directly.
+	 * Helper: get user profile for authenticated operations.
 	 */
 	async function getProfileAndSetThrottle(session: { accessToken: string; accessTokenSecret: string }) {
 		const userProfile = await client.getUserProfile(
@@ -298,12 +299,6 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			env.DISCOGS_CONSUMER_KEY,
 			env.DISCOGS_CONSUMER_SECRET,
 		)
-		// Set per-user throttle so this user's rate budget is independent
-		if (cachedClient) {
-			cachedClient.setThrottleUser(userProfile.username)
-		} else {
-			discogsClient.setThrottleUser(userProfile.username)
-		}
 		return userProfile
 	}
 

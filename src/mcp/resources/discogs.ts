@@ -11,14 +11,16 @@ import type { SessionContext } from '../server.js'
 export function registerResources(server: McpServer, env: Env, getSessionContext: () => Promise<SessionContext>): void {
 	// Create Discogs clients
 	const discogsClient = new DiscogsClient()
-	// Set KV for persistent rate limiting across Worker invocations
-	if (env.MCP_SESSIONS) {
-		discogsClient.setKV(env.MCP_SESSIONS)
+	// Set up rate limiter DO for coordinated rate limiting
+	if (env.RATE_LIMITER) {
+		const id = env.RATE_LIMITER.idFromName('discogs-rate-limiter')
+		const stub = env.RATE_LIMITER.get(id)
+		discogsClient.setRateLimiter(stub)
 	}
 	const cachedClient = env.MCP_SESSIONS ? new CachedDiscogsClient(discogsClient, env.MCP_SESSIONS) : null
 	const client = cachedClient || discogsClient
 
-	/** Helper: get profile and set per-user throttle key */
+	/** Helper: get profile for authenticated operations */
 	async function getProfileAndSetThrottle(session: { accessToken: string; accessTokenSecret: string }) {
 		const userProfile = await client.getUserProfile(
 			session.accessToken,
@@ -26,11 +28,6 @@ export function registerResources(server: McpServer, env: Env, getSessionContext
 			env.DISCOGS_CONSUMER_KEY,
 			env.DISCOGS_CONSUMER_SECRET,
 		)
-		if (cachedClient) {
-			cachedClient.setThrottleUser(userProfile.username)
-		} else {
-			discogsClient.setThrottleUser(userProfile.username)
-		}
 		return userProfile
 	}
 
