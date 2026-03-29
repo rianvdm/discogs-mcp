@@ -9,6 +9,9 @@ import { MARKETING_PAGE_HTML } from './marketing-page.js'
 import { createMcpServer } from './mcp/server'
 import type { Env } from './types/env'
 
+// Re-export Durable Object class for Wrangler binding
+export { DiscogsRateLimiter } from './rate-limiter/durable-object'
+
 const SERVER_VERSION = '1.0.0'
 
 // PKCE + standard MCP session TTL (7 days)

@@ -20,4 +20,7 @@ export interface Env {
 
   // KV namespace for OAuth provider state (tokens, grants, client registrations)
   OAUTH_KV: KVNamespace
+
+  // Durable Object namespace for Discogs API rate limiting
+  RATE_LIMITER: DurableObjectNamespace
 }
