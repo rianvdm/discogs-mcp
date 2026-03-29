@@ -39,6 +39,7 @@ interface QueuedRequest {
   reject: (error: Error) => void
   request: RateLimiterRequest
   enqueuedAt: number
+  timeoutId?: ReturnType<typeof setTimeout>
 }
 
 export class DiscogsRateLimiter implements DurableObject {
@@ -104,7 +105,7 @@ export class DiscogsRateLimiter implements DurableObject {
 
       this.queue.push(entry)
 
-      setTimeout(() => {
+      entry.timeoutId = setTimeout(() => {
         const idx = this.queue.indexOf(entry)
         if (idx !== -1) {
           this.queue.splice(idx, 1)
@@ -162,6 +163,21 @@ export class DiscogsRateLimiter implements DurableObject {
 
         this.budget.remaining = 0
         await this.state.storage.put('budget', this.budget)
+
+        // Cancel the original timeout and give it a fresh window after the pause
+        if (entry.timeoutId) clearTimeout(entry.timeoutId)
+        entry.enqueuedAt = Date.now() + pauseMs // reset so drainQueue doesn't expire it
+        entry.timeoutId = setTimeout(() => {
+          const idx = this.queue.indexOf(entry)
+          if (idx !== -1) {
+            this.queue.splice(idx, 1)
+            entry.resolve({
+              status: 504,
+              headers: {},
+              body: JSON.stringify({ error: 'Rate limiter timeout' }),
+            })
+          }
+        }, pauseMs + QUEUE_TIMEOUT_MS)
 
         this.queue.unshift(entry)
 
