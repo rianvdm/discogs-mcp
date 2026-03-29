@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { discogsClient } from '../../src/clients/discogs'
+import { DiscogsClient } from '../../src/clients/discogs'
+
+const discogsClient = new DiscogsClient()
 
 // Mock fetch globally
 const mockFetch = vi.fn()

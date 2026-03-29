@@ -33,7 +33,7 @@ describe('CachedDiscogsClient.getCompleteCollection', () => {
     const kv = makeKV()
     // CachedDiscogsClient constructor: (client: DiscogsClient, kv: KVNamespace)
     // The inner DiscogsClient is irrelevant here — we spy on searchCollection directly.
-    client = new CachedDiscogsClient({ setKV: vi.fn() } as unknown as DiscogsClient, kv)
+    client = new CachedDiscogsClient({} as unknown as DiscogsClient, kv)
     // Spy on the internal searchCollection so we can control page responses
     mockSearchCollection = vi.fn()
     vi.spyOn(client as never, 'searchCollection').mockImplementation(mockSearchCollection)
@@ -103,7 +103,7 @@ describe('CachedDiscogsClient.getCompleteCollection — time budget', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     kv = makeKV()
-    client = new CachedDiscogsClient({ setKV: vi.fn() } as unknown as DiscogsClient, kv)
+    client = new CachedDiscogsClient({} as unknown as DiscogsClient, kv)
     mockSearchCollection = vi.fn()
     vi.spyOn(client as never, 'searchCollection').mockImplementation(mockSearchCollection)
   })

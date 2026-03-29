@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { discogsClient } from '../../src/clients/discogs'
+import { DiscogsClient } from '../../src/clients/discogs'
+
+const discogsClient = new DiscogsClient()
 
 // Mock fetch globally
 const mockFetch = vi.fn()
@@ -286,7 +288,7 @@ describe('Discogs Client — 429 rate limit handling', () => {
 		await vi.runAllTimersAsync()
 		const error = await result
 		expect(error).toBeInstanceOf(Error)
-		expect((error as Error).message).toContain('rate limit')
+		expect((error as Error).message).toContain('429')
 	}
 
 	it('listFolders throws rate limit error', async () => {

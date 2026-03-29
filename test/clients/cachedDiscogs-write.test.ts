@@ -20,7 +20,6 @@ function makeKV(): KVNamespace {
 // Stub DiscogsClient with mock methods for all write operations
 function makeMockClient() {
 	return {
-		setKV: vi.fn(),
 		listFolders: vi.fn(async () => [{ id: 0, name: 'All', count: 10, resource_url: '' }]),
 		createFolder: vi.fn(async () => ({ id: 3, name: 'New', count: 0, resource_url: '' })),
 		editFolder: vi.fn(async () => ({ id: 3, name: 'Renamed', count: 0, resource_url: '' })),
