@@ -54,8 +54,14 @@ export class DiscogsRateLimiter implements DurableObject {
     state.blockConcurrencyWhile(async () => {
       const stored = await state.storage.get<BudgetState>('budget')
       if (stored) {
-        this.budget = stored
-        console.log('[RL] Restored budget from storage:', stored)
+        const age = Date.now() - stored.lastUpdated
+        if (age > WINDOW_RESET_MS) {
+          this.budget = { remaining: stored.limit, limit: stored.limit, lastUpdated: Date.now() }
+          console.log(`[RL] Restored budget but stale (${Math.round(age / 1000)}s old), reset to ${stored.limit}`)
+        } else {
+          this.budget = stored
+          console.log('[RL] Restored budget from storage:', stored)
+        }
       } else {
         console.log('[RL] Cold start, assuming remaining=60')
       }
