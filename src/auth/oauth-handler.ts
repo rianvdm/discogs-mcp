@@ -22,17 +22,29 @@ export interface DiscogsUserProps {
 }
 
 /**
+ * Parse ALLOWED_DISCOGS_USER_ID into a list of numeric IDs.
+ * Accepts a single ID ("2579319") or a comma-separated list ("123,456,789").
+ * Empty/unset = open instance (no allowlist).
+ */
+export function parseAllowlist(raw: string | undefined): string[] {
+  return (raw ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+}
+
+/**
  * If ALLOWED_DISCOGS_USER_ID is set (non-empty), verify that the authenticated
- * Discogs identity matches. Returns a 403 response for unauthorized users, or
- * null to proceed. Empty/unset = open instance (default for self-hosters).
+ * Discogs identity matches one of the allowed IDs. Returns a 403 response for
+ * unauthorized users, or null to proceed. Empty/unset = open instance.
  */
 export function checkAllowlist(
   identity: { id: number; username: string },
   allowedIdRaw: string | undefined,
 ): Response | null {
-  const allowedId = allowedIdRaw?.trim()
-  if (!allowedId) return null
-  if (String(identity.id) === allowedId) return null
+  const allowed = parseAllowlist(allowedIdRaw)
+  if (allowed.length === 0) return null
+  if (allowed.includes(String(identity.id))) return null
 
   console.warn(
     `[AUTH] Rejected unauthorized user: ${identity.username} (${identity.id})`,

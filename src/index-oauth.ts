@@ -4,7 +4,7 @@ import { OAuthProvider } from '@cloudflare/workers-oauth-provider'
 import type { ExecutionContext } from '@cloudflare/workers-types'
 import { createMcpHandler } from 'agents/mcp'
 
-import { DiscogsOAuthHandler, type DiscogsUserProps } from './auth/oauth-handler'
+import { DiscogsOAuthHandler, parseAllowlist, type DiscogsUserProps } from './auth/oauth-handler'
 import { MARKETING_PAGE_HTML } from './marketing-page.js'
 import { createMcpServer } from './mcp/server'
 import type { Env } from './types/env'
@@ -24,9 +24,9 @@ const ACCESS_TOKEN_TTL = 7 * 24 * 60 * 60
  * invalidated on their next request.
  */
 function isAllowedUser(numericId: string | undefined, env: Env): boolean {
-  const allowed = env.ALLOWED_DISCOGS_USER_ID?.trim()
-  if (!allowed) return true
-  return numericId === allowed
+  const allowed = parseAllowlist(env.ALLOWED_DISCOGS_USER_ID)
+  if (allowed.length === 0) return true
+  return !!numericId && allowed.includes(numericId)
 }
 
 function accessDeniedResponse(): Response {

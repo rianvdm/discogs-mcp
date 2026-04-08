@@ -8,9 +8,9 @@ export interface Env {
   DISCOGS_CONSUMER_KEY: string
   DISCOGS_CONSUMER_SECRET: string
 
-  // Optional allowlist: numeric Discogs user ID permitted to authenticate.
+  // Optional allowlist: numeric Discogs user ID(s) permitted to authenticate.
+  // Accepts a single ID ("123456") or a comma-separated list ("123,456,789").
   // Empty / unset = no allowlist (open instance, for self-hosters and local dev).
-  // Set on the maintainer's hosted deployment to lock it down to a single user.
   ALLOWED_DISCOGS_USER_ID?: string
 
   // JWT secret for legacy session-based handler (src/index.ts)

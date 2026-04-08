@@ -57,6 +57,28 @@ describe('checkAllowlist', () => {
     expect(res).not.toBeNull()
     expect(res!.status).toBe(403)
   })
+
+  it('accepts a comma-separated list and allows any match', () => {
+    expect(checkAllowlist(identity, '111,2579319,222')).toBeNull()
+    expect(checkAllowlist({ id: 111, username: 'a' }, '111,2579319,222')).toBeNull()
+    expect(checkAllowlist({ id: 222, username: 'b' }, '111,2579319,222')).toBeNull()
+  })
+
+  it('rejects when numeric ID is absent from the list', () => {
+    const res = checkAllowlist({ id: 999, username: 'nope' }, '111,2579319,222')
+    expect(res).not.toBeNull()
+    expect(res!.status).toBe(403)
+  })
+
+  it('trims whitespace around list entries', () => {
+    expect(checkAllowlist(identity, ' 111 , 2579319 , 222 ')).toBeNull()
+  })
+
+  it('ignores empty entries in the list (e.g. trailing commas)', () => {
+    expect(checkAllowlist(identity, '2579319,,,')).toBeNull()
+    const res = checkAllowlist({ id: 999, username: 'nope' }, ',,,')
+    expect(res).toBeNull() // all-empty = open instance
+  })
 })
 
 describe('/.well-known/oauth-protected-resource', () => {

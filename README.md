@@ -62,11 +62,15 @@ wrangler secret put JWT_SECRET --env production   # any random string
 
 ### 4. (Optional but recommended) Lock your instance to your own Discogs user
 
-By default, anyone with a Discogs account who discovers your Worker URL can authenticate and consume your rate-limit budget. To restrict it to just you, set `ALLOWED_DISCOGS_USER_ID` in `wrangler.toml` under `[env.production.vars]` to your numeric Discogs user ID:
+By default, anyone with a Discogs account who discovers your Worker URL can authenticate and consume your rate-limit budget. To restrict it to just you — or to a small group of trusted users — set `ALLOWED_DISCOGS_USER_ID` in `wrangler.toml` under `[env.production.vars]`:
 
 ```toml
 [env.production.vars]
+# Single user
 ALLOWED_DISCOGS_USER_ID = "123456"
+
+# Or a comma-separated list for multiple users
+ALLOWED_DISCOGS_USER_ID = "123456,789012,345678"
 ```
 
 You can find your numeric ID by visiting `https://api.discogs.com/users/<your-username>` and looking at the `id` field. Leave the value empty to run an open instance.

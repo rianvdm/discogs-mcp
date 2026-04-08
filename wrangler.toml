@@ -6,9 +6,9 @@ compatibility_flags = ["nodejs_compat"]
 [observability]
 enabled = true
 
-# Optional allowlist: numeric Discogs user ID permitted to authenticate.
+# Optional allowlist: numeric Discogs user ID(s) permitted to authenticate.
+# Accepts a single ID or a comma-separated list (e.g. "123,456,789").
 # Empty = no allowlist (open; default for local dev and self-hosters).
-# Set a value on the maintainer's deployment to lock the instance to one user.
 [vars]
 ALLOWED_DISCOGS_USER_ID = ""
 
