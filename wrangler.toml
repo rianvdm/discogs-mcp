@@ -6,6 +6,12 @@ compatibility_flags = ["nodejs_compat"]
 [observability]
 enabled = true
 
+# Optional allowlist: numeric Discogs user ID permitted to authenticate.
+# Empty = no allowlist (open; default for local dev and self-hosters).
+# Set a value on the maintainer's deployment to lock the instance to one user.
+[vars]
+ALLOWED_DISCOGS_USER_ID = ""
+
 # Durable Object for coordinated Discogs API rate limiting
 [durable_objects]
 bindings = [
@@ -32,6 +38,11 @@ id = "e04a5ec5441949ebb6e84281bf6598c3"
 # Production environment
 [env.production]
 name = "discogs-mcp-prod"
+
+# Lock the hosted instance to the maintainer's Discogs account.
+# Discogs API rate limits are too tight to share, so anyone else must self-host.
+[env.production.vars]
+ALLOWED_DISCOGS_USER_ID = "2579319"
 
 [env.production.durable_objects]
 bindings = [

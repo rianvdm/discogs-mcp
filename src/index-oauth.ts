@@ -18,6 +18,29 @@ const SERVER_VERSION = '1.0.0'
 const ACCESS_TOKEN_TTL = 7 * 24 * 60 * 60
 
 /**
+ * Enforce ALLOWED_DISCOGS_USER_ID on authenticated MCP requests.
+ * Primary gate is at the OAuth callback, but we also check here so that any
+ * pre-existing grants/sessions issued before the allowlist was set are
+ * invalidated on their next request.
+ */
+function isAllowedUser(numericId: string | undefined, env: Env): boolean {
+  const allowed = env.ALLOWED_DISCOGS_USER_ID?.trim()
+  if (!allowed) return true
+  return numericId === allowed
+}
+
+function accessDeniedResponse(): Response {
+  return new Response(
+    JSON.stringify({
+      error: 'access_denied',
+      error_description:
+        'This Discogs MCP instance is private. Self-host your own: https://github.com/rianvdm/discogs-mcp#self-hosting',
+    }),
+    { status: 403, headers: { 'Content-Type': 'application/json' } },
+  )
+}
+
+/**
  * OAuth provider instance — handles all OAuth 2.1 endpoints automatically:
  * - /.well-known/oauth-authorization-server (discovery)
  * - /oauth/register (dynamic client registration)
@@ -36,6 +59,9 @@ const oauthProvider = new OAuthProvider({
       const { server, setContext } = createMcpServer(env, baseUrl)
 
       const props = (ctx as unknown as { props?: DiscogsUserProps }).props
+      if (props && !isAllowedUser(props.numericId, env)) {
+        return accessDeniedResponse()
+      }
       if (props?.username && props?.accessToken) {
         setContext({
           session: {
@@ -83,6 +109,12 @@ async function handleSessionBasedMcp(
   }
 
   const sessionData = JSON.parse(sessionDataStr)
+
+  if (!isAllowedUser(sessionData.numericId, env)) {
+    // Delete the stale unauthorized session so retry fails cleanly with 401
+    await env.MCP_SESSIONS.delete(`session:${sessionId}`)
+    return accessDeniedResponse()
+  }
 
   if (sessionData.expiresAt && Date.now() > sessionData.expiresAt) {
     return new Response(JSON.stringify({ error: 'session_expired' }), {

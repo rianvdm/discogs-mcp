@@ -200,12 +200,13 @@ describe('GET / — marketing page', () => {
     expect(body).toContain('Discogs MCP')
   })
 
-  it('contains the setup URL', async () => {
+  it('links to the self-hosting guide', async () => {
     const req = new Request('https://example.com/', { method: 'GET' })
     const ctx = createExecutionContext()
     const res = await worker.fetch(req, env, ctx)
     await waitOnExecutionContext(ctx)
     const body = await res.text()
-    expect(body).toContain('discogs-mcp.com/mcp')
+    expect(body).toContain('github.com/rianvdm/discogs-mcp#-self-hosting')
+    expect(body).toContain('private instance')
   })
 })

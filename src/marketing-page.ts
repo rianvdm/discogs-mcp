@@ -6,19 +6,19 @@ export const MARKETING_PAGE_HTML = `<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discogs MCP Server — Connect AI to Your Record Collection</title>
-    <meta name="description" content="Discogs MCP is a free, open-source MCP server that connects Claude and other AI assistants to your Discogs record collection.">
-    <meta name="keywords" content="Discogs MCP, Discogs MCP server, Model Context Protocol, Claude, AI, vinyl, record collection">
+    <title>Discogs MCP Server — Self-Hosted MCP for Your Record Collection</title>
+    <meta name="description" content="Discogs MCP is a free, open-source MCP server you self-host on Cloudflare Workers to connect Claude and other AI assistants to your own Discogs collection.">
+    <meta name="keywords" content="Discogs MCP, Discogs MCP server, Model Context Protocol, Claude, AI, vinyl, record collection, self-hosted">
     <link rel="canonical" href="https://discogs-mcp.com">
 
-    <meta property="og:title" content="Discogs MCP Server">
-    <meta property="og:description" content="Discogs MCP connects Claude to your Discogs record collection. Search by genre, mood, decade, or artist.">
+    <meta property="og:title" content="Discogs MCP Server (self-hosted)">
+    <meta property="og:description" content="Self-hosted MCP server that connects Claude to your Discogs record collection. Clone, deploy on Cloudflare Workers, use your own Discogs API key.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://discogs-mcp.com">
 
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Discogs MCP Server">
-    <meta name="twitter:description" content="Connect AI to your Discogs record collection.">
+    <meta name="twitter:title" content="Discogs MCP Server (self-hosted)">
+    <meta name="twitter:description" content="Self-hosted MCP server for your Discogs record collection.">
 
     <meta name="robots" content="index, follow">
 
@@ -31,7 +31,7 @@ export const MARKETING_PAGE_HTML = `<!DOCTYPE html>
       "name": "Discogs MCP Server",
       "applicationCategory": "DeveloperApplication",
       "operatingSystem": "Cross-platform",
-      "description": "Model Context Protocol server connecting AI assistants to Discogs music collection data.",
+      "description": "Open-source, self-hosted Model Context Protocol server connecting AI assistants to your Discogs music collection. Deploy your own instance on Cloudflare Workers.",
       "url": "https://discogs-mcp.com",
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
       "license": "https://opensource.org/licenses/MIT"
@@ -276,6 +276,22 @@ export const MARKETING_PAGE_HTML = `<!DOCTYPE html>
 
         .query-card span { color: #777; font-size: 0.8rem; }
 
+        /* ── NOTICE BANNER ── */
+        .notice {
+            background: #FFF8E1;
+            border-top: 1px solid var(--yellow-border);
+            border-bottom: 1px solid var(--yellow-border);
+            padding: 14px 0;
+        }
+        .notice p {
+            color: #5a4a00;
+            font-size: 0.85rem;
+            line-height: 1.5;
+            text-align: center;
+        }
+        .notice p strong { color: #3a2f00; }
+        .notice a { color: var(--yellow-dark); font-weight: 600; }
+
         .mood-tag {
             display: inline-block;
             background: var(--yellow);
@@ -480,15 +496,21 @@ export const MARKETING_PAGE_HTML = `<!DOCTYPE html>
         <section class="hero">
             <div class="hero-left">
                 <h1>Your records,<br><span class="hl">AI-powered</span></h1>
-                <p>Discogs MCP is a Model Context Protocol server that connects Claude and other AI assistants to your Discogs record collection. Search by genre, decade, or just tell it you want <strong>something for a rainy Sunday</strong>.</p>
+                <p>Discogs MCP is an open-source Model Context Protocol server that connects Claude and other AI assistants to your Discogs record collection. Search by genre, decade, or just tell it you want <strong>something for a rainy Sunday</strong>. Self-hosted on Cloudflare Workers \u2014 <strong>you bring your own Discogs API key</strong>.</p>
                 <div class="cta-row">
-                    <a href="#setup" class="btn btn-primary">Get Started</a>
+                    <a href="https://github.com/rianvdm/discogs-mcp#-self-hosting" class="btn btn-primary">Self-Hosting Guide</a>
                     <a href="https://github.com/rianvdm/discogs-mcp" class="btn btn-secondary">View Source</a>
                 </div>
             </div>
             <div class="hero-right">
                 <div class="record"></div>
                 <div class="now-spinning">Now spinning\u2026</div>
+            </div>
+        </section>
+
+        <section class="notice">
+            <div class="container">
+                <p><strong>Heads up:</strong> <code>discogs-mcp.com</code> is the maintainer's private instance and is locked to a single Discogs account. The Discogs API rate limit is too tight to share, so you'll need to <a href="https://github.com/rianvdm/discogs-mcp#-self-hosting">deploy your own copy</a> (free on Cloudflare Workers, takes ~10 minutes).</p>
             </div>
         </section>
 
@@ -519,57 +541,17 @@ export const MARKETING_PAGE_HTML = `<!DOCTYPE html>
         <section class="setup" id="setup">
             <div class="container">
                 <h2>Setup</h2>
-                <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 24px;">Add the Discogs MCP server to your AI client in a few steps.</p>
+                <p style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 24px;">Deploy your own Discogs MCP server, then point your AI client at it.</p>
                 <div class="setup-list">
                     <div class="setup-card">
-                        <h3>Claude.ai / Claude Desktop</h3>
-                        <ol>
-                            <li>Go to <strong>Settings</strong> \u2192 <strong>Integrations</strong></li>
-                            <li>Click <strong>Add Integration</strong></li>
-                            <li>Enter the URL below and click <strong>Add</strong></li>
-                            <li>Authenticate with Discogs when prompted</li>
-                        </ol>
-                        <div class="code-wrap">
-                            <code>https://discogs-mcp.com/mcp</code>
-                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                        </div>
+                        <h3>1. Deploy your own instance</h3>
+                        <p>Clone the repo, add your Discogs API credentials, and deploy to Cloudflare Workers. The free tier is more than enough.</p>
+                        <p><a href="https://github.com/rianvdm/discogs-mcp#-self-hosting" style="color: var(--yellow-dark); font-weight: 600;">Read the self-hosting guide \u2192</a></p>
                     </div>
                     <div class="setup-card">
-                        <h3>Claude Code</h3>
-                        <p>Run this command in your terminal:</p>
-                        <div class="code-wrap">
-                            <code>claude mcp add --transport http discogs https://discogs-mcp.com/mcp</code>
-                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                        </div>
-                    </div>
-                    <div class="setup-card">
-                        <h3>OpenCode</h3>
-                        <p class="config-path">opencode.json</p>
-                        <div class="code-wrap">
-                            <code>{
-  "mcp": {
-    "discogs": {
-      "type": "remote",
-      "url": "https://discogs-mcp.com/mcp"
-    }
-  }
-}</code>
-                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                        </div>
-                    </div>
-                    <div class="setup-card">
-                        <h3>Cursor / Windsurf / Other MCP Clients</h3>
-                        <p>Add to your MCP config file:</p>
-                        <div class="code-wrap">
-                            <code>{
-  "mcpServers": {
-    "discogs": {
-      "url": "https://discogs-mcp.com/mcp"
-    }
-  }
-}</code>
-                            <button class="copy-btn" onclick="copyCode(this)">Copy</button>
-                        </div>
+                        <h3>2. Connect your MCP client</h3>
+                        <p>Once deployed, you'll have a URL like <code style="display:inline;padding:2px 6px">https://discogs-mcp.&lt;your-subdomain&gt;.workers.dev/mcp</code>. Point your MCP client at that URL \u2014 the same instructions work in Claude Desktop, Claude Code, Cursor, Windsurf, OpenCode, and any other MCP-compatible client.</p>
+                        <p>The full configuration snippets are in the <a href="https://github.com/rianvdm/discogs-mcp#6-connect-your-mcp-client" style="color: var(--yellow-dark); font-weight: 600;">README</a>.</p>
                     </div>
                 </div>
             </div>

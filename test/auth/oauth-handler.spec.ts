@@ -1,7 +1,7 @@
 // ABOUTME: Tests for DiscogsOAuthHandler auth routes.
 import { env, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test'
 import { describe, it, expect, vi } from 'vitest'
-import { DiscogsOAuthHandler } from '../../src/auth/oauth-handler'
+import { DiscogsOAuthHandler, checkAllowlist } from '../../src/auth/oauth-handler'
 
 // Mock DiscogsAuth at the top of the file (add after existing imports)
 vi.mock('../../src/auth/discogs', () => ({
@@ -21,6 +21,43 @@ vi.mock('../../src/auth/discogs', () => ({
 
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
+
+describe('checkAllowlist', () => {
+  const identity = { id: 2579319, username: 'elezea-records' }
+
+  it('returns null when allowlist is unset (open instance)', () => {
+    expect(checkAllowlist(identity, undefined)).toBeNull()
+  })
+
+  it('returns null when allowlist is empty string (open instance)', () => {
+    expect(checkAllowlist(identity, '')).toBeNull()
+    expect(checkAllowlist(identity, '   ')).toBeNull()
+  })
+
+  it('returns null when numeric ID matches', () => {
+    expect(checkAllowlist(identity, '2579319')).toBeNull()
+  })
+
+  it('trims whitespace before comparing', () => {
+    expect(checkAllowlist(identity, '  2579319  ')).toBeNull()
+  })
+
+  it('returns a 403 HTML response when numeric ID does not match', async () => {
+    const res = checkAllowlist(identity, '99999')
+    expect(res).not.toBeNull()
+    expect(res!.status).toBe(403)
+    expect(res!.headers.get('Content-Type')).toContain('text/html')
+    const body = await res!.text()
+    expect(body).toContain('Access Restricted')
+    expect(body).toContain('github.com/rianvdm/discogs-mcp')
+  })
+
+  it('compares by numeric ID, not username (usernames are mutable)', () => {
+    const res = checkAllowlist({ id: 111, username: 'elezea-records' }, '2579319')
+    expect(res).not.toBeNull()
+    expect(res!.status).toBe(403)
+  })
+})
 
 describe('/.well-known/oauth-protected-resource', () => {
   it('returns 200 with correct fields', async () => {

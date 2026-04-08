@@ -22,6 +22,33 @@ export interface DiscogsUserProps {
 }
 
 /**
+ * If ALLOWED_DISCOGS_USER_ID is set (non-empty), verify that the authenticated
+ * Discogs identity matches. Returns a 403 response for unauthorized users, or
+ * null to proceed. Empty/unset = open instance (default for self-hosters).
+ */
+export function checkAllowlist(
+  identity: { id: number; username: string },
+  allowedIdRaw: string | undefined,
+): Response | null {
+  const allowedId = allowedIdRaw?.trim()
+  if (!allowedId) return null
+  if (String(identity.id) === allowedId) return null
+
+  console.warn(
+    `[AUTH] Rejected unauthorized user: ${identity.username} (${identity.id})`,
+  )
+  return new Response(
+    `<!DOCTYPE html><html><head><title>Access Restricted</title><meta name="viewport" content="width=device-width, initial-scale=1.0"><style>body{font-family:system-ui,-apple-system,sans-serif;max-width:36rem;margin:4rem auto;padding:0 1.5rem;line-height:1.6;color:#222}h1{color:#b00020}a{color:#0366d6}</style></head><body>
+       <h1>Access Restricted</h1>
+       <p>This Discogs MCP instance is private and locked to a single Discogs user. Discogs API rate limits are too strict to share across users, so each person needs to run their own deployment.</p>
+       <p>Good news: it's open source and easy to self-host on Cloudflare Workers (free tier works fine).</p>
+       <p><strong><a href="https://github.com/rianvdm/discogs-mcp#self-hosting">Self-hosting instructions →</a></strong></p>
+     </body></html>`,
+    { status: 403, headers: { 'Content-Type': 'text/html; charset=utf-8' } },
+  )
+}
+
+/**
  * DefaultHandler for @cloudflare/workers-oauth-provider.
  * Only handles auth-related routes. Static routes (/, /health, etc.) are
  * handled by the main entry point in index-oauth.ts.
@@ -139,6 +166,11 @@ async function handleDiscogsCallback(request: Request, env: OAuthEnv): Promise<R
     }
 
     const identity = await identityRes.json() as { id: number; username: string }
+
+    // Allowlist gate (set on maintainer's deployment; empty = open)
+    const denied = checkAllowlist(identity, env.ALLOWED_DISCOGS_USER_ID)
+    if (denied) return denied
+
     const userProps: DiscogsUserProps = {
       numericId: String(identity.id),
       username: identity.username,
@@ -292,6 +324,10 @@ async function handleManualCallback(request: Request, env: OAuthEnv): Promise<Re
     }
 
     const identity = await identityRes.json() as { id: number; username: string }
+
+    // Allowlist gate (set on maintainer's deployment; empty = open)
+    const denied = checkAllowlist(identity, env.ALLOWED_DISCOGS_USER_ID)
+    if (denied) return denied
 
     // Store session in KV (7 days)
     const expiresAt = Date.now() + 7 * 24 * 60 * 60 * 1000

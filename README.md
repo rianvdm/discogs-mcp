@@ -18,57 +18,108 @@ A powerful **Model Context Protocol (MCP) server** that enables AI assistants to
 - ⚡ **Edge Computing**: Global low-latency responses via Cloudflare Workers
 - 🗂️ **Smart Caching**: Intelligent KV-based caching for optimal performance
 
-## 🚀 Quick Start
+## ⚠️ This Is Not a Shared Service
 
-### Claude Desktop
+**`discogs-mcp.com` is the maintainer's private instance.** It's locked to a single Discogs account and will return a 403 for anyone else.
 
-1. Open Claude Desktop → **Settings** → **Integrations**
-2. Click **Add Integration**
-3. Enter the URL:
-   ```
-   https://discogs-mcp.com/mcp
-   ```
-4. Click **Add** - authenticate with Discogs when prompted
+Why? The Discogs API rate limit (60 requests per minute, per registered app) is too tight to share across users. One active collection query from a single user can saturate it. Rather than run a broken multi-tenant service, **each user deploys their own Worker with their own Discogs API credentials**.
 
-### Claude Code
+The good news: deploying your own copy is straightforward, runs on the Cloudflare Workers free tier, and takes about 10 minutes. See [Self-Hosting](#-self-hosting) below.
+
+## 🚀 Self-Hosting
+
+### Prerequisites
+
+- Node.js 18+
+- Cloudflare account (free tier is fine)
+- Discogs account with a [registered developer app](https://www.discogs.com/settings/developers) (you'll need a **Consumer Key** and **Consumer Secret**)
+
+### 1. Clone and install
 
 ```bash
-claude mcp add --transport http discogs https://discogs-mcp.com/mcp
+git clone https://github.com/rianvdm/discogs-mcp.git
+cd discogs-mcp
+npm install
 ```
 
-### Windsurf
+### 2. Create KV namespaces
 
-Add to your Windsurf MCP config (`~/.codeium/windsurf/mcp_config.json`):
+```bash
+wrangler kv namespace create MCP_SESSIONS --env production
+wrangler kv namespace create MCP_LOGS --env production
+wrangler kv namespace create OAUTH_KV --env production
+```
+
+Copy the returned IDs into `wrangler.toml` under `[env.production]`.
+
+### 3. Set your Discogs credentials
+
+```bash
+wrangler secret put DISCOGS_CONSUMER_KEY --env production
+wrangler secret put DISCOGS_CONSUMER_SECRET --env production
+wrangler secret put JWT_SECRET --env production   # any random string
+```
+
+### 4. (Optional but recommended) Lock your instance to your own Discogs user
+
+By default, anyone with a Discogs account who discovers your Worker URL can authenticate and consume your rate-limit budget. To restrict it to just you, set `ALLOWED_DISCOGS_USER_ID` in `wrangler.toml` under `[env.production.vars]` to your numeric Discogs user ID:
+
+```toml
+[env.production.vars]
+ALLOWED_DISCOGS_USER_ID = "123456"
+```
+
+You can find your numeric ID by visiting `https://api.discogs.com/users/<your-username>` and looking at the `id` field. Leave the value empty to run an open instance.
+
+### 5. Deploy
+
+```bash
+npm run deploy:prod
+```
+
+Your Worker URL will be something like `https://discogs-mcp.<your-subdomain>.workers.dev`. The MCP endpoint is `/mcp`.
+
+### 6. Connect your MCP client
+
+Replace `https://your-worker.workers.dev` below with your own URL.
+
+**Claude Desktop** — Settings → Integrations → Add Integration → `https://your-worker.workers.dev/mcp`
+
+**Claude Code**:
+
+```bash
+claude mcp add --transport http discogs https://your-worker.workers.dev/mcp
+```
+
+**Windsurf** (`~/.codeium/windsurf/mcp_config.json`):
 
 ```json
 {
-	"mcpServers": {
-		"discogs": {
-			"serverUrl": "https://discogs-mcp.com/mcp"
-		}
-	}
+  "mcpServers": {
+    "discogs": {
+      "serverUrl": "https://your-worker.workers.dev/mcp"
+    }
+  }
 }
 ```
-
-### MCP Inspector (Testing)
-
-```bash
-npx @modelcontextprotocol/inspector https://discogs-mcp.com/mcp
-```
-
-### Other MCP Clients
 
 **Continue.dev / Zed / Generic:**
 
 ```json
 {
-	"mcpServers": {
-		"discogs": {
-			"command": "npx",
-			"args": ["-y", "mcp-remote", "https://discogs-mcp.com/mcp"]
-		}
-	}
+  "mcpServers": {
+    "discogs": {
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://your-worker.workers.dev/mcp"]
+    }
+  }
 }
+```
+
+**MCP Inspector (testing)**:
+
+```bash
+npx @modelcontextprotocol/inspector https://your-worker.workers.dev/mcp
 ```
 
 ## 🔐 Authentication
@@ -110,65 +161,22 @@ discogs://release/{id}           # Specific release details
 discogs://search?q={query}       # Search results
 ```
 
-## 🏗️ Development
+## 🏗️ Local Development
 
-### Prerequisites
+```bash
+# Set dev secrets (same Discogs app is fine for dev)
+wrangler secret put DISCOGS_CONSUMER_KEY
+wrangler secret put DISCOGS_CONSUMER_SECRET
+wrangler secret put JWT_SECRET
 
-- Node.js 18+
-- Cloudflare account
-- Discogs Developer Account (for API keys)
+# Run the Worker locally
+npm run dev
 
-### Local Setup
+# Test with MCP Inspector
+npx @modelcontextprotocol/inspector http://localhost:8787/mcp
+```
 
-1. **Clone and install**:
-
-   ```bash
-   git clone https://github.com/rianvdm/discogs-mcp.git
-   cd discogs-mcp
-   npm install
-   ```
-
-2. **Configure environment**:
-
-   ```bash
-   # Set your Discogs API credentials as Wrangler secrets
-   wrangler secret put DISCOGS_CONSUMER_KEY
-   wrangler secret put DISCOGS_CONSUMER_SECRET
-   ```
-
-3. **Start development server**:
-
-   ```bash
-   npm run dev
-   ```
-
-4. **Test with MCP Inspector**:
-   ```bash
-   npx @modelcontextprotocol/inspector http://localhost:8787/mcp
-   ```
-
-## 🚀 Deployment
-
-1. **Create KV namespaces** and add their IDs to `wrangler.toml` under `[env.production]`:
-
-   ```bash
-   wrangler kv namespace create MCP_SESSIONS --env production
-   wrangler kv namespace create MCP_LOGS --env production
-   wrangler kv namespace create MCP_RL --env production
-   wrangler kv namespace create OAUTH_KV --env production
-   ```
-
-2. **Set production secrets**:
-
-   ```bash
-   wrangler secret put DISCOGS_CONSUMER_KEY --env production
-   wrangler secret put DISCOGS_CONSUMER_SECRET --env production
-   ```
-
-3. **Deploy**:
-   ```bash
-   npm run deploy:prod
-   ```
+The default `[vars]` block in `wrangler.toml` leaves `ALLOWED_DISCOGS_USER_ID` empty, so local dev is open to any Discogs account — convenient for testing.
 
 ## 🧪 Testing
 
