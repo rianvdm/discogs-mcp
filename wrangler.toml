@@ -42,7 +42,7 @@ name = "discogs-mcp-prod"
 # Lock the hosted instance to the maintainer's Discogs account.
 # Discogs API rate limits are too tight to share, so anyone else must self-host.
 [env.production.vars]
-ALLOWED_DISCOGS_USER_ID = "2579319"
+ALLOWED_DISCOGS_USER_ID = "2579319,2316828"
 
 [env.production.durable_objects]
 bindings = [
