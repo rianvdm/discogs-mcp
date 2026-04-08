@@ -273,7 +273,7 @@ export class CachedDiscogsClient {
 			// Another caller is already fetching — poll cache for the result.
 			console.log(`Collection fetch already in progress for ${username}, waiting for cache...`)
 			const pollStart = Date.now()
-			const POLL_TIMEOUT_MS = Math.min(timeBudgetMs, 45000)
+			const POLL_TIMEOUT_MS = Math.min(timeBudgetMs, 110000)
 			const POLL_INTERVAL_MS = 2000
 
 			while (Date.now() - pollStart < POLL_TIMEOUT_MS) {

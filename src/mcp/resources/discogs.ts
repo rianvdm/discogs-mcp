@@ -55,7 +55,7 @@ export function registerResources(server: McpServer, env: Env, getSessionContext
 				let collection: (DiscogsCollectionResponse & { partial?: boolean }) | undefined
 				if (cachedClient) {
 					const toolStart = Date.now()
-					const TOOL_BUDGET_MS = 40000
+					const TOOL_BUDGET_MS = 105000
 
 					collection = await cachedClient.getCompleteCollection(
 						userProfile.username,
@@ -64,7 +64,7 @@ export function registerResources(server: McpServer, env: Env, getSessionContext
 						env.DISCOGS_CONSUMER_KEY,
 						env.DISCOGS_CONSUMER_SECRET,
 						50,
-						45000,
+						110000,
 					)
 					while (collection.partial && Date.now() - toolStart < TOOL_BUDGET_MS - 5000) {
 						const remaining = Math.max(TOOL_BUDGET_MS - (Date.now() - toolStart), 5000)
@@ -178,7 +178,7 @@ export function registerResources(server: McpServer, env: Env, getSessionContext
 				let searchResults
 				if (cachedClient) {
 					const toolStart = Date.now()
-					const TOOL_BUDGET_MS = 40000
+					const TOOL_BUDGET_MS = 105000
 
 					let collectionResult = await cachedClient.getCompleteCollectionReleases(
 						userProfile.username,
@@ -186,7 +186,7 @@ export function registerResources(server: McpServer, env: Env, getSessionContext
 						session.accessTokenSecret,
 						env.DISCOGS_CONSUMER_KEY,
 						env.DISCOGS_CONSUMER_SECRET,
-						45000,
+						110000,
 					)
 					while (collectionResult.partial && Date.now() - toolStart < TOOL_BUDGET_MS - 5000) {
 						const remaining = Math.max(TOOL_BUDGET_MS - (Date.now() - toolStart), 5000)
