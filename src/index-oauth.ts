@@ -207,6 +207,30 @@ export default {
       )
     }
 
+    // Debug endpoint — exposes rate limiter state. Gated by DEBUG_TOKEN secret.
+    // If DEBUG_TOKEN is unset, returns 404 so self-hosters never expose this accidentally.
+    if (url.pathname === '/debug/budget' && request.method === 'GET') {
+      const expected = env.DEBUG_TOKEN?.trim()
+      if (!expected) {
+        return new Response('Not Found', { status: 404 })
+      }
+      const provided = url.searchParams.get('token')
+      if (provided !== expected) {
+        return new Response('Unauthorized', { status: 401 })
+      }
+      const doId = env.RATE_LIMITER.idFromName('discogs-rate-limiter')
+      const doStub = env.RATE_LIMITER.get(doId)
+      const stateRes = await doStub.fetch(new Request('http://do/state'))
+      return new Response(stateRes.body, {
+        status: stateRes.status,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+          'Cache-Control': 'no-store',
+        },
+      })
+    }
+
     if (url.pathname === '/.well-known/mcp.json' && request.method === 'GET') {
       return new Response(
         JSON.stringify({

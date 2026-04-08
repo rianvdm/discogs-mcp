@@ -69,6 +69,28 @@ export class DiscogsRateLimiter implements DurableObject {
   }
 
   async fetch(request: Request): Promise<Response> {
+    // Debug state endpoint — read-only snapshot, no Discogs call, no body required
+    if (new URL(request.url).pathname === '/state') {
+      const now = Date.now()
+      return new Response(
+        JSON.stringify({
+          budget: {
+            remaining: this.budget.remaining,
+            limit: this.budget.limit,
+            lastUpdated: this.budget.lastUpdated,
+            ageMs: this.budget.lastUpdated > 0 ? now - this.budget.lastUpdated : null,
+          },
+          queue: {
+            depth: this.queue.length,
+            processing: this.processing,
+            paused: this.paused,
+          },
+          serverTime: now,
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } },
+      )
+    }
+
     const limiterReq: RateLimiterRequest = await request.json()
     const path = new URL(limiterReq.url).pathname
     console.log(`[RL] Request: ${limiterReq.method} ${path} | budget: ${this.budget.remaining}/${this.budget.limit} | queue: ${this.queue.length}`)

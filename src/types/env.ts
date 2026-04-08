@@ -13,6 +13,11 @@ export interface Env {
   // Empty / unset = no allowlist (open instance, for self-hosters and local dev).
   ALLOWED_DISCOGS_USER_ID?: string
 
+  // Optional debug token for the GET /debug/budget endpoint.
+  // If unset, the debug endpoint returns 404 (no surface area exposed).
+  // Set via `wrangler secret put DEBUG_TOKEN --env production` with any random string.
+  DEBUG_TOKEN?: string
+
   // JWT secret for legacy session-based handler (src/index.ts)
   JWT_SECRET: string
 
