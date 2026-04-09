@@ -91,4 +91,42 @@ describe('formatSearchDiscogsResults', () => {
 		const output = formatSearchDiscogsResults(response, new Set(), new Set(), 'nothing', 'master')
 		expect(output.toLowerCase()).toContain('no results')
 	})
+
+	it('does NOT mark release results as owned based on shared master_id (regression)', () => {
+		// User owns ONE pressing of an album (release 500). Search returns 3 different pressings
+		// of the same master. Only the specific pressing should be marked as owned.
+		const response = fakeResponse([
+			{ ...fakeSearchResult({ id: 500, title: 'Album - CD pressing', master_id: 9000 }), type: 'release' },
+			{ ...fakeSearchResult({ id: 501, title: 'Album - Vinyl pressing', master_id: 9000 }), type: 'release' },
+			{ ...fakeSearchResult({ id: 502, title: 'Album - Digital pressing', master_id: 9000 }), type: 'release' },
+		])
+		const ownedMasterIds = new Set([9000]) // master known owned (via release 500)
+		const ownedReleaseIds = new Set([500])
+		const output = formatSearchDiscogsResults(response, ownedMasterIds, ownedReleaseIds, 'album', 'release')
+
+		const cdLine = output.split('\n').find((l) => l.includes('CD pressing'))!
+		const vinylLine = output.split('\n').find((l) => l.includes('Vinyl pressing'))!
+		const digitalLine = output.split('\n').find((l) => l.includes('Digital pressing'))!
+
+		expect(cdLine).toContain('✓ in your collection')
+		expect(vinylLine).not.toContain('✓ in your collection')
+		expect(digitalLine).not.toContain('✓ in your collection')
+	})
+
+	it('marks master result as owned when user owns any pressing of that master', () => {
+		// User owns a release whose master_id is 9000. A master-type search should still mark
+		// this master as owned (master searches represent the canonical album, not a specific pressing).
+		const response = fakeResponse([
+			{ ...fakeSearchResult({ id: 9000, title: 'The Album', master_id: 9000 }), type: 'master' },
+			{ ...fakeSearchResult({ id: 9999, title: 'Some Other Album', master_id: 9999 }), type: 'master' },
+		])
+		const ownedMasterIds = new Set([9000])
+		const ownedReleaseIds = new Set<number>()
+		const output = formatSearchDiscogsResults(response, ownedMasterIds, ownedReleaseIds, 'album', 'master')
+
+		const ownedLine = output.split('\n').find((l) => l.includes('The Album'))!
+		const notOwnedLine = output.split('\n').find((l) => l.includes('Some Other Album'))!
+		expect(ownedLine).toContain('✓ in your collection')
+		expect(notOwnedLine).not.toContain('✓ in your collection')
+	})
 })

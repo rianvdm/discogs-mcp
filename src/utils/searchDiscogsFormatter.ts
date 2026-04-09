@@ -7,8 +7,19 @@ function isOwned(
 	ownedMasterIds: Set<number>,
 	ownedReleaseIds: Set<number>,
 ): boolean {
-	if (result.master_id && ownedMasterIds.has(result.master_id)) return true
-	if (result.type === 'release' && ownedReleaseIds.has(result.id)) return true
+	if (result.type === 'master') {
+		// For a master result, the match signal is "user owns any pressing of this canonical album".
+		// A Discogs master search result exposes its own id as the master_id.
+		const masterId = result.master_id ?? result.id
+		return ownedMasterIds.has(masterId)
+	}
+	if (result.type === 'release') {
+		// For a release result, match STRICTLY on the specific release_id. Two different pressings
+		// of the same album share a master_id, so falling back to master matching would incorrectly
+		// mark every pressing as owned when the user has just one of them.
+		return ownedReleaseIds.has(result.id)
+	}
+	// Artist / label results have no ownership concept.
 	return false
 }
 
