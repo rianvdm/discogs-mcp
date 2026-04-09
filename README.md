@@ -147,13 +147,45 @@ This server uses **MCP OAuth 2.1** with Discogs as the identity provider. When y
 
 ### 🔐 Authenticated Tools (Requires Login)
 
-| Tool                   | Description                                                     |
-| ---------------------- | --------------------------------------------------------------- |
-| `search_collection`    | Search your collection with intelligent mood and genre matching |
-| `get_release`          | Get detailed information about a specific release               |
-| `get_collection_stats` | View comprehensive collection statistics                        |
-| `get_recommendations`  | Get context-aware music recommendations                         |
-| `get_cache_stats`      | Monitor cache performance (development)                         |
+**Search & discovery**
+
+| Tool                   | Description                                                                  |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| `search_collection`    | Search your collection with explicit genre filters, mood-aware ranking, and master-level dedup |
+| `get_release`          | Get detailed information about a specific release (tracklist, formats, labels) |
+| `get_collection_stats` | View genre breakdown, decade analysis, format distribution, and ratings      |
+| `get_recommendations`  | Get personalized recommendations by genre, decade, mood, or similarity       |
+
+**Collection management**
+
+| Tool                     | Description                                                                 |
+| ------------------------ | --------------------------------------------------------------------------- |
+| `add_to_collection`      | Add a release to a folder (defaults to Uncategorized)                       |
+| `remove_from_collection` | Remove a specific release instance from a folder                            |
+| `move_release`           | Move a release instance between folders                                     |
+| `rate_release`           | Rate a release from 0 (no rating) to 5 stars                                |
+
+**Folders**
+
+| Tool             | Description                                                         |
+| ---------------- | ------------------------------------------------------------------- |
+| `list_folders`   | List all folders with release counts                                |
+| `create_folder`  | Create a new folder                                                 |
+| `edit_folder`    | Rename an existing folder (system folders excluded)                 |
+| `delete_folder`  | Delete an empty folder (system folders excluded)                    |
+
+**Custom fields**
+
+| Tool                 | Description                                                                          |
+| -------------------- | ------------------------------------------------------------------------------------ |
+| `list_custom_fields` | List all custom fields defined on your collection                                    |
+| `edit_custom_field`  | Set a custom field value on a specific release instance                              |
+
+**Diagnostics**
+
+| Tool              | Description                                                         |
+| ----------------- | ------------------------------------------------------------------- |
+| `get_cache_stats` | View cache performance (total entries, pending requests, breakdown) |
 
 ## 📚 MCP Resources
 

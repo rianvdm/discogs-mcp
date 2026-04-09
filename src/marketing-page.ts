@@ -570,12 +570,42 @@ export const MARKETING_PAGE_HTML = `<!DOCTYPE html>
                         </ul>
                     </div>
                     <div class="tool-col">
-                        <h3>Personal (auth required)</h3>
+                        <h3>Search &amp; discovery</h3>
                         <ul>
                             <li>search_collection</li>
                             <li>get_release</li>
                             <li>get_collection_stats</li>
                             <li>get_recommendations</li>
+                        </ul>
+                    </div>
+                    <div class="tool-col">
+                        <h3>Collection management</h3>
+                        <ul>
+                            <li>add_to_collection</li>
+                            <li>remove_from_collection</li>
+                            <li>move_release</li>
+                            <li>rate_release</li>
+                        </ul>
+                    </div>
+                    <div class="tool-col">
+                        <h3>Folders</h3>
+                        <ul>
+                            <li>list_folders</li>
+                            <li>create_folder</li>
+                            <li>edit_folder</li>
+                            <li>delete_folder</li>
+                        </ul>
+                    </div>
+                    <div class="tool-col">
+                        <h3>Custom fields</h3>
+                        <ul>
+                            <li>list_custom_fields</li>
+                            <li>edit_custom_field</li>
+                        </ul>
+                    </div>
+                    <div class="tool-col">
+                        <h3>Diagnostics</h3>
+                        <ul>
                             <li>get_cache_stats</li>
                         </ul>
                     </div>

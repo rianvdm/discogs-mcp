@@ -47,7 +47,7 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 			content: [
 				{
 					type: 'text',
-					text: `Discogs MCP Server v1.0.0\n\nStatus: Running\nProtocol: MCP 2024-11-05\nFeatures:\n- Resources: Collection, Releases, Search\n- Authentication: OAuth 1.0a\n- Rate Limiting: Enabled\n\nTo get started, authenticate at ${authUrl}`,
+					text: `Discogs MCP Server v3.1.0\n\nStatus: Running\nProtocol: MCP 2024-11-05\nFeatures:\n- Resources: Collection, Releases, Search\n- Authentication: OAuth 1.0a\n- Rate Limiting: Enabled\n\nTo get started, authenticate at ${authUrl}`,
 				},
 			],
 		}
@@ -73,11 +73,12 @@ You are successfully authenticated with Discogs!
 - Session expires: ${new Date(session.exp * 1000).toISOString()}
 
 **Available tools:**
-- search_collection: Search your music collection
-- get_release: Get release details
-- get_collection_stats: View collection statistics
-- get_recommendations: Get personalized recommendations
-- get_cache_stats: View cache performance`,
+
+*Search & discovery:* search_collection, get_release, get_collection_stats, get_recommendations
+*Collection management:* add_to_collection, remove_from_collection, move_release, rate_release
+*Folders:* list_folders, create_folder, edit_folder, delete_folder
+*Custom fields:* list_custom_fields, edit_custom_field
+*Diagnostics:* get_cache_stats`,
 					},
 				],
 			}
