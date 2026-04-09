@@ -110,3 +110,111 @@ describe('scoreReleases', () => {
 		expect(scored.find((s) => s.item.id === 2)!.explicitMatch).toBe(false)
 	})
 })
+
+describe('dedupByMaster', () => {
+	it('collapses two releases with same master_id to one row', () => {
+		const items = [
+			release({
+				id: 10,
+				title: 'Universe Smiles',
+				artist: 'Khruangbin',
+				year: 2015,
+				master_id: 999,
+				genres: ['Jazz'],
+				styles: ['Psychedelic'],
+				formats: ['Vinyl'],
+			}),
+			release({
+				id: 11,
+				title: 'Universe Smiles',
+				artist: 'Khruangbin',
+				year: 2018,
+				master_id: 999,
+				genres: ['Jazz'],
+				styles: ['Psychedelic'],
+				formats: ['CD'],
+			}),
+		]
+		const parsed = parseSearchQuery('mellow jazz')
+		const scored = scoreReleases(items, parsed)
+		const deduped = dedupByMaster(scored)
+		expect(deduped).toHaveLength(1)
+	})
+
+	it('picks earliest year as representative', () => {
+		const items = [
+			release({ id: 11, title: 'A', artist: 'B', year: 2018, master_id: 999, genres: ['Jazz'], styles: [] }),
+			release({ id: 10, title: 'A', artist: 'B', year: 2015, master_id: 999, genres: ['Jazz'], styles: [] }),
+		]
+		const parsed = parseSearchQuery('jazz')
+		const scored = scoreReleases(items, parsed)
+		const deduped = dedupByMaster(scored)
+		expect(deduped[0].item.basic_information.year).toBe(2015)
+		expect(deduped[0].item.id).toBe(10)
+	})
+
+	it('aggregates ownedFormats freq-desc then alpha', () => {
+		const items = [
+			release({ id: 10, title: 'A', artist: 'B', year: 2015, master_id: 999, genres: [], styles: [], formats: ['Vinyl'] }),
+			release({ id: 11, title: 'A', artist: 'B', year: 2018, master_id: 999, genres: [], styles: [], formats: ['CD'] }),
+			release({ id: 12, title: 'A', artist: 'B', year: 2019, master_id: 999, genres: [], styles: [], formats: ['Vinyl'] }),
+		]
+		const scored = scoreReleases(items, parseSearchQuery('anything'))
+		const deduped = dedupByMaster(scored)
+		expect(deduped[0].item.ownedFormats).toEqual(['Vinyl', 'CD'])
+	})
+
+	it('populates mergedInstanceIds with all instance_ids in the group', () => {
+		const items = [
+			release({ id: 10, instance_id: 100, title: 'A', artist: 'B', year: 2015, master_id: 999, genres: [], styles: [] }),
+			release({ id: 11, instance_id: 200, title: 'A', artist: 'B', year: 2018, master_id: 999, genres: [], styles: [] }),
+		]
+		const scored = scoreReleases(items, parseSearchQuery('anything'))
+		const deduped = dedupByMaster(scored)
+		expect(deduped[0].item.mergedInstanceIds).toEqual(expect.arrayContaining([100, 200]))
+		expect(deduped[0].item.mergedInstanceIds).toHaveLength(2)
+	})
+
+	it('representative inherits MAX moodScore from the group', () => {
+		const items = [
+			release({ id: 10, title: 'A', artist: 'B', year: 2015, master_id: 999, genres: ['Rock'], styles: [] }),
+			release({ id: 11, title: 'A', artist: 'B', year: 2018, master_id: 999, genres: ['Jazz'], styles: ['Smooth Jazz'] }),
+		]
+		const parsed = parseSearchQuery('mellow')
+		const scored = scoreReleases(items, parsed)
+		const deduped = dedupByMaster(scored)
+		const rep = deduped.find((d) => d.item.basic_information.year === 2015)!
+		expect(rep.moodScore).toBeGreaterThan(0)
+	})
+
+	it('falls back to artist+title+year when master_id is missing', () => {
+		const items = [
+			release({ id: 20, title: 'Live at X', artist: 'Band', year: 1975, genres: [], styles: [] }),
+			release({ id: 21, title: 'Live at X', artist: 'Band', year: 2020, genres: [], styles: [] }),
+		]
+		const scored = scoreReleases(items, parseSearchQuery('anything'))
+		const deduped = dedupByMaster(scored)
+		expect(deduped).toHaveLength(2)
+	})
+
+	it('fallback merges same artist+title+year with no master_id', () => {
+		const items = [
+			release({ id: 20, instance_id: 200, title: 'X', artist: 'Band', year: 1975, genres: [], styles: [], formats: ['Vinyl'] }),
+			release({ id: 21, instance_id: 201, title: 'X', artist: 'Band', year: 1975, genres: [], styles: [], formats: ['CD'] }),
+		]
+		const scored = scoreReleases(items, parseSearchQuery('anything'))
+		const deduped = dedupByMaster(scored)
+		expect(deduped).toHaveLength(1)
+		expect(deduped[0].item.ownedFormats).toEqual(['CD', 'Vinyl'])
+	})
+
+	it('does not merge different master_ids with same artist+title', () => {
+		const items = [
+			release({ id: 10, title: 'Greatest Hits', artist: 'Band', year: 2000, master_id: 100, genres: [], styles: [] }),
+			release({ id: 11, title: 'Greatest Hits', artist: 'Band', year: 2010, master_id: 200, genres: [], styles: [] }),
+		]
+		const scored = scoreReleases(items, parseSearchQuery('anything'))
+		const deduped = dedupByMaster(scored)
+		expect(deduped).toHaveLength(2)
+	})
+})
