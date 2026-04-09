@@ -39,6 +39,6 @@ export function formatSearchDiscogsResults(
 
 	const lines = response.results.map((r) => formatLine(r, isOwned(r, ownedMasterIds, ownedReleaseIds)))
 	const header = `Found ${response.pagination.items} results for "${query}" (showing ${response.results.length}, type: ${type}):`
-	const tip = `\n**Tip:** Use the ID with the get_release tool for full details (works on release IDs). For master IDs, use Discogs directly. Use add_to_collection to add a release to your collection.`
+	const tip = `\n**Tip:** For [release] results, pass the ID directly to get_release for full details. For [master] results, run search_discogs again with \`type: release\` to find specific pressings first, then use get_release. Use add_to_collection to add a release to your collection.`
 	return `${header}\n\n${lines.join('\n\n')}${tip}`
 }
