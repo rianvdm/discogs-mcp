@@ -152,6 +152,7 @@ This server uses **MCP OAuth 2.1** with Discogs as the identity provider. When y
 | Tool                   | Description                                                                  |
 | ---------------------- | ---------------------------------------------------------------------------- |
 | `search_collection`    | Search your collection with explicit genre filters, mood-aware ranking, and master-level dedup |
+| `search_discogs`       | Search the Discogs-wide catalog (releases, masters, artists, labels) — marks results you already own |
 | `get_release`          | Get detailed information about a specific release (tracklist, formats, labels) |
 | `get_collection_stats` | View genre breakdown, decade analysis, format distribution, and ratings      |
 | `get_recommendations`  | Get personalized recommendations by genre, decade, mood, or similarity       |

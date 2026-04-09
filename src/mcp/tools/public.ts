@@ -74,7 +74,7 @@ You are successfully authenticated with Discogs!
 
 **Available tools:**
 
-*Search & discovery:* search_collection, get_release, get_collection_stats, get_recommendations
+*Search & discovery:* search_collection, search_discogs, get_release, get_collection_stats, get_recommendations
 *Collection management:* add_to_collection, remove_from_collection, move_release, rate_release
 *Folders:* list_folders, create_folder, edit_folder, delete_folder
 *Custom fields:* list_custom_fields, edit_custom_field

@@ -573,6 +573,7 @@ export const MARKETING_PAGE_HTML = `<!DOCTYPE html>
                         <h3>Search &amp; discovery</h3>
                         <ul>
                             <li>search_collection</li>
+                            <li>search_discogs</li>
                             <li>get_release</li>
                             <li>get_collection_stats</li>
                             <li>get_recommendations</li>
