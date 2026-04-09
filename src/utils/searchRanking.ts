@@ -179,16 +179,91 @@ export function dedupByMaster(scored: ScoredRelease[]): ScoredDedupedRelease[] {
 	return result
 }
 
-export function sortScoredReleases(
-	_deduped: ScoredDedupedRelease[],
-	_parsed: ParsedQuery,
-): DedupedCollectionItem[] {
-	throw new Error('not implemented')
+function artistTitleKey(item: DedupedCollectionItem): string {
+	const info = item.basic_information
+	const artist = (info.artists?.[0]?.name ?? '').toLowerCase()
+	const title = (info.title ?? '').toLowerCase()
+	return `${artist} - ${title}`
 }
 
-export function applySearchPipeline(
-	_items: DiscogsCollectionItem[],
-	_parsed: ParsedQuery,
+/**
+ * Order: moodScore desc → rating desc → year asc → artist+title alpha → id asc.
+ * date_added is intentionally NOT a tiebreaker for general queries.
+ * For hasRecent/hasOld, sort by date_added only.
+ */
+export function sortScoredReleases(
+	deduped: ScoredDedupedRelease[],
+	parsed: ParsedQuery,
 ): DedupedCollectionItem[] {
-	throw new Error('not implemented')
+	const copy = [...deduped]
+
+	if (parsed.hasRecent) {
+		copy.sort(
+			(a, b) => new Date(b.item.date_added).getTime() - new Date(a.item.date_added).getTime(),
+		)
+		return copy.map((s) => s.item)
+	}
+	if (parsed.hasOld) {
+		copy.sort(
+			(a, b) => new Date(a.item.date_added).getTime() - new Date(b.item.date_added).getTime(),
+		)
+		return copy.map((s) => s.item)
+	}
+
+	copy.sort((a, b) => {
+		if (b.moodScore !== a.moodScore) return b.moodScore - a.moodScore
+		if (b.item.rating !== a.item.rating) return b.item.rating - a.item.rating
+		const yearA = a.item.basic_information.year ?? Number.MAX_SAFE_INTEGER
+		const yearB = b.item.basic_information.year ?? Number.MAX_SAFE_INTEGER
+		if (yearA !== yearB) return yearA - yearB
+		const keyA = artistTitleKey(a.item)
+		const keyB = artistTitleKey(b.item)
+		if (keyA !== keyB) return keyA.localeCompare(keyB)
+		return a.item.id - b.item.id
+	})
+	return copy.map((s) => s.item)
+}
+
+/**
+ * End-to-end ranking pipeline.
+ *
+ * 1. Apply explicit-term hard filter (Issue #1 fix).
+ * 2. Score remaining releases.
+ * 3. Dedup by master_id (Issue #3 fix), unless this is a temporal query.
+ * 4. Sort (Issue #2 fix: no date_added tiebreaker for general queries).
+ */
+export function applySearchPipeline(
+	items: DiscogsCollectionItem[],
+	parsed: ParsedQuery,
+): DedupedCollectionItem[] {
+	// Temporal queries bypass explicit-term filter, mood scoring, and dedup.
+	// They surface every pressing ordered by date_added.
+	if (parsed.hasRecent || parsed.hasOld) {
+		const deduped: ScoredDedupedRelease[] = items.map((item) => ({
+			item: {
+				...item,
+				ownedFormats: item.basic_information.formats?.map((f) => f.name) ?? [],
+				mergedInstanceIds: [item.instance_id],
+			},
+			moodScore: 0,
+		}))
+		return sortScoredReleases(deduped, parsed)
+	}
+
+	// 1. Explicit-term hard filter.
+	const filtered =
+		parsed.explicitGenreTerms.length === 0
+			? items
+			: items.filter((item) =>
+					parsed.explicitGenreTerms.every((term) => releaseMatchesTerm(item, term)),
+				)
+
+	// 2. Score.
+	const scored = scoreReleases(filtered, parsed)
+
+	// 3. Dedup.
+	const deduped = dedupByMaster(scored)
+
+	// 4. Sort.
+	return sortScoredReleases(deduped, parsed)
 }

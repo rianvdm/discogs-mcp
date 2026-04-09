@@ -218,3 +218,179 @@ describe('dedupByMaster', () => {
 		expect(deduped).toHaveLength(2)
 	})
 })
+
+describe('sortScoredReleases', () => {
+	it('sorts by moodScore desc for mood queries', () => {
+		const items = [
+			release({ id: 1, title: 'Low', artist: 'A', year: 2000, genres: ['Rock'], styles: ['Alt', 'Indie', 'Dream', 'Shoe', 'Lo-Fi'] }),
+			release({ id: 2, title: 'High', artist: 'B', year: 2000, genres: ['Jazz'], styles: ['Smooth Jazz'] }),
+		]
+		const parsed = parseSearchQuery('mellow')
+		const scored = scoreReleases(items, parsed)
+		const deduped = dedupByMaster(scored)
+		const sorted = sortScoredReleases(deduped, parsed)
+		expect(sorted[0].id).toBe(2)
+	})
+
+	it('tiebreaks by rating desc, then year asc, then artist+title alpha', () => {
+		const items = [
+			release({ id: 1, title: 'Z', artist: 'Z', year: 2005, rating: 3, genres: [], styles: [] }),
+			release({ id: 2, title: 'A', artist: 'A', year: 2000, rating: 3, genres: [], styles: [] }),
+			release({ id: 3, title: 'M', artist: 'M', year: 2000, rating: 5, genres: [], styles: [] }),
+			release({ id: 4, title: 'K', artist: 'K', year: 2000, rating: 3, genres: [], styles: [] }),
+		]
+		const parsed = parseSearchQuery('anything')
+		const scored = scoreReleases(items, parsed)
+		const deduped = dedupByMaster(scored)
+		const sorted = sortScoredReleases(deduped, parsed)
+		expect(sorted[0].id).toBe(3)
+		expect(sorted[1].id).toBe(2)
+		expect(sorted[2].id).toBe(4)
+		expect(sorted[3].id).toBe(1)
+	})
+
+	it('ignores date_added as a tiebreaker for non-temporal queries', () => {
+		const items = [
+			release({ id: 1, title: 'A', artist: 'A', year: 2000, rating: 0, date_added: '2020-01-01T00:00:00-00:00', genres: [], styles: [] }),
+			release({ id: 2, title: 'A', artist: 'A', year: 2000, rating: 0, date_added: '2026-01-01T00:00:00-00:00', master_id: 500, genres: [], styles: [] }),
+		]
+		const parsed = parseSearchQuery('anything')
+		const scored = scoreReleases(items, parsed)
+		const deduped = dedupByMaster(scored)
+		const sorted = sortScoredReleases(deduped, parsed)
+		expect(sorted[0].id).toBe(1)
+	})
+
+	it('sorts by date_added desc when hasRecent', () => {
+		const items = [
+			release({ id: 1, title: 'A', artist: 'A', year: 2000, date_added: '2020-01-01T00:00:00-00:00', genres: [], styles: [] }),
+			release({ id: 2, title: 'B', artist: 'B', year: 2000, date_added: '2026-01-01T00:00:00-00:00', genres: [], styles: [] }),
+		]
+		const parsed = parseSearchQuery('recent')
+		const scored = scoreReleases(items, parsed)
+		const deduped = dedupByMaster(scored)
+		const sorted = sortScoredReleases(deduped, parsed)
+		expect(sorted[0].id).toBe(2)
+	})
+
+	it('sorts by date_added asc when hasOld', () => {
+		const items = [
+			release({ id: 1, title: 'A', artist: 'A', year: 2000, date_added: '2020-01-01T00:00:00-00:00', genres: [], styles: [] }),
+			release({ id: 2, title: 'B', artist: 'B', year: 2000, date_added: '2026-01-01T00:00:00-00:00', genres: [], styles: [] }),
+		]
+		const parsed = parseSearchQuery('oldest')
+		const scored = scoreReleases(items, parsed)
+		const deduped = dedupByMaster(scored)
+		const sorted = sortScoredReleases(deduped, parsed)
+		expect(sorted[0].id).toBe(1)
+	})
+})
+
+describe('applySearchPipeline', () => {
+	it('Issue #1 regression: mellow jazz filters out non-jazz releases', () => {
+		const items = [
+			release({ id: 1, title: 'Ambient Record', artist: 'Stars', year: 2005, genres: ['Ambient'], styles: ['Drone'] }),
+			release({
+				id: 2,
+				title: 'Forever Phase',
+				artist: 'Paul Meany',
+				year: 2025,
+				genres: ['Rock'],
+				styles: ['Alternative Rock', 'Indie', 'Dream Pop', 'Shoegaze', 'Lo-Fi'],
+			}),
+			release({ id: 3, title: 'Kind of Blue', artist: 'Miles Davis', year: 1959, genres: ['Jazz'], styles: ['Modal'] }),
+		]
+		const parsed = parseSearchQuery('mellow jazz')
+		const result = applySearchPipeline(items, parsed)
+		expect(result).toHaveLength(1)
+		expect(result[0].id).toBe(3)
+	})
+
+	it('Issue #3 regression: dedups vinyl + CD of same master into one row with aggregated formats', () => {
+		const items = [
+			release({
+				id: 10,
+				title: 'Universe Smiles',
+				artist: 'Khruangbin',
+				year: 2015,
+				master_id: 999,
+				genres: ['Jazz'],
+				styles: [],
+				formats: ['Vinyl'],
+			}),
+			release({
+				id: 11,
+				title: 'Universe Smiles',
+				artist: 'Khruangbin',
+				year: 2018,
+				master_id: 999,
+				genres: ['Jazz'],
+				styles: [],
+				formats: ['CD'],
+			}),
+		]
+		const parsed = parseSearchQuery('jazz')
+		const result = applySearchPipeline(items, parsed)
+		expect(result).toHaveLength(1)
+		expect(result[0].ownedFormats).toEqual(expect.arrayContaining(['Vinyl', 'CD']))
+	})
+
+	it('Issue #2 regression: recent alt-rock does not outrank focused jazz for mood query', () => {
+		const items = [
+			release({
+				id: 1,
+				title: 'Forever Phase',
+				artist: 'Paul Meany',
+				year: 2025,
+				rating: 0,
+				date_added: '2026-03-01T00:00:00-00:00',
+				genres: ['Rock'],
+				styles: ['Alternative Rock', 'Indie', 'Dream Pop', 'Shoegaze', 'Lo-Fi'],
+			}),
+			release({
+				id: 2,
+				title: 'Kind of Blue',
+				artist: 'Miles Davis',
+				year: 1959,
+				rating: 0,
+				date_added: '2015-01-01T00:00:00-00:00',
+				genres: ['Jazz'],
+				styles: ['Smooth Jazz'],
+			}),
+		]
+		const parsed = parseSearchQuery('mellow')
+		const result = applySearchPipeline(items, parsed)
+		expect(result[0].id).toBe(2)
+	})
+
+	it('skips dedup and scoring for temporal queries', () => {
+		const items = [
+			release({
+				id: 10,
+				title: 'A',
+				artist: 'B',
+				year: 2015,
+				master_id: 999,
+				date_added: '2020-01-01T00:00:00-00:00',
+				genres: [],
+				styles: [],
+				formats: ['Vinyl'],
+			}),
+			release({
+				id: 11,
+				title: 'A',
+				artist: 'B',
+				year: 2018,
+				master_id: 999,
+				date_added: '2026-01-01T00:00:00-00:00',
+				genres: [],
+				styles: [],
+				formats: ['CD'],
+			}),
+		]
+		const parsed = parseSearchQuery('recent')
+		const result = applySearchPipeline(items, parsed)
+		expect(result).toHaveLength(2)
+		expect(result[0].id).toBe(11)
+	})
+})
