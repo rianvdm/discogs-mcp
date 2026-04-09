@@ -9,6 +9,7 @@ import type { Env } from '../../types/env.js'
 import { DiscogsClient } from '../../clients/discogs.js'
 import { CachedDiscogsClient } from '../../clients/cachedDiscogs.js'
 import { analyzeMoodQuery, hasMoodContent, generateMoodSearchTerms } from '../../utils/moodMapping.js'
+import { formatSearchDiscogsResults } from '../../utils/searchDiscogsFormatter.js'
 import { parseSearchQuery } from '../../utils/searchQueryParser.js'
 import { applySearchPipeline, type DedupedCollectionItem } from '../../utils/searchRanking.js'
 import type { DiscogsCollectionItem } from '../../clients/discogs.js'
@@ -787,6 +788,111 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				}
 			} catch (error) {
 				throw new Error(`Failed to get release: ${error instanceof Error ? error.message : 'Unknown error'}`)
+			}
+		},
+	)
+
+	/**
+	 * Tool: search_discogs
+	 * Search the Discogs-wide catalog (not limited to the user's collection)
+	 */
+	server.tool(
+		'search_discogs',
+		"Search the Discogs-wide catalog for releases, masters, artists, or labels (not limited to your collection). Use this to look up albums, artists, or releases that you don't own. If you want to search only what you own, use search_collection instead.",
+		{
+			query: z
+				.string()
+				.describe('Free-text search query — artist name, album title, catalog number, etc.'),
+			type: z
+				.enum(['release', 'master', 'artist', 'label'])
+				.optional()
+				.default('master')
+				.describe(
+					"What kind of entity to search for. Default: master (the canonical album, independent of pressing). Use 'release' to find a specific pressing, 'artist' or 'label' for those entities.",
+				),
+			per_page: z
+				.number()
+				.min(1)
+				.max(100)
+				.optional()
+				.default(10)
+				.describe('Number of results to return (1-100). Default: 10.'),
+		},
+		async ({ query, type, per_page }) => {
+			const { session, connectionId } = await getSessionContext()
+
+			if (!session) {
+				return {
+					content: [
+						{
+							type: 'text',
+							text: generateAuthInstructions(connectionId),
+						},
+					],
+				}
+			}
+
+			try {
+				// Search the Discogs-wide database.
+				const searchResponse = await client.searchDatabase(
+					query,
+					session.accessToken,
+					session.accessTokenSecret,
+					{ type, per_page },
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				// Best-effort: fetch the user's collection and build owned-id sets so
+				// we can mark which results the user already owns. If anything fails,
+				// skip the marker rather than failing the whole tool.
+				let ownedMasterIds = new Set<number>()
+				let ownedReleaseIds = new Set<number>()
+				if (cachedClient) {
+					try {
+						const userProfile = await getProfileAndSetThrottle(session)
+						const toolStart = Date.now()
+						const TOOL_BUDGET_MS = 105000
+						let collection = await cachedClient.getCompleteCollection(
+							userProfile.username,
+							session.accessToken,
+							session.accessTokenSecret,
+							env.DISCOGS_CONSUMER_KEY,
+							env.DISCOGS_CONSUMER_SECRET,
+							50,
+							110000,
+						)
+						while (collection.partial && Date.now() - toolStart < TOOL_BUDGET_MS - 5000) {
+							const remaining = Math.max(TOOL_BUDGET_MS - (Date.now() - toolStart), 5000)
+							collection = await cachedClient.getCompleteCollection(
+								userProfile.username,
+								session.accessToken,
+								session.accessTokenSecret,
+								env.DISCOGS_CONSUMER_KEY,
+								env.DISCOGS_CONSUMER_SECRET,
+								50,
+								remaining,
+							)
+						}
+						for (const item of collection.releases) {
+							if (item.basic_information.master_id) {
+								ownedMasterIds.add(item.basic_information.master_id)
+							}
+							ownedReleaseIds.add(item.id)
+						}
+					} catch {
+						// Collection fetch failed — fall through with empty sets.
+						ownedMasterIds = new Set<number>()
+						ownedReleaseIds = new Set<number>()
+					}
+				}
+
+				const text = formatSearchDiscogsResults(searchResponse, ownedMasterIds, ownedReleaseIds, query, type)
+				return {
+					content: [{ type: 'text', text }],
+				}
+			} catch (error) {
+				throw new Error(`Failed to search Discogs: ${error instanceof Error ? error.message : 'Unknown error'}`)
 			}
 		},
 	)
