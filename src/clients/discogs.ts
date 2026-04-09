@@ -53,6 +53,8 @@ export interface DiscogsCollectionItem {
 	rating: number
 	basic_information: {
 		id: number
+		master_id?: number
+		master_url?: string
 		title: string
 		year: number
 		resource_url: string

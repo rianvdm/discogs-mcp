@@ -312,7 +312,7 @@ export function analyzeMoodQuery(query: string): MoodMappingResult {
 }
 
 // Common concrete music genres that shouldn't trigger mood mapping
-const CONCRETE_GENRES = new Set([
+export const CONCRETE_GENRES = new Set([
 	'rock',
 	'pop',
 	'jazz',
