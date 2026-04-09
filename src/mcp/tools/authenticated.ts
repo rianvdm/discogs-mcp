@@ -9,6 +9,8 @@ import type { Env } from '../../types/env.js'
 import { DiscogsClient } from '../../clients/discogs.js'
 import { CachedDiscogsClient } from '../../clients/cachedDiscogs.js'
 import { analyzeMoodQuery, hasMoodContent, generateMoodSearchTerms } from '../../utils/moodMapping.js'
+import { parseSearchQuery } from '../../utils/searchQueryParser.js'
+import { applySearchPipeline, type DedupedCollectionItem } from '../../utils/searchRanking.js'
 import type { DiscogsCollectionItem } from '../../clients/discogs.js'
 import type { SessionContext } from '../server.js'
 
@@ -678,22 +680,13 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					}
 				}
 
-				// Sort combined results by rating and date (unless temporal sorting was applied)
-				if (hasRecent) {
-					allResults.sort((a, b) => new Date(b.date_added).getTime() - new Date(a.date_added).getTime())
-				} else if (hasOld) {
-					allResults.sort((a, b) => new Date(a.date_added).getTime() - new Date(b.date_added).getTime())
-				} else {
-					allResults.sort((a, b) => {
-						if (a.rating !== b.rating) {
-							return b.rating - a.rating
-						}
-						return new Date(b.date_added).getTime() - new Date(a.date_added).getTime()
-					})
-				}
+				// Run the ranking pipeline: explicit-term filter → score → dedup by master → sort.
+				// Temporal queries bypass dedup and mood scoring.
+				const parsed = parseSearchQuery(query)
+				const rankedResults: DedupedCollectionItem[] = applySearchPipeline(allResults, parsed)
 
 				// Limit to requested page size
-				const finalResults = allResults.slice(0, per_page)
+				const finalResults = rankedResults.slice(0, per_page)
 
 				const summary = `Found ${allResults.length} results for "${query}" in your collection (showing ${finalResults.length} items):`
 
@@ -702,7 +695,10 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					.map((release) => {
 						const info = release.basic_information
 						const artists = info.artists.map((a) => a.name).join(', ')
-						const formats = info.formats.map((f) => f.name).join(', ')
+						const formats =
+							release.ownedFormats && release.ownedFormats.length > 0
+								? release.ownedFormats.join(', ')
+								: info.formats.map((f) => f.name).join(', ')
 						const genres = info.genres?.length ? info.genres.join(', ') : 'Unknown'
 						const styles = info.styles?.length ? ` | Styles: ${info.styles.join(', ')}` : ''
 						const rating = release.rating > 0 ? ` ⭐${release.rating}` : ''
