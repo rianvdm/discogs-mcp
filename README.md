@@ -5,6 +5,7 @@
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 [![MCP](https://img.shields.io/badge/MCP-2024--11--05-blue)](https://github.com/modelcontextprotocol)
+[![SafeSkill 81/100](https://img.shields.io/badge/SafeSkill-81%2F100_Passes%20with%20Notes-yellow)](https://safeskill.dev/scan/rianvdm-discogs-mcp)
 
 A powerful **Model Context Protocol (MCP) server** that enables AI assistants to interact with your personal Discogs music collection. Built on Cloudflare Workers using the official **Cloudflare Agents SDK** and **@modelcontextprotocol/sdk**.
 
