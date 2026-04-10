@@ -464,9 +464,8 @@ export class DiscogsClient {
 
 				const isGenreStyleQuery = nonDecadeTerms.some(term =>
 					genreStyleTerms.includes(term.toLowerCase()) ||
-					// Also check if the term appears in the release's genres or styles
-					release.genres?.some(g => g.toLowerCase().includes(term.toLowerCase())) ||
-					release.styles?.some(s => s.toLowerCase().includes(term.toLowerCase()))
+					release.genres?.some(g => g.toLowerCase() === term.toLowerCase()) ||
+					release.styles?.some(s => s.toLowerCase() === term.toLowerCase())
 				)
 
 				// Check non-decade terms using OR logic for genre/style/mood queries, AND logic for others

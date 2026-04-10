@@ -78,7 +78,7 @@ export function shouldUseBroadSearch(query: string): boolean {
  * collection is fetched and cached once, then all query variants (original
  * + mood expansions) are run as pure in-memory filters against that dataset.
  */
-function filterReleasesInMemory(
+export function filterReleasesInMemory(
 	allReleases: DiscogsCollectionItem[],
 	query: string,
 	_options: {
@@ -212,8 +212,8 @@ function filterReleasesInMemory(
 		const isGenreStyleQuery = nonDecadeTerms.some(
 			(term) =>
 				genreStyleTerms.includes(term.toLowerCase()) ||
-				release.genres?.some((g) => g.toLowerCase().includes(term.toLowerCase())) ||
-				release.styles?.some((s) => s.toLowerCase().includes(term.toLowerCase())),
+				release.genres?.some((g) => g.toLowerCase() === term.toLowerCase()) ||
+				release.styles?.some((s) => s.toLowerCase() === term.toLowerCase()),
 		)
 
 		let nonDecadeMatch = false
