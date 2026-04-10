@@ -1099,14 +1099,13 @@ describe('Discogs Client', () => {
 				mockAuth.consumerSecret,
 			)
 
-			expect(result.releases).toHaveLength(2)
-			
-			// Should prioritize exact title match over partial style matches
-			// Pink Floyd's "The Dark Side Of The Moon" should come first due to better title matching
-			expect(result.releases.some(r => r.basic_information.title === 'The Dark Side Of The Moon')).toBe(true)
-			expect(result.releases.some(r => r.basic_information.artists[0].name === 'Pink Floyd')).toBe(true)
-			
-			expect(result.pagination.items).toBe(2)
+			// Only the Pink Floyd album should match — "Dark Side Rising" by Metal Band
+			// doesn't contain all query terms ("moon") and shouldn't be returned
+			expect(result.releases).toHaveLength(1)
+			expect(result.releases[0].basic_information.title).toBe('The Dark Side Of The Moon')
+			expect(result.releases[0].basic_information.artists[0].name).toBe('Pink Floyd')
+
+			expect(result.pagination.items).toBe(1)
 		})
 	})
 })
