@@ -70,3 +70,64 @@ export function parseSearchQuery(query: string): ParsedQuery {
 		hasOld,
 	}
 }
+
+/**
+ * Minimal shape needed to disambiguate temporal tokens against the user's
+ * collection. Defined structurally so this module doesn't depend on the
+ * full DiscogsCollectionItem.
+ */
+export interface TemporalDisambiguationItem {
+	basic_information: {
+		title?: string
+		artists?: { name: string }[]
+	}
+}
+
+/**
+ * Clear `hasRecent` / `hasOld` on a parsed query when the trigger token also
+ * appears as a literal word in some release's title or artist field.
+ *
+ * Background: temporal sort fires on words like "new", "old", "latest". For
+ * a query like "Lee Morgan Search For The New Land", the word "New" is part
+ * of the album title — the user wants the literal record, not "items added
+ * recently." Without this disambiguation, the temporal sort wins and the
+ * literal match gets buried.
+ *
+ * Heuristic: if the temporal trigger token appears anywhere in the
+ * collection's title/artist text as a whole word, treat the query as
+ * literal. Bare temporal queries like "recent" still work because "recent"
+ * doesn't typically appear in titles.
+ */
+export function clearTemporalIfTokenIsLiteral(
+	query: string,
+	parsed: ParsedQuery,
+	releases: TemporalDisambiguationItem[],
+): ParsedQuery {
+	if (!parsed.hasRecent && !parsed.hasOld) return parsed
+
+	const queryWords = new Set(query.toLowerCase().split(/\s+/).filter((w) => w.length > 0))
+	const recentTriggers = [...RECENT_TERMS].filter((t) => queryWords.has(t))
+	const oldTriggers = [...OLD_TERMS].filter((t) => queryWords.has(t))
+
+	const collectionWords = new Set<string>()
+	for (const item of releases) {
+		const info = item.basic_information
+		const text = [info.title ?? '', ...(info.artists ?? []).map((a) => a.name)]
+			.join(' ')
+			.toLowerCase()
+		for (const word of text.split(/\s+/)) {
+			if (word) collectionWords.add(word)
+		}
+	}
+
+	const recentIsLiteral = recentTriggers.some((t) => collectionWords.has(t))
+	const oldIsLiteral = oldTriggers.some((t) => collectionWords.has(t))
+
+	if (!recentIsLiteral && !oldIsLiteral) return parsed
+
+	return {
+		...parsed,
+		hasRecent: parsed.hasRecent && !recentIsLiteral,
+		hasOld: parsed.hasOld && !oldIsLiteral,
+	}
+}

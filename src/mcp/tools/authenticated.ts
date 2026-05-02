@@ -10,7 +10,7 @@ import { DiscogsClient } from '../../clients/discogs.js'
 import { CachedDiscogsClient } from '../../clients/cachedDiscogs.js'
 import { analyzeMoodQuery, hasMoodContent, generateMoodSearchTerms } from '../../utils/moodMapping.js'
 import { formatSearchDiscogsResults } from '../../utils/searchDiscogsFormatter.js'
-import { parseSearchQuery } from '../../utils/searchQueryParser.js'
+import { parseSearchQuery, clearTemporalIfTokenIsLiteral } from '../../utils/searchQueryParser.js'
 import { applySearchPipeline, type DedupedCollectionItem } from '../../utils/searchRanking.js'
 import { buildIndex, searchIndex } from '../../utils/searchIndex.js'
 import type { DiscogsCollectionItem } from '../../clients/discogs.js'
@@ -525,17 +525,11 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				// Get user profile
 				const userProfile = await getProfileAndSetThrottle(session)
 
-				// Check for temporal terms
-				const queryWords = query.toLowerCase().split(/\s+/)
-				const hasRecent = queryWords.some((word) => ['recent', 'recently', 'new', 'newest', 'latest'].includes(word))
-				const hasOld = queryWords.some((word) => ['old', 'oldest', 'earliest'].includes(word))
-
+				// Parse the query once. Disambiguation against the user's collection
+				// happens after we fetch it, in the cached branch below.
+				const parsedEarly = parseSearchQuery(query)
+				let parsed = parsedEarly
 				let temporalInfo = ''
-				if (hasRecent) {
-					temporalInfo = `\n**Search Strategy:** Interpreted "${query}" as searching for items with "recent" meaning "most recently added". Sorting by date added (newest first).\n`
-				} else if (hasOld) {
-					temporalInfo = `\n**Search Strategy:** Interpreted "${query}" as searching for items with "old/oldest" meaning "earliest added". Sorting by date added (oldest first).\n`
-				}
 
 				// Check if query contains mood/contextual language
 				const searchQueries: string[] = [query] // Start with original query
@@ -661,10 +655,13 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 						return semanticResult
 					}
 
-					// Pre-parse so we can pick relevance vs. keyword-filter path.
-					const parsedEarly = parseSearchQuery(query)
+					// Disambiguate temporal tokens against the user's actual collection
+					// before deciding the search strategy. Words like "new" are temporal
+					// triggers in isolation but literal title words in queries like
+					// "Lee Morgan Search For The New Land" (#22).
+					parsed = clearTemporalIfTokenIsLiteral(query, parsedEarly, allReleases)
 					const useRelevanceRanking =
-						!parsedEarly.isMoodQuery && !parsedEarly.hasRecent && !parsedEarly.hasOld
+						!parsed.isMoodQuery && !parsed.hasRecent && !parsed.hasOld
 
 					if (useRelevanceRanking) {
 						// MiniSearch handles AND-style filtering and BM25 scoring.
@@ -687,10 +684,10 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 						// Mood / temporal queries: keyword filter against mood-expanded variants.
 						for (const searchQuery of searchQueries) {
 							const filtered = filterReleasesInMemory(allReleases, searchQuery, {
-								hasRecent,
-								hasOld,
-								sort: hasRecent ? 'added' : hasOld ? 'added' : undefined,
-								sortOrder: hasRecent ? 'desc' : hasOld ? 'asc' : undefined,
+								hasRecent: parsed.hasRecent,
+								hasOld: parsed.hasOld,
+								sort: parsed.hasRecent || parsed.hasOld ? 'added' : undefined,
+								sortOrder: parsed.hasRecent ? 'desc' : parsed.hasOld ? 'asc' : undefined,
 							})
 
 							for (const release of filtered) {
@@ -728,9 +725,16 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					}
 				}
 
+				// Build the temporal-strategy banner from the (possibly disambiguated)
+				// parsed query so it doesn't fire for literal title-word queries.
+				if (parsed.hasRecent) {
+					temporalInfo = `\n**Search Strategy:** Interpreted "${query}" as searching for items with "recent" meaning "most recently added". Sorting by date added (newest first).\n`
+				} else if (parsed.hasOld) {
+					temporalInfo = `\n**Search Strategy:** Interpreted "${query}" as searching for items with "old/oldest" meaning "earliest added". Sorting by date added (oldest first).\n`
+				}
+
 				// Run the ranking pipeline: explicit-term filter → score → dedup by master → sort.
 				// Temporal queries bypass dedup and mood scoring.
-				const parsed = parseSearchQuery(query)
 				const rankedResults: DedupedCollectionItem[] = applySearchPipeline(allResults, parsed, {
 					relevanceScores,
 					groupPressings: group_pressings,
