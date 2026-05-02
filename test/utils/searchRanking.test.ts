@@ -232,7 +232,7 @@ describe('sortScoredReleases', () => {
 		expect(sorted[0].id).toBe(2)
 	})
 
-	it('tiebreaks by rating desc, then year asc, then artist+title alpha', () => {
+	it('non-mood queries tiebreak by rating desc, then date_added desc, then year desc, then artist+title alpha', () => {
 		const items = [
 			release({ id: 1, title: 'Z', artist: 'Z', year: 2005, rating: 3, genres: [], styles: [] }),
 			release({ id: 2, title: 'A', artist: 'A', year: 2000, rating: 3, genres: [], styles: [] }),
@@ -243,13 +243,13 @@ describe('sortScoredReleases', () => {
 		const scored = scoreReleases(items, parsed)
 		const deduped = dedupByMaster(scored)
 		const sorted = sortScoredReleases(deduped, parsed)
-		expect(sorted[0].id).toBe(3)
-		expect(sorted[1].id).toBe(2)
-		expect(sorted[2].id).toBe(4)
-		expect(sorted[3].id).toBe(1)
+		// id 3 wins on rating. Among rating=3 items, all share date_added,
+		// so year desc breaks: id 1 (2005) > id 2,4 (2000). Among year=2000,
+		// title alpha: A (id 2) < K (id 4).
+		expect(sorted.map((s) => s.id)).toEqual([3, 1, 2, 4])
 	})
 
-	it('ignores date_added as a tiebreaker for non-temporal queries', () => {
+	it('non-mood queries use date_added desc as a tiebreaker (issue #21)', () => {
 		const items = [
 			release({ id: 1, title: 'A', artist: 'A', year: 2000, rating: 0, date_added: '2020-01-01T00:00:00-00:00', genres: [], styles: [] }),
 			release({ id: 2, title: 'A', artist: 'A', year: 2000, rating: 0, date_added: '2026-01-01T00:00:00-00:00', master_id: 500, genres: [], styles: [] }),
@@ -258,7 +258,8 @@ describe('sortScoredReleases', () => {
 		const scored = scoreReleases(items, parsed)
 		const deduped = dedupByMaster(scored)
 		const sorted = sortScoredReleases(deduped, parsed)
-		expect(sorted[0].id).toBe(1)
+		// More recently added wins under the non-mood relevance sort.
+		expect(sorted[0].id).toBe(2)
 	})
 
 	it('sorts by date_added desc when hasRecent', () => {

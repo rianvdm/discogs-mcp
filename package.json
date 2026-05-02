@@ -38,6 +38,7 @@
 		"@types/crypto-js": "^4.2.2",
 		"agents": "^0.2.32",
 		"crypto-js": "^4.2.0",
+		"minisearch": "^7.2.0",
 		"oauth-1.0a": "^2.2.6",
 		"zod": "^4.1.13"
 	}

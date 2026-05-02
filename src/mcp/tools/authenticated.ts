@@ -12,6 +12,7 @@ import { analyzeMoodQuery, hasMoodContent, generateMoodSearchTerms } from '../..
 import { formatSearchDiscogsResults } from '../../utils/searchDiscogsFormatter.js'
 import { parseSearchQuery } from '../../utils/searchQueryParser.js'
 import { applySearchPipeline, type DedupedCollectionItem } from '../../utils/searchRanking.js'
+import { buildIndex, searchIndex } from '../../utils/searchIndex.js'
 import type { DiscogsCollectionItem } from '../../clients/discogs.js'
 import type { SessionContext } from '../server.js'
 
@@ -552,6 +553,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				const seenReleaseIds = new Set<string>()
 				let allReleases: DiscogsCollectionItem[] = []
 				let collectionTruncationNote = ''
+				let relevanceScores: Map<string, number> | undefined
 
 				if (cachedClient) {
 					// Fetch complete collection with auto-retry so large collections don't exceed the 45s MCP timeout.
@@ -652,20 +654,44 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 						return semanticResult
 					}
 
-					// Run each query variant as an in-memory filter against the same dataset
-					for (const searchQuery of searchQueries) {
-						const filtered = filterReleasesInMemory(allReleases, searchQuery, {
-							hasRecent,
-							hasOld,
-							sort: hasRecent ? 'added' : hasOld ? 'added' : undefined,
-							sortOrder: hasRecent ? 'desc' : hasOld ? 'asc' : undefined,
-						})
+					// Pre-parse so we can pick relevance vs. keyword-filter path.
+					const parsedEarly = parseSearchQuery(query)
+					const useRelevanceRanking =
+						!parsedEarly.isMoodQuery && !parsedEarly.hasRecent && !parsedEarly.hasOld
 
-						for (const release of filtered) {
-							const releaseKey = `${release.id}-${release.instance_id}`
+					if (useRelevanceRanking) {
+						// MiniSearch handles AND-style filtering and BM25 scoring.
+						const index = buildIndex(allReleases)
+						relevanceScores = searchIndex(index, query)
+						const itemsByKey = new Map<string, DiscogsCollectionItem>()
+						for (const item of allReleases) {
+							itemsByKey.set(`${item.id}:${item.instance_id}`, item)
+						}
+						for (const key of relevanceScores.keys()) {
+							const item = itemsByKey.get(key)
+							if (!item) continue
+							const releaseKey = `${item.id}-${item.instance_id}`
 							if (!seenReleaseIds.has(releaseKey)) {
 								seenReleaseIds.add(releaseKey)
-								allResults.push(release)
+								allResults.push(item)
+							}
+						}
+					} else {
+						// Mood / temporal queries: keyword filter against mood-expanded variants.
+						for (const searchQuery of searchQueries) {
+							const filtered = filterReleasesInMemory(allReleases, searchQuery, {
+								hasRecent,
+								hasOld,
+								sort: hasRecent ? 'added' : hasOld ? 'added' : undefined,
+								sortOrder: hasRecent ? 'desc' : hasOld ? 'asc' : undefined,
+							})
+
+							for (const release of filtered) {
+								const releaseKey = `${release.id}-${release.instance_id}`
+								if (!seenReleaseIds.has(releaseKey)) {
+									seenReleaseIds.add(releaseKey)
+									allResults.push(release)
+								}
 							}
 						}
 					}
@@ -698,7 +724,9 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				// Run the ranking pipeline: explicit-term filter → score → dedup by master → sort.
 				// Temporal queries bypass dedup and mood scoring.
 				const parsed = parseSearchQuery(query)
-				const rankedResults: DedupedCollectionItem[] = applySearchPipeline(allResults, parsed)
+				const rankedResults: DedupedCollectionItem[] = applySearchPipeline(allResults, parsed, {
+					relevanceScores,
+				})
 
 				// Limit to requested page size
 				const finalResults = rankedResults.slice(0, per_page)

@@ -7,6 +7,7 @@
 
 import type { DiscogsCollectionItem } from '../clients/discogs'
 import type { ParsedQuery } from './searchQueryParser'
+import { indexableId } from './searchIndex'
 
 export interface ScoredRelease {
 	item: DiscogsCollectionItem
@@ -186,14 +187,30 @@ function artistTitleKey(item: DedupedCollectionItem): string {
 	return `${artist} - ${title}`
 }
 
+function maxRelevanceInGroup(group: ScoredRelease[], scores?: Map<string, number>): number {
+	if (!scores) return 0
+	let max = 0
+	for (const { item } of group) {
+		const s = scores.get(indexableId(item)) ?? 0
+		if (s > max) max = s
+	}
+	return max
+}
+
 /**
- * Order: moodScore desc → rating desc → year asc → artist+title alpha → id asc.
- * date_added is intentionally NOT a tiebreaker for general queries.
- * For hasRecent/hasOld, sort by date_added only.
+ * Sort order:
+ * - hasRecent → date_added desc.
+ * - hasOld → date_added asc.
+ * - Otherwise: relevance desc → moodScore desc → rating desc → date_added desc → year desc → artist+title alpha → id asc.
+ *
+ * Relevance comes from the optional MiniSearch index. When no index is run
+ * (mood queries, semantic fallback), relevance is 0 across the board and the
+ * mood/metadata tiebreakers take over.
  */
 export function sortScoredReleases(
 	deduped: ScoredDedupedRelease[],
 	parsed: ParsedQuery,
+	relevanceScores?: Map<string, number>,
 ): DedupedCollectionItem[] {
 	const copy = [...deduped]
 
@@ -210,34 +227,69 @@ export function sortScoredReleases(
 		return copy.map((s) => s.item)
 	}
 
+	const relevanceFor = (item: DedupedCollectionItem): number => {
+		if (!relevanceScores) return 0
+		// Take the max across merged instances so deduped groups inherit the
+		// highest-scoring pressing's relevance.
+		let max = relevanceScores.get(indexableId(item)) ?? 0
+		for (const instanceId of item.mergedInstanceIds) {
+			const s = relevanceScores.get(`${item.id}:${instanceId}`) ?? 0
+			if (s > max) max = s
+		}
+		return max
+	}
+
 	copy.sort((a, b) => {
+		const relA = relevanceFor(a.item)
+		const relB = relevanceFor(b.item)
+		if (relB !== relA) return relB - relA
+
 		if (b.moodScore !== a.moodScore) return b.moodScore - a.moodScore
 		if (b.item.rating !== a.item.rating) return b.item.rating - a.item.rating
-		const yearA = a.item.basic_information.year ?? Number.MAX_SAFE_INTEGER
-		const yearB = b.item.basic_information.year ?? Number.MAX_SAFE_INTEGER
-		if (yearA !== yearB) return yearA - yearB
+
+		// When relevance is the same and ratings tie, prefer recently-added
+		// pressings — surfaces new acquisitions on broad inventory queries
+		// without burying literal matches (issue #21).
+		const dateA = new Date(a.item.date_added).getTime()
+		const dateB = new Date(b.item.date_added).getTime()
+		if (dateA !== dateB) return dateB - dateA
+
+		const yearA = a.item.basic_information.year ?? 0
+		const yearB = b.item.basic_information.year ?? 0
+		if (yearA !== yearB) return yearB - yearA
+
 		const keyA = artistTitleKey(a.item)
 		const keyB = artistTitleKey(b.item)
 		if (keyA !== keyB) return keyA.localeCompare(keyB)
 		return a.item.id - b.item.id
 	})
+	// Suppress unused warning — helper kept for future per-group adjustments.
+	void maxRelevanceInGroup
 	return copy.map((s) => s.item)
+}
+
+export interface SearchPipelineOptions {
+	/**
+	 * Optional MiniSearch relevance scores keyed by `${release_id}:${instance_id}`.
+	 * When present, relevance becomes the primary sort key and the explicit-term
+	 * hard filter is skipped (the index already filtered via combineWith=AND).
+	 */
+	relevanceScores?: Map<string, number>
 }
 
 /**
  * End-to-end ranking pipeline.
  *
- * 1. Apply explicit-term hard filter (Issue #1 fix).
- * 2. Score remaining releases.
- * 3. Dedup by master_id (Issue #3 fix), unless this is a temporal query.
- * 4. Sort (Issue #2 fix: no date_added tiebreaker for general queries).
+ * 1. Apply explicit-term hard filter (skipped when relevance scores are passed).
+ * 2. Score remaining releases (mood + relevance).
+ * 3. Dedup by master_id, unless this is a temporal query.
+ * 4. Sort.
  */
 export function applySearchPipeline(
 	items: DiscogsCollectionItem[],
 	parsed: ParsedQuery,
+	options: SearchPipelineOptions = {},
 ): DedupedCollectionItem[] {
-	// Temporal queries bypass explicit-term filter, mood scoring, and dedup.
-	// They surface every pressing ordered by date_added.
 	if (parsed.hasRecent || parsed.hasOld) {
 		const deduped: ScoredDedupedRelease[] = items.map((item) => ({
 			item: {
@@ -247,23 +299,17 @@ export function applySearchPipeline(
 			},
 			moodScore: 0,
 		}))
-		return sortScoredReleases(deduped, parsed)
+		return sortScoredReleases(deduped, parsed, options.relevanceScores)
 	}
 
-	// 1. Explicit-term hard filter.
 	const filtered =
-		parsed.explicitGenreTerms.length === 0
+		options.relevanceScores || parsed.explicitGenreTerms.length === 0
 			? items
 			: items.filter((item) =>
 					parsed.explicitGenreTerms.every((term) => releaseMatchesTerm(item, term)),
 				)
 
-	// 2. Score.
 	const scored = scoreReleases(filtered, parsed)
-
-	// 3. Dedup.
 	const deduped = dedupByMaster(scored)
-
-	// 4. Sort.
-	return sortScoredReleases(deduped, parsed)
+	return sortScoredReleases(deduped, parsed, options.relevanceScores)
 }
