@@ -499,8 +499,15 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					"The user's search query passed verbatim. Do NOT rewrite or decompose the query — pass it exactly as the user said it. The tool handles semantic queries like 'empowering female vocals' or 'road trip music' by first trying keyword matching, then falling back to collection search if needed.",
 				),
 			per_page: z.number().min(1).max(100).optional().default(50).describe('Number of results to return (1-100)'),
+			group_pressings: z
+				.boolean()
+				.optional()
+				.default(false)
+				.describe(
+					'When true, collapses every owned pressing of the same master release into one row with aggregated formats. Default false: each pressing the user owns is returned as its own row so distinct release_ids and instance_ids are visible. Set to true when the user wants a compact one-row-per-album view and pressing identity does not matter.',
+				),
 		},
-		async ({ query, per_page }) => {
+		async ({ query, per_page, group_pressings }) => {
 			const { session, connectionId } = await getSessionContext()
 
 			if (!session) {
@@ -726,6 +733,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				const parsed = parseSearchQuery(query)
 				const rankedResults: DedupedCollectionItem[] = applySearchPipeline(allResults, parsed, {
 					relevanceScores,
+					groupPressings: group_pressings,
 				})
 
 				// Limit to requested page size

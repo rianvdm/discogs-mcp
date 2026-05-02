@@ -153,9 +153,18 @@ describe('Issue #14 regression', () => {
 		expect(meanyPresent).toBe(false)
 	})
 
-	it('Khruangbin vinyl + CD collapse to a single row with both formats', () => {
+	it('Khruangbin vinyl + CD return as separate rows by default', () => {
 		const parsed = parseSearchQuery('mellow jazz for late evening')
 		const result = applySearchPipeline(issue14Fixture, parsed)
+		const khruangbinRows = result.filter((r) => r.basic_information.artists[0].name === 'Khruangbin')
+		expect(khruangbinRows).toHaveLength(2)
+		const formats = khruangbinRows.flatMap((r) => r.ownedFormats)
+		expect(formats).toEqual(expect.arrayContaining(['Vinyl', 'CD']))
+	})
+
+	it('Khruangbin vinyl + CD collapse to one row with groupPressings=true', () => {
+		const parsed = parseSearchQuery('mellow jazz for late evening')
+		const result = applySearchPipeline(issue14Fixture, parsed, { groupPressings: true })
 		const khruangbinRows = result.filter((r) => r.basic_information.artists[0].name === 'Khruangbin')
 		expect(khruangbinRows).toHaveLength(1)
 		expect(khruangbinRows[0].ownedFormats).toEqual(expect.arrayContaining(['Vinyl', 'CD']))

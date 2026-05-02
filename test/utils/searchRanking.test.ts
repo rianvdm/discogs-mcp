@@ -307,7 +307,7 @@ describe('applySearchPipeline', () => {
 		expect(result[0].id).toBe(3)
 	})
 
-	it('Issue #3 regression: dedups vinyl + CD of same master into one row with aggregated formats', () => {
+	it('returns every owned pressing of the same master by default (no dedup)', () => {
 		const items = [
 			release({
 				id: 10,
@@ -332,6 +332,35 @@ describe('applySearchPipeline', () => {
 		]
 		const parsed = parseSearchQuery('jazz')
 		const result = applySearchPipeline(items, parsed)
+		expect(result).toHaveLength(2)
+		expect(result.map((r) => r.id).sort()).toEqual([10, 11])
+	})
+
+	it('groupPressings option dedups multiple pressings of the same master into one row', () => {
+		const items = [
+			release({
+				id: 10,
+				title: 'Universe Smiles',
+				artist: 'Khruangbin',
+				year: 2015,
+				master_id: 999,
+				genres: ['Jazz'],
+				styles: [],
+				formats: ['Vinyl'],
+			}),
+			release({
+				id: 11,
+				title: 'Universe Smiles',
+				artist: 'Khruangbin',
+				year: 2018,
+				master_id: 999,
+				genres: ['Jazz'],
+				styles: [],
+				formats: ['CD'],
+			}),
+		]
+		const parsed = parseSearchQuery('jazz')
+		const result = applySearchPipeline(items, parsed, { groupPressings: true })
 		expect(result).toHaveLength(1)
 		expect(result[0].ownedFormats).toEqual(expect.arrayContaining(['Vinyl', 'CD']))
 	})

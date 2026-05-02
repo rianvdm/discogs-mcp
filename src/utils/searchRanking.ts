@@ -275,6 +275,28 @@ export interface SearchPipelineOptions {
 	 * hard filter is skipped (the index already filtered via combineWith=AND).
 	 */
 	relevanceScores?: Map<string, number>
+	/**
+	 * When true, collapses every owned pressing of the same master into a
+	 * single row with aggregated formats. Default false: each owned pressing
+	 * is returned as its own row so callers see every release_id and
+	 * instance_id they actually own.
+	 */
+	groupPressings?: boolean
+}
+
+/**
+ * Lift each scored release into the DedupedCollectionItem shape without
+ * collapsing groups — used when groupPressings is off.
+ */
+function liftScoredWithoutDedup(scored: ScoredRelease[]): ScoredDedupedRelease[] {
+	return scored.map(({ item, moodScore }) => ({
+		item: {
+			...item,
+			ownedFormats: item.basic_information.formats?.map((f) => f.name) ?? [],
+			mergedInstanceIds: [item.instance_id],
+		},
+		moodScore,
+	}))
 }
 
 /**
@@ -282,7 +304,7 @@ export interface SearchPipelineOptions {
  *
  * 1. Apply explicit-term hard filter (skipped when relevance scores are passed).
  * 2. Score remaining releases (mood + relevance).
- * 3. Dedup by master_id, unless this is a temporal query.
+ * 3. Optionally dedup by master_id when groupPressings is true.
  * 4. Sort.
  */
 export function applySearchPipeline(
@@ -310,6 +332,9 @@ export function applySearchPipeline(
 				)
 
 	const scored = scoreReleases(filtered, parsed)
-	const deduped = dedupByMaster(scored)
-	return sortScoredReleases(deduped, parsed, options.relevanceScores)
+	// Dedup is opt-in. Default keeps every owned pressing as a distinct row
+	// so collectors who own multiple pressings of the same master (different
+	// mastering, label, year) see all of them.
+	const lifted = options.groupPressings ? dedupByMaster(scored) : liftScoredWithoutDedup(scored)
+	return sortScoredReleases(lifted, parsed, options.relevanceScores)
 }
