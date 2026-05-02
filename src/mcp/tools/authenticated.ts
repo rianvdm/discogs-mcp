@@ -498,8 +498,15 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					"The user's search query passed verbatim. Do NOT rewrite or decompose the query — pass it exactly as the user said it. The tool handles semantic queries like 'empowering female vocals' or 'road trip music' by first trying keyword matching, then falling back to collection search if needed.",
 				),
 			per_page: z.number().min(1).max(100).optional().default(50).describe('Number of results to return (1-100)'),
+			sort: z
+				.enum(['relevance', 'recent', 'oldest', 'year_desc', 'year_asc', 'rating'])
+				.optional()
+				.default('relevance')
+				.describe(
+					"Sort order for results. 'relevance' (default) ranks by mood-match for mood queries, otherwise by rating then most-recently-added. 'recent'/'oldest' sort by date added to the collection. 'year_desc'/'year_asc' sort by release year. 'rating' sorts by user rating. Pass an explicit sort to override the default for inventory questions.",
+				),
 		},
-		async ({ query, per_page }) => {
+		async ({ query, per_page, sort }) => {
 			const { session, connectionId } = await getSessionContext()
 
 			if (!session) {
@@ -698,7 +705,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				// Run the ranking pipeline: explicit-term filter → score → dedup by master → sort.
 				// Temporal queries bypass dedup and mood scoring.
 				const parsed = parseSearchQuery(query)
-				const rankedResults: DedupedCollectionItem[] = applySearchPipeline(allResults, parsed)
+				const rankedResults: DedupedCollectionItem[] = applySearchPipeline(allResults, parsed, { sort })
 
 				// Limit to requested page size
 				const finalResults = rankedResults.slice(0, per_page)

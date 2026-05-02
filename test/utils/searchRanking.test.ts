@@ -232,7 +232,7 @@ describe('sortScoredReleases', () => {
 		expect(sorted[0].id).toBe(2)
 	})
 
-	it('tiebreaks by rating desc, then year asc, then artist+title alpha', () => {
+	it('non-mood queries tiebreak by rating desc, then date_added desc, then year desc, then artist+title alpha', () => {
 		const items = [
 			release({ id: 1, title: 'Z', artist: 'Z', year: 2005, rating: 3, genres: [], styles: [] }),
 			release({ id: 2, title: 'A', artist: 'A', year: 2000, rating: 3, genres: [], styles: [] }),
@@ -243,13 +243,16 @@ describe('sortScoredReleases', () => {
 		const scored = scoreReleases(items, parsed)
 		const deduped = dedupByMaster(scored)
 		const sorted = sortScoredReleases(deduped, parsed)
+		// id 3 wins on rating. Among rating=3 items, all share date_added,
+		// so year desc breaks: id 1 (2005) > id 2,4 (2000). Among year=2000,
+		// title alpha: A (id 2) < K (id 4).
 		expect(sorted[0].id).toBe(3)
-		expect(sorted[1].id).toBe(2)
-		expect(sorted[2].id).toBe(4)
-		expect(sorted[3].id).toBe(1)
+		expect(sorted[1].id).toBe(1)
+		expect(sorted[2].id).toBe(2)
+		expect(sorted[3].id).toBe(4)
 	})
 
-	it('ignores date_added as a tiebreaker for non-temporal queries', () => {
+	it('non-mood queries use date_added desc as a tiebreaker (issue #21)', () => {
 		const items = [
 			release({ id: 1, title: 'A', artist: 'A', year: 2000, rating: 0, date_added: '2020-01-01T00:00:00-00:00', genres: [], styles: [] }),
 			release({ id: 2, title: 'A', artist: 'A', year: 2000, rating: 0, date_added: '2026-01-01T00:00:00-00:00', master_id: 500, genres: [], styles: [] }),
@@ -258,7 +261,8 @@ describe('sortScoredReleases', () => {
 		const scored = scoreReleases(items, parsed)
 		const deduped = dedupByMaster(scored)
 		const sorted = sortScoredReleases(deduped, parsed)
-		expect(sorted[0].id).toBe(1)
+		// More recently added wins under non-mood relevance sort.
+		expect(sorted[0].id).toBe(2)
 	})
 
 	it('sorts by date_added desc when hasRecent', () => {
@@ -283,6 +287,63 @@ describe('sortScoredReleases', () => {
 		const deduped = dedupByMaster(scored)
 		const sorted = sortScoredReleases(deduped, parsed)
 		expect(sorted[0].id).toBe(1)
+	})
+
+	it('explicit sort=recent overrides relevance behavior', () => {
+		const items = [
+			release({ id: 1, title: 'A', artist: 'A', year: 1965, rating: 5, date_added: '2010-01-01T00:00:00-00:00', genres: [], styles: [] }),
+			release({ id: 2, title: 'B', artist: 'B', year: 2024, rating: 0, date_added: '2026-01-01T00:00:00-00:00', genres: [], styles: [] }),
+		]
+		const parsed = parseSearchQuery('jazz')
+		const scored = scoreReleases(items, parsed)
+		const deduped = dedupByMaster(scored)
+		const sorted = sortScoredReleases(deduped, parsed, 'recent')
+		// id 2 has more recent date_added, even though id 1 has higher rating.
+		expect(sorted[0].id).toBe(2)
+	})
+
+	it('explicit sort=rating ranks by user rating', () => {
+		const items = [
+			release({ id: 1, title: 'A', artist: 'A', year: 2020, rating: 2, genres: [], styles: [] }),
+			release({ id: 2, title: 'B', artist: 'B', year: 1965, rating: 5, genres: [], styles: [] }),
+			release({ id: 3, title: 'C', artist: 'C', year: 2024, rating: 4, genres: [], styles: [] }),
+		]
+		const parsed = parseSearchQuery('anything')
+		const scored = scoreReleases(items, parsed)
+		const deduped = dedupByMaster(scored)
+		const sorted = sortScoredReleases(deduped, parsed, 'rating')
+		expect(sorted.map((s) => s.id)).toEqual([2, 3, 1])
+	})
+
+	it('explicit sort=year_desc surfaces newest pressings first', () => {
+		const items = [
+			release({ id: 1, title: 'A', artist: 'A', year: 1965, genres: [], styles: [] }),
+			release({ id: 2, title: 'B', artist: 'B', year: 2021, genres: [], styles: [] }),
+			release({ id: 3, title: 'C', artist: 'C', year: 1990, genres: [], styles: [] }),
+		]
+		const parsed = parseSearchQuery('anything')
+		const scored = scoreReleases(items, parsed)
+		const deduped = dedupByMaster(scored)
+		const sorted = sortScoredReleases(deduped, parsed, 'year_desc')
+		expect(sorted.map((s) => s.id)).toEqual([2, 3, 1])
+	})
+
+	it('issue #21: non-mood query default surfaces recent acquisition over older pressing', () => {
+		// Reproduces the AP 2021 Folk Singer scenario: rating=0 across the
+		// board, all from same artist. Under the old year-asc tiebreaker the
+		// 1964 pressing buries the 2021 reissue. Under the new default it
+		// surfaces by date_added desc.
+		const items = [
+			release({ id: 1, title: 'Folk Singer', artist: 'Muddy Waters', year: 1964, rating: 0, date_added: '2018-01-01T00:00:00-00:00', genres: ['Blues'], styles: [] }),
+			release({ id: 2, title: 'Folk Singer', artist: 'Muddy Waters', year: 1964, rating: 0, date_added: '2026-04-01T00:00:00-00:00', genres: ['Blues'], styles: [] }),
+		]
+		const parsed = parseSearchQuery('muddy waters')
+		const scored = scoreReleases(items, parsed)
+		const sorted = sortScoredReleases(scored.map((s) => ({
+			item: { ...s.item, ownedFormats: [], mergedInstanceIds: [s.item.instance_id] },
+			moodScore: s.moodScore,
+		})), parsed)
+		expect(sorted[0].id).toBe(2)
 	})
 })
 
