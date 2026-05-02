@@ -77,7 +77,11 @@ export function searchIndex(
 	if (!trimmed) return new Map()
 	const results = index.search(trimmed, {
 		boost: FIELD_BOOSTS,
-		combineWith: 'AND',
+		// OR-combine + BM25: documents matching MORE query tokens score higher
+		// than documents matching only one. AND-combine was too strict — it
+		// rejected reasonable queries like "Best Of Genesis" when no release
+		// literally contained the word "best" in any indexed field.
+		combineWith: 'OR',
 		prefix: true,
 		fuzzy: 0.2,
 	})

@@ -46,19 +46,23 @@ describe('searchIndex', () => {
 		const scores = searchIndex(index, 'muddy waters folk singer')
 		const muddyId1 = indexableId(fixture[0])
 		const muddyId2 = indexableId(fixture[1])
-		// Both Muddy Waters - Folk Singer entries should score, no others.
+		const tagOnlyTracyId = indexableId(fixture[2])
+		// Under OR-combine, tag-only matches appear too — but BM25 ranks
+		// the multi-token literal matches significantly higher.
 		expect(scores.has(muddyId1)).toBe(true)
 		expect(scores.has(muddyId2)).toBe(true)
-		// Tag-only folk matches should not appear (combineWith=AND requires all tokens).
-		expect(scores.has(indexableId(fixture[2]))).toBe(false)
-		expect(scores.has(indexableId(fixture[3]))).toBe(false)
+		expect((scores.get(muddyId1) ?? 0)).toBeGreaterThan(scores.get(tagOnlyTracyId) ?? 0)
+		expect((scores.get(muddyId2) ?? 0)).toBeGreaterThan(scores.get(tagOnlyTracyId) ?? 0)
 	})
 
-	it('returns no results when not all tokens match (AND)', () => {
+	it('returns rare-token matches when other query tokens match nothing (#24)', () => {
+		// Reproduces the "Best Of Genesis" regression: AND-combine returned
+		// zero because no release contained "best". Under OR + BM25, the rare
+		// token "miles" wins despite "best" / "of" matching nothing.
 		const index = buildIndex(fixture)
-		const scores = searchIndex(index, 'muddy waters jazz')
-		// No release has all three tokens.
-		expect(scores.size).toBe(0)
+		const scores = searchIndex(index, 'best of miles')
+		const milesId = indexableId(fixture[4])
+		expect(scores.has(milesId)).toBe(true)
 	})
 
 	it('matches by artist alone', () => {
