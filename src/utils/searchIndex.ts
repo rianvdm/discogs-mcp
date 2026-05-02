@@ -23,14 +23,16 @@ export interface IndexableRelease {
 	artist: string
 	genres: string
 	styles: string
+	formats: string
 }
 
-const SEARCH_FIELDS = ['title', 'artist', 'genres', 'styles'] as const
+const SEARCH_FIELDS = ['title', 'artist', 'genres', 'styles', 'formats'] as const
 const FIELD_BOOSTS: Record<string, number> = {
 	title: 3,
 	artist: 2,
 	styles: 1,
 	genres: 1,
+	formats: 1,
 }
 
 export function indexableId(item: DiscogsCollectionItem): string {
@@ -47,6 +49,7 @@ export function toIndexable(item: DiscogsCollectionItem): IndexableRelease {
 		artist: (info.artists ?? []).map((a) => a.name).join(' '),
 		genres: (info.genres ?? []).join(' '),
 		styles: (info.styles ?? []).join(' '),
+		formats: (info.formats ?? []).map((f) => f.name).join(' '),
 	}
 }
 
