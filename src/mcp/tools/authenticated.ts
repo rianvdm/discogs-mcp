@@ -480,12 +480,31 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Build a structured warning when search_collection slices its result set.
 	 * Parallel in shape to the existing collection-truncation warning so the
 	 * calling LLM treats both as the same class of signal.
+	 *
+	 * Fires only when more results exist past the current page. On the last
+	 * page (or when found <= per_page), returns an empty string.
 	 */
-	function buildResultTruncationNote(query: string, found: number, shown: number): string {
-		if (found <= shown) return ''
+	function buildResultTruncationNote(
+		query: string,
+		found: number,
+		page: number,
+		perPage: number,
+	): string {
+		const totalPages = Math.max(1, Math.ceil(found / perPage))
+		if (page >= totalPages) return ''
+		const shown = Math.max(0, Math.min(perPage, found - (page - 1) * perPage))
+		const nextPage = page + 1
 		return (
-			`\n\n⚠️ Showing ${shown} of ${found} matches for "${query}". ` +
-			`Narrow your query (add an artist, genre, or year) to see more specific results.`
+			`\n\n⚠️ Showing ${shown} of ${found} matches for "${query}" (page ${page} of ${totalPages}). ` +
+			`Pass page: ${nextPage} to see more, or narrow your query (add an artist, genre, or year) to filter.`
+		)
+	}
+
+	function buildOutOfRangeNote(query: string, found: number, page: number, perPage: number): string {
+		const totalPages = Math.max(1, Math.ceil(found / perPage))
+		return (
+			`No results on page ${page} for "${query}". ${found} matches exist across pages 1–${totalPages}. ` +
+			`Try page ${totalPages} or lower.`
 		)
 	}
 
@@ -498,7 +517,15 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				.describe(
 					"The user's search query passed verbatim. Do NOT rewrite or decompose the query — pass it exactly as the user said it. The tool handles semantic queries like 'empowering female vocals' or 'road trip music' by first trying keyword matching, then falling back to collection search if needed.",
 				),
-			per_page: z.number().min(1).max(100).optional().default(50).describe('Number of results to return (1-100)'),
+			per_page: z.number().min(1).max(100).optional().default(50).describe('Number of results to return per page (1-100)'),
+			page: z
+				.number()
+				.min(1)
+				.optional()
+				.default(1)
+				.describe(
+					'1-indexed page number. Combine with per_page to walk through large result sets. The truncation warning emitted at the bottom of each response includes the next page number to request.',
+				),
 			group_pressings: z
 				.boolean()
 				.optional()
@@ -507,7 +534,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					'When true, collapses every owned pressing of the same master release into one row with aggregated formats. Default false: each pressing the user owns is returned as its own row so distinct release_ids and instance_ids are visible. Set to true when the user wants a compact one-row-per-album view and pressing identity does not matter.',
 				),
 		},
-		async ({ query, per_page, group_pressings }) => {
+		async ({ query, per_page, page, group_pressings }) => {
 			const { session, connectionId } = await getSessionContext()
 
 			if (!session) {
@@ -619,8 +646,17 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 									return new Date(b.date_added).getTime() - new Date(a.date_added).getTime()
 								})
 
-								const finalResults = bestEffortResults.slice(0, per_page)
-								const summary = `Found ${bestEffortResults.length} possible matches for "${query}" in your collection (showing ${finalResults.length} items):`
+								const startIdx = (page - 1) * per_page
+								const finalResults = bestEffortResults.slice(startIdx, startIdx + per_page)
+								if (finalResults.length === 0) {
+									return {
+										content: [{
+											type: 'text' as const,
+											text: buildOutOfRangeNote(query, bestEffortResults.length, page, per_page),
+										}],
+									}
+								}
+								const summary = `Found ${bestEffortResults.length} possible matches for "${query}" in your collection (page ${page}, showing ${finalResults.length} items):`
 
 								const releaseList = finalResults
 									.map((release) => {
@@ -635,7 +671,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 									.join('\n\n')
 
 								const broadSearchHint = `\n\n💡 Showing possible matches based on keywords. If these aren't what you're looking for, ask me to "search more broadly" and I'll look through your full collection.`
-								const resultTruncationNote = buildResultTruncationNote(query, bestEffortResults.length, finalResults.length)
+								const resultTruncationNote = buildResultTruncationNote(query, bestEffortResults.length, page, per_page)
 
 								return {
 									content: [{
@@ -740,10 +776,19 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					groupPressings: group_pressings,
 				})
 
-				// Limit to requested page size
-				const finalResults = rankedResults.slice(0, per_page)
+				// Slice to requested page
+				const startIdx = (page - 1) * per_page
+				const finalResults = rankedResults.slice(startIdx, startIdx + per_page)
+				if (finalResults.length === 0 && rankedResults.length > 0) {
+					return {
+						content: [{
+							type: 'text',
+							text: buildOutOfRangeNote(query, rankedResults.length, page, per_page),
+						}],
+					}
+				}
 
-				const summary = `Found ${allResults.length} results for "${query}" in your collection (showing ${finalResults.length} items):`
+				const summary = `Found ${allResults.length} results for "${query}" in your collection (page ${page}, showing ${finalResults.length} items):`
 
 				// Create concise formatted list with genres and styles
 				const releaseList = finalResults
@@ -762,7 +807,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					})
 					.join('\n\n')
 
-				const resultTruncationNote = buildResultTruncationNote(query, allResults.length, finalResults.length)
+				const resultTruncationNote = buildResultTruncationNote(query, allResults.length, page, per_page)
 
 				return {
 					content: [
