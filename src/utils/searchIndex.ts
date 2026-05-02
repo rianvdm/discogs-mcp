@@ -28,11 +28,46 @@ export interface IndexableRelease {
 
 const SEARCH_FIELDS = ['title', 'artist', 'genres', 'styles', 'formats'] as const
 const FIELD_BOOSTS: Record<string, number> = {
+	// Artist outweighs title intentionally: a query like "best of genesis"
+	// should rank Genesis-the-artist above an Ornette Coleman record titled
+	// "Genesis of Genius". Without the boost, title 3× beats artist 2× and
+	// the wrong record surfaces.
+	artist: 5,
 	title: 3,
-	artist: 2,
 	styles: 1,
 	genres: 1,
 	formats: 1,
+}
+
+/**
+ * Conservative stop-word list. Common English function words that add noise
+ * to multi-token queries without contributing real signal — e.g. without
+ * filtering, "Best Of Genesis" matches "Of" in many album titles and pushes
+ * unrelated compilations above actual Genesis releases.
+ *
+ * Applied to BOTH indexing and querying so the index doesn't store these
+ * tokens and the query doesn't search for them.
+ */
+const STOP_WORDS = new Set([
+	'a',
+	'an',
+	'and',
+	'at',
+	'by',
+	'for',
+	'from',
+	'in',
+	'of',
+	'on',
+	'or',
+	'the',
+	'to',
+	'with',
+])
+
+function processTerm(term: string): string | null {
+	const lower = term.toLowerCase()
+	return STOP_WORDS.has(lower) ? null : lower
 }
 
 export function indexableId(item: DiscogsCollectionItem): string {
@@ -57,6 +92,7 @@ export function buildIndex(items: DiscogsCollectionItem[]): MiniSearch<Indexable
 	const index = new MiniSearch<IndexableRelease>({
 		fields: [...SEARCH_FIELDS],
 		storeFields: ['release_id', 'instance_id'],
+		processTerm,
 	})
 	index.addAll(items.map(toIndexable))
 	return index

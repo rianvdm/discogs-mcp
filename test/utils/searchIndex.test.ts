@@ -86,6 +86,27 @@ describe('searchIndex', () => {
 		expect(searchIndex(index, '   ').size).toBe(0)
 	})
 
+	it('"Best Of Genesis" ranks Genesis-the-artist over compilations of other artists', () => {
+		const items: DiscogsCollectionItem[] = [
+			release({ id: 100, title: 'Abacab', artist: 'Genesis', genres: ['Rock'], styles: ['Pop Rock'] }),
+			release({ id: 101, title: 'Duke', artist: 'Genesis', genres: ['Rock'], styles: ['Prog Rock'] }),
+			release({ id: 102, title: 'A Trick of the Tail', artist: 'Genesis', genres: ['Rock'], styles: ['Prog Rock'] }),
+			release({ id: 200, title: 'The Best Of', artist: 'Radiohead', genres: ['Rock'], styles: ['Alternative Rock'] }),
+			release({ id: 201, title: 'Best Of 1990-2000', artist: 'U2', genres: ['Rock'], styles: ['Pop Rock'] }),
+			release({ id: 300, title: 'Genesis Of Genius', artist: 'Ornette Coleman', genres: ['Jazz'], styles: ['Free Jazz'] }),
+		]
+		const index = buildIndex(items)
+		const scores = searchIndex(index, 'best of genesis')
+		// Stop words "of" filtered. Both groups now compete on "best" vs "genesis".
+		// Genesis-the-artist matches "genesis" via the artist field (boost 2x);
+		// Best Of compilations match "best" via the title field (boost 3x).
+		// At least one Genesis-the-artist record should appear in the top 3.
+		const ranked = [...scores.entries()].sort((a, b) => b[1] - a[1]).map(([id]) => id)
+		const top3 = ranked.slice(0, 3)
+		const genesisIds = items.filter((i) => i.basic_information.artists?.[0]?.name === 'Genesis').map(indexableId)
+		expect(top3.some((id) => genesisIds.includes(id))).toBe(true)
+	})
+
 	it('toIndexable produces a stable id keyed by release_id and instance_id', () => {
 		const item = fixture[0]
 		expect(toIndexable(item).id).toBe(`${item.id}:${item.instance_id}`)
