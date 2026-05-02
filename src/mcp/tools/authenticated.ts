@@ -475,6 +475,19 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 		}
 	}
 
+	/**
+	 * Build a structured warning when search_collection slices its result set.
+	 * Parallel in shape to the existing collection-truncation warning so the
+	 * calling LLM treats both as the same class of signal.
+	 */
+	function buildResultTruncationNote(query: string, found: number, shown: number): string {
+		if (found <= shown) return ''
+		return (
+			`\n\n⚠️ Showing ${shown} of ${found} matches for "${query}". ` +
+			`Narrow your query (add an artist, genre, or year) to see more specific results.`
+		)
+	}
+
 	server.tool(
 		'search_collection',
 		"Search your Discogs collection with natural language queries. IMPORTANT: Pass the user's query as-is — do NOT rewrite, decompose, or make multiple searches. The tool handles semantic/conceptual queries internally (e.g., 'strong empowering female voice', 'perfect for a rainy Sunday') by first attempting a keyword match, then returning the collection for LLM-based selection if no matches are found. Also supports mood descriptors like 'mellow jazz', temporal terms like 'recent' or 'oldest', and specific searches by artist, album, genre, or year. One call is sufficient for any query.",
@@ -619,11 +632,12 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 									.join('\n\n')
 
 								const broadSearchHint = `\n\n💡 Showing possible matches based on keywords. If these aren't what you're looking for, ask me to "search more broadly" and I'll look through your full collection.`
+								const resultTruncationNote = buildResultTruncationNote(query, bestEffortResults.length, finalResults.length)
 
 								return {
 									content: [{
 										type: 'text' as const,
-										text: `${summary}\n${releaseList}${broadSearchHint}${collectionTruncationNote}`,
+										text: `${summary}\n${releaseList}${broadSearchHint}${resultTruncationNote}${collectionTruncationNote}`,
 									}],
 								}
 							}
@@ -708,11 +722,13 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					})
 					.join('\n\n')
 
+				const resultTruncationNote = buildResultTruncationNote(query, allResults.length, finalResults.length)
+
 				return {
 					content: [
 						{
 							type: 'text',
-							text: `${summary}${temporalInfo}${moodInfo}\n${releaseList}\n\n**Tip:** Use the release IDs with the get_release tool for detailed information about specific albums. Use Instance and Folder IDs with move_release, rate_release, and remove_from_collection tools.${collectionTruncationNote}`,
+							text: `${summary}${temporalInfo}${moodInfo}\n${releaseList}\n\n**Tip:** Use the release IDs with the get_release tool for detailed information about specific albums. Use Instance and Folder IDs with move_release, rate_release, and remove_from_collection tools.${resultTruncationNote}${collectionTruncationNote}`,
 						},
 					],
 				}
