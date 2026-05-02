@@ -186,102 +186,42 @@ function artistTitleKey(item: DedupedCollectionItem): string {
 	return `${artist} - ${title}`
 }
 
-export type SortMode = 'relevance' | 'recent' | 'oldest' | 'year_desc' | 'year_asc' | 'rating'
-
-const dateAdded = (item: DedupedCollectionItem): number => new Date(item.date_added).getTime()
-const yearOrMax = (item: DedupedCollectionItem): number =>
-	item.basic_information.year ?? Number.MAX_SAFE_INTEGER
-const yearOrZero = (item: DedupedCollectionItem): number => item.basic_information.year ?? 0
-
 /**
- * Final-tiebreaker for any sort: artist+title alpha → id asc.
- */
-function finalTiebreak(a: ScoredDedupedRelease, b: ScoredDedupedRelease): number {
-	const keyA = artistTitleKey(a.item)
-	const keyB = artistTitleKey(b.item)
-	if (keyA !== keyB) return keyA.localeCompare(keyB)
-	return a.item.id - b.item.id
-}
-
-/**
- * Sort releases according to the requested mode.
- *
- * `relevance` (default) preserves the existing query-aware ranking:
- *   - For mood queries: moodScore desc → rating desc → year asc → tiebreak.
- *   - For non-mood queries: rating desc → date_added desc → year desc → tiebreak.
- *     This surfaces rated favorites and recent acquisitions on broad inventory
- *     queries instead of burying them under year-asc tiebreaking (issue #21).
- *   - For query-level temporal terms (`hasRecent`/`hasOld`), date_added wins.
- *
- * Explicit sort modes (`recent`, `oldest`, `year_desc`, `year_asc`, `rating`)
- * win over query-level temporal terms — if the caller passed a sort, they
- * meant it.
+ * Order: moodScore desc → rating desc → year asc → artist+title alpha → id asc.
+ * date_added is intentionally NOT a tiebreaker for general queries.
+ * For hasRecent/hasOld, sort by date_added only.
  */
 export function sortScoredReleases(
 	deduped: ScoredDedupedRelease[],
 	parsed: ParsedQuery,
-	sort: SortMode = 'relevance',
 ): DedupedCollectionItem[] {
 	const copy = [...deduped]
 
-	if (sort !== 'relevance') {
-		copy.sort((a, b) => {
-			let primary = 0
-			switch (sort) {
-				case 'recent':
-					primary = dateAdded(b.item) - dateAdded(a.item)
-					break
-				case 'oldest':
-					primary = dateAdded(a.item) - dateAdded(b.item)
-					break
-				case 'year_desc':
-					primary = yearOrZero(b.item) - yearOrZero(a.item)
-					break
-				case 'year_asc':
-					primary = yearOrMax(a.item) - yearOrMax(b.item)
-					break
-				case 'rating':
-					primary = b.item.rating - a.item.rating
-					if (primary === 0) primary = dateAdded(b.item) - dateAdded(a.item)
-					break
-			}
-			if (primary !== 0) return primary
-			return finalTiebreak(a, b)
-		})
-		return copy.map((s) => s.item)
-	}
-
 	if (parsed.hasRecent) {
-		copy.sort((a, b) => dateAdded(b.item) - dateAdded(a.item))
+		copy.sort(
+			(a, b) => new Date(b.item.date_added).getTime() - new Date(a.item.date_added).getTime(),
+		)
 		return copy.map((s) => s.item)
 	}
 	if (parsed.hasOld) {
-		copy.sort((a, b) => dateAdded(a.item) - dateAdded(b.item))
+		copy.sort(
+			(a, b) => new Date(a.item.date_added).getTime() - new Date(b.item.date_added).getTime(),
+		)
 		return copy.map((s) => s.item)
 	}
 
 	copy.sort((a, b) => {
 		if (b.moodScore !== a.moodScore) return b.moodScore - a.moodScore
 		if (b.item.rating !== a.item.rating) return b.item.rating - a.item.rating
-
-		if (parsed.isMoodQuery) {
-			const yearDelta = yearOrMax(a.item) - yearOrMax(b.item)
-			if (yearDelta !== 0) return yearDelta
-		} else {
-			const dateDelta = dateAdded(b.item) - dateAdded(a.item)
-			if (dateDelta !== 0) return dateDelta
-			const yearDelta = yearOrZero(b.item) - yearOrZero(a.item)
-			if (yearDelta !== 0) return yearDelta
-		}
-
-		return finalTiebreak(a, b)
+		const yearA = a.item.basic_information.year ?? Number.MAX_SAFE_INTEGER
+		const yearB = b.item.basic_information.year ?? Number.MAX_SAFE_INTEGER
+		if (yearA !== yearB) return yearA - yearB
+		const keyA = artistTitleKey(a.item)
+		const keyB = artistTitleKey(b.item)
+		if (keyA !== keyB) return keyA.localeCompare(keyB)
+		return a.item.id - b.item.id
 	})
 	return copy.map((s) => s.item)
-}
-
-export interface SearchPipelineOptions {
-	/** Sort mode applied to the ranked results. Defaults to 'relevance'. */
-	sort?: SortMode
 }
 
 /**
@@ -289,21 +229,16 @@ export interface SearchPipelineOptions {
  *
  * 1. Apply explicit-term hard filter (Issue #1 fix).
  * 2. Score remaining releases.
- * 3. Dedup by master_id (Issue #3 fix), unless this is a query-level temporal
- *    request under default `relevance` sort.
- * 4. Sort according to options.sort (Issue #2 + #21).
+ * 3. Dedup by master_id (Issue #3 fix), unless this is a temporal query.
+ * 4. Sort (Issue #2 fix: no date_added tiebreaker for general queries).
  */
 export function applySearchPipeline(
 	items: DiscogsCollectionItem[],
 	parsed: ParsedQuery,
-	options: SearchPipelineOptions = {},
 ): DedupedCollectionItem[] {
-	const sort = options.sort ?? 'relevance'
-
-	// Query-level temporal terms only bypass scoring/dedup under default sort.
-	// An explicit sort override means the caller wants the full pipeline applied
-	// before sorting.
-	if (sort === 'relevance' && (parsed.hasRecent || parsed.hasOld)) {
+	// Temporal queries bypass explicit-term filter, mood scoring, and dedup.
+	// They surface every pressing ordered by date_added.
+	if (parsed.hasRecent || parsed.hasOld) {
 		const deduped: ScoredDedupedRelease[] = items.map((item) => ({
 			item: {
 				...item,
@@ -312,9 +247,10 @@ export function applySearchPipeline(
 			},
 			moodScore: 0,
 		}))
-		return sortScoredReleases(deduped, parsed, sort)
+		return sortScoredReleases(deduped, parsed)
 	}
 
+	// 1. Explicit-term hard filter.
 	const filtered =
 		parsed.explicitGenreTerms.length === 0
 			? items
@@ -322,7 +258,12 @@ export function applySearchPipeline(
 					parsed.explicitGenreTerms.every((term) => releaseMatchesTerm(item, term)),
 				)
 
+	// 2. Score.
 	const scored = scoreReleases(filtered, parsed)
+
+	// 3. Dedup.
 	const deduped = dedupByMaster(scored)
-	return sortScoredReleases(deduped, parsed, sort)
+
+	// 4. Sort.
+	return sortScoredReleases(deduped, parsed)
 }
