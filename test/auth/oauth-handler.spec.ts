@@ -2,6 +2,7 @@
 import { env, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test'
 import { describe, it, expect, vi } from 'vitest'
 import { DiscogsOAuthHandler, checkAllowlist } from '../../src/auth/oauth-handler'
+import { tokenMirrorKey } from '../../src/sync/keys'
 
 // Mock DiscogsAuth at the top of the file (add after existing imports)
 vi.mock('../../src/auth/discogs', () => ({
@@ -310,5 +311,46 @@ describe('/callback (manual path)', () => {
     expect(session).not.toBeNull()
     const sessionData = JSON.parse(session!)
     expect(sessionData.username).toBe('happyuser')
+  })
+
+  it('mirrors the access token under discogs:token:{userId} for cron access', async () => {
+    const csrfToken = 'mirror-csrf-token'
+    await env.MCP_SESSIONS.put(
+      'login-pending:mirror-path',
+      JSON.stringify({
+        sessionId: 'mirror-path',
+        csrfToken,
+        requestToken: 'mock-request-token',
+        requestTokenSecret: 'mock-request-secret',
+        fromMcpClient: true,
+        timestamp: Date.now(),
+      }),
+    )
+
+    // Mock identity fetch — numeric id is what the mirror is keyed on
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: 424242, username: 'mirroruser' }),
+    })
+
+    const req = new Request(
+      'https://example.com/callback?session_id=mirror-path&oauth_token=mock-request-token&oauth_verifier=mock-verifier',
+      { headers: { Cookie: `__Host-csrf=${csrfToken}` } },
+    )
+    const ctx = createExecutionContext()
+    const res = await DiscogsOAuthHandler.fetch(req, env as any, ctx)
+    await waitOnExecutionContext(ctx)
+
+    expect(res.status).toBe(200)
+
+    const mirrored = await env.MCP_SESSIONS.get(tokenMirrorKey('424242'))
+    expect(mirrored).not.toBeNull()
+    const mirrorData = JSON.parse(mirrored!)
+    expect(mirrorData).toEqual({
+      numericId: '424242',
+      username: 'mirroruser',
+      accessToken: 'mock-access-token',
+      accessTokenSecret: 'mock-access-secret',
+    })
   })
 })

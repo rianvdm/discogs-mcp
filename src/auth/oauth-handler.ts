@@ -4,6 +4,7 @@ import type { AuthRequest, OAuthHelpers } from '@cloudflare/workers-oauth-provid
 import type { ExecutionContext } from '@cloudflare/workers-types'
 import { DiscogsAuth } from './discogs'
 import type { Env } from '../types/env'
+import { tokenMirrorKey } from '../sync/keys'
 
 // Env with OAuth helpers injected by the provider at runtime
 interface OAuthEnv extends Env {
@@ -355,6 +356,20 @@ async function handleManualCallback(request: Request, env: OAuthEnv): Promise<Re
         sessionId,
       }),
       { expirationTtl: 7 * 24 * 60 * 60 },
+    )
+
+    // Mirror the access token under a userId-keyed entry so the cron handler
+    // (which has no request context) can sync the user's collection in the background.
+    // No TTL — the mirror should outlive sessions so the cron keeps working
+    // even if the user hasn't opened an MCP client recently.
+    await env.MCP_SESSIONS.put(
+      tokenMirrorKey(String(identity.id)),
+      JSON.stringify({
+        numericId: String(identity.id),
+        username: identity.username,
+        accessToken,
+        accessTokenSecret,
+      }),
     )
 
     const fromMcpClient = !!pendingData.fromMcpClient
