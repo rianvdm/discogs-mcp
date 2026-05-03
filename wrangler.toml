@@ -6,6 +6,11 @@ compatibility_flags = ["nodejs_compat"]
 [observability]
 enabled = true
 
+# Hourly cron — drives the collection-sync background refresh.
+# See src/index-oauth.ts scheduled() handler.
+[triggers]
+crons = ["0 * * * *"]
+
 # Optional allowlist: numeric Discogs user ID(s) permitted to authenticate.
 # Accepts a single ID or a comma-separated list (e.g. "123,456,789").
 # Empty = no allowlist (open; default for local dev and self-hosters).
@@ -48,6 +53,9 @@ ALLOWED_DISCOGS_USER_ID = "2579319,2316828"
 bindings = [
   { name = "RATE_LIMITER", class_name = "DiscogsRateLimiter" }
 ]
+
+[env.production.triggers]
+crons = ["0 * * * *"]
 
 [[env.production.kv_namespaces]]
 binding = "MCP_LOGS"
