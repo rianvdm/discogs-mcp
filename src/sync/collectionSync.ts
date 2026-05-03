@@ -40,13 +40,15 @@ export async function syncCollection(
 	numericId: string,
 	opts: SyncOptions,
 ): Promise<SyncResult> {
-	const now = (opts.now ?? (() => new Date()))().toISOString()
+	const nowDate = (opts.now ?? (() => new Date()))()
+	const now = nowDate.toISOString()
+	const nowMs = nowDate.getTime()
 	const sleep = opts.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)))
 
 	const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 	const existingProgressRaw = (await kv.get(progressKey(numericId), 'json')) as ProgressBlob | null
 	const progressIsFresh =
-		existingProgressRaw && Date.now() - new Date(existingProgressRaw.startedAt).getTime() < SEVEN_DAYS_MS
+		existingProgressRaw && nowMs - new Date(existingProgressRaw.startedAt).getTime() < SEVEN_DAYS_MS
 
 	let resumed = false
 	let itemsSoFar: DiscogsCollectionItem[] = []
@@ -77,7 +79,7 @@ export async function syncCollection(
 		// snapshot exists — that would skip the weekly forced full sweep.
 		const existingSnapshot = (await kv.get<SnapshotBlob>(snapshotKey(numericId), 'json')) as SnapshotBlob | null
 		const lastForced = await kv.get(lastForcedFullSyncKey(numericId))
-		const lastForcedFresh = lastForced && Date.now() - new Date(lastForced).getTime() < SEVEN_DAYS_MS
+		const lastForcedFresh = lastForced && nowMs - new Date(lastForced).getTime() < SEVEN_DAYS_MS
 
 		if (existingSnapshot && lastForcedFresh) {
 			// Run probe: fetch page 1, compare count + top instance_ids

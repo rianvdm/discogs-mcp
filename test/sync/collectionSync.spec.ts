@@ -354,4 +354,33 @@ describe('syncCollection — first-run bootstrap', () => {
 		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { force: true, sleep: async () => {} })
 		expect(result.outcome).toBe('completed') // not "skipped"
 	})
+
+	it('forces full repaginate when lastForcedFullSync is older than 7 days', async () => {
+		const prev: SnapshotBlob = {
+			schemaVersion: 1,
+			fetchedAt: '2026-04-20T00:00:00Z',
+			count: 1,
+			topPageInstanceIds: [101],
+			items: [makeItem(1, 101)],
+		}
+		await env.MCP_SESSIONS.put(snapshotKey('u'), JSON.stringify(prev))
+		// 8 days before the test's "now" — past the 7-day threshold
+		await env.MCP_SESSIONS.put(lastForcedFullSyncKey('u'), '2026-04-25T00:00:00Z')
+
+		const calls: number[] = []
+		const client: SyncClient = {
+			async fetchCollectionPage(opts) {
+				calls.push(opts.page)
+				return makePage([makeItem(1, 101)], 1, 1, 1)
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', {
+			sleep: async () => {},
+			now: () => new Date('2026-05-03T12:00:00Z'),
+		})
+		// Probe is gated on lastForcedFresh; with stale lastForced, the gate is skipped
+		// and we fall through to a full pagination — outcome 'completed', not 'skipped'.
+		expect(result.outcome).toBe('completed')
+	})
 })
