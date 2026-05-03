@@ -191,6 +191,20 @@ async function handleDiscogsCallback(request: Request, env: OAuthEnv): Promise<R
       accessTokenSecret,
     }
 
+    // Mirror the access token under a numericId-keyed entry so the cron handler
+    // (which has no request context) can sync this user's collection in the background.
+    // Same pattern as the manual /callback path; see Task 2 of the collection-sync-cron plan.
+    await env.MCP_SESSIONS.put(
+      tokenMirrorKey(String(identity.id)),
+      JSON.stringify({
+        numericId: String(identity.id),
+        username: identity.username,
+        accessToken,
+        accessTokenSecret,
+      }),
+      // No TTL — outlive sessions so the cron keeps working when MCP clients are idle.
+    )
+
     // Complete the MCP OAuth 2.1 flow — library issues the authorization code to client
     const { redirectTo } = await env.OAUTH_PROVIDER.completeAuthorization({
       request: oauthReqInfo,

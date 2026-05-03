@@ -184,6 +184,55 @@ describe('/discogs-callback', () => {
     expect([302, 303]).toContain(res.status)
   })
 
+  it('mirrors the access token under discogs:token:{userId} for cron access', async () => {
+    await env.MCP_SESSIONS.put(
+      'oauth-pending:mirror-mcp-token',
+      JSON.stringify({
+        oauthReqInfo: {
+          clientId: 'test-client',
+          redirectUri: 'https://client/callback',
+          state: 'random123',
+          scope: [],
+        },
+        requestTokenSecret: 'mock-request-secret',
+      }),
+    )
+
+    // Numeric id is what the mirror is keyed on
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: 555555, username: 'mcpmirroruser' }),
+    })
+
+    const envWithOAuth = {
+      ...env,
+      OAUTH_PROVIDER: {
+        completeAuthorization: vi.fn().mockResolvedValue({
+          redirectTo: 'https://client/callback?code=test',
+        }),
+      },
+    }
+
+    const req = new Request(
+      'https://example.com/discogs-callback?oauth_token=mirror-mcp-token&oauth_verifier=mock-verifier',
+    )
+    const ctx = createExecutionContext()
+    const res = await DiscogsOAuthHandler.fetch(req, envWithOAuth as any, ctx)
+    await waitOnExecutionContext(ctx)
+
+    expect([302, 303]).toContain(res.status)
+
+    const mirrored = await env.MCP_SESSIONS.get(tokenMirrorKey('555555'))
+    expect(mirrored).not.toBeNull()
+    const mirrorData = JSON.parse(mirrored!)
+    expect(mirrorData).toEqual({
+      numericId: '555555',
+      username: 'mcpmirroruser',
+      accessToken: 'mock-access-token',
+      accessTokenSecret: 'mock-access-secret',
+    })
+  })
+
   it('returns 400 when oauth_token is missing', async () => {
     const req = new Request('https://example.com/discogs-callback')
     const ctx = createExecutionContext()
