@@ -105,4 +105,22 @@ describe('syncCollection — first-run bootstrap', () => {
 		const final = await env.MCP_SESSIONS.get<SnapshotBlob>(snapshotKey('u'), 'json')
 		expect(final?.count).toBe(3)
 	})
+
+	it('retries a transient page failure up to 3 times', async () => {
+		let attempts = 0
+		const client: SyncClient = {
+			async fetchCollectionPage(opts) {
+				if (opts.page === 1) {
+					attempts++
+					if (attempts < 3) throw new Error('500 Internal Server Error')
+					return makePage([makeItem(1, 101)], 1, 1, 1)
+				}
+				throw new Error('unreachable')
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
+		expect(result.outcome).toBe('completed')
+		expect(attempts).toBe(3)
+	})
 })
