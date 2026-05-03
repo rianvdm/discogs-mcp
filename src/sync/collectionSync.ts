@@ -77,6 +77,15 @@ export async function syncCollection(
 				totalCount = res.pagination.items
 				topPageInstanceIds = res.releases.map((r) => r.instance_id)
 			}
+			// Drift check: every page's pagination.items must match the totalCount
+			// recorded on page 1 (or carried forward from progress on resume). Discogs
+			// returns the live count in every page response, so any disagreement means
+			// the collection changed mid-sync. Skip the check on page 1 itself — that's
+			// the page that defines totalCount.
+			if (page > 1 && res.pagination.items !== totalCount) {
+				await kv.delete(progressKey(numericId))
+				return syncCollection(client, kv, numericId, { ...opts, force: true })
+			}
 			itemsSoFar.push(...res.releases)
 			lastPageFetched = page
 

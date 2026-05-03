@@ -189,4 +189,43 @@ describe('syncCollection — first-run bootstrap', () => {
 		// Progress cleaned up
 		expect(await env.MCP_SESSIONS.get(progressKey('u'))).toBeNull()
 	})
+
+	it('discards progress and restarts when totalCount changes mid-resume', async () => {
+		const progress: ProgressBlob = {
+			schemaVersion: 1,
+			startedAt: new Date().toISOString(), // fresh
+			totalPages: 3,
+			totalCount: 3,
+			lastPageFetched: 2,
+			itemsSoFar: [makeItem(1, 101), makeItem(2, 102)],
+		}
+		await env.MCP_SESSIONS.put(progressKey('u'), JSON.stringify(progress))
+
+		const calls: number[] = []
+		const client: SyncClient = {
+			async fetchCollectionPage(opts) {
+				calls.push(opts.page)
+				// Page 3 reports a different count → drift
+				if (opts.page === 3) return makePage([makeItem(3, 103)], 3, 3, 4)
+				// Restart from page 1 — collection is now 4 items across 1 page
+				if (opts.page === 1) {
+					return makePage(
+						[makeItem(1, 101), makeItem(2, 102), makeItem(3, 103), makeItem(4, 104)],
+						1,
+						1,
+						4,
+					)
+				}
+				throw new Error(`unexpected page ${opts.page}`)
+			},
+		}
+
+		await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
+
+		// Should have fetched page 3 (drift detected) then restarted at page 1
+		expect(calls).toEqual([3, 1])
+		const snap = await env.MCP_SESSIONS.get<SnapshotBlob>(snapshotKey('u'), 'json')
+		expect(snap?.count).toBe(4)
+		expect(snap?.items).toHaveLength(4)
+	})
 })
