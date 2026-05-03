@@ -4,7 +4,7 @@
 
 **Goal:** Move the Discogs collection fetch to a background hourly Workers cron that maintains a snapshot in KV, so `search_collection` reads from KV instead of paginating the live API on every cold start.
 
-**Architecture:** New `src/sync/collectionSync.ts` exports a pure `syncCollection(client, kv, userId, opts)` function. The Worker's `scheduled()` handler iterates `ALLOWED_DISCOGS_USER_ID`, loads each user's OAuth token from a new `discogs:token:{userId}` KV mirror written by the existing OAuth callback, and runs `syncCollection`. A new `refresh_collection` MCP tool calls the same function with `force: true`. `search_collection` reads from `collection:snapshot:{userId}` when present, falling back to the existing `cachedDiscogs.getCollectionItems` path during first-deploy bootstrap. Resumable via `collection:sync:progress:{userId}` so partial failures self-heal within an hour.
+**Architecture:** New `src/sync/collectionSync.ts` exports a pure `syncCollection(client, kv, numericId, opts)` function. KV keys are scoped by `numericId` (the stable Discogs user identifier). The Discogs HTTP path needs the `username` instead, so the sync uses a `SyncClient` adapter — a small object that closes over `username + accessToken + accessTokenSecret + consumerKey + consumerSecret` and exposes one method, `fetchCollectionPage(opts)`. The adapter delegates to the existing `DiscogsClient.searchCollection(username, accessToken, accessTokenSecret, opts, consumerKey, consumerSecret)` method (`src/clients/discogs.ts:233`) — no new client method needed. The Worker's `scheduled()` handler iterates `ALLOWED_DISCOGS_USER_ID` (numeric IDs), loads each user's OAuth token + username from a new `discogs:token:{numericId}` KV mirror written by the existing OAuth callback, builds the adapter, and runs `syncCollection`. A new `refresh_collection` MCP tool registered via the existing `getSessionContext()` pattern calls the same function with `force: true`. `search_collection` reads from `collection:snapshot:{numericId}` when present, falling back to the existing live-pagination path during first-deploy bootstrap. Resumable via `collection:sync:progress:{numericId}` so partial failures self-heal within an hour.
 
 **Tech Stack:** TypeScript, Cloudflare Workers, KV namespaces (`MCP_SESSIONS`), Durable Objects (`DiscogsRateLimiter`, existing), vitest 3 + `@cloudflare/vitest-pool-workers` 0.8 (existing).
 
@@ -64,6 +64,7 @@ export interface SnapshotBlob {
 }
 
 export interface ProgressBlob {
+  schemaVersion: 1
   startedAt: string
   totalPages: number
   totalCount: number
@@ -233,7 +234,7 @@ function makePage(items: DiscogsCollectionItem[], page: number, totalPages: numb
 }
 
 interface FakeClient {
-  getCollectionPage: (userId: string, opts: { page: number; per_page: number; sort: string; sort_order: string }) => Promise<DiscogsCollectionResponse>
+  fetchCollectionPage: (opts: { page: number; per_page: number; sort: string; sort_order: string }) => Promise<DiscogsCollectionResponse>
 }
 
 describe('syncCollection — first-run bootstrap', () => {
@@ -248,7 +249,7 @@ describe('syncCollection — first-run bootstrap', () => {
     const page2 = [makeItem(3, 103)]
     const calls: number[] = []
     const client: FakeClient = {
-      async getCollectionPage(_userId, opts) {
+      async fetchCollectionPage(opts) {
         calls.push(opts.page)
         if (opts.page === 1) return makePage(page1, 1, 2, 3)
         return makePage(page2, 2, 2, 3)
@@ -294,18 +295,25 @@ import { snapshotKey } from './keys'
 import type { SnapshotBlob, SyncOptions, SyncResult } from './types'
 
 export interface SyncClient {
-  getCollectionPage(
-    userId: string,
+  fetchCollectionPage(
     opts: { page: number; per_page: number; sort: string; sort_order: string },
   ): Promise<DiscogsCollectionResponse>
 }
 
 const PER_PAGE = 100
 
+/**
+ * Sync a single user's Discogs collection into KV.
+ *
+ * @param client  Adapter that closes over username + OAuth credentials.
+ * @param kv      MCP_SESSIONS binding (or whatever namespace the keys helpers use).
+ * @param numericId Stable Discogs user ID — used as the KV key suffix.
+ * @param opts    Force flag, injected `now` for testability, injected `sleep` for retry tests.
+ */
 export async function syncCollection(
   client: SyncClient,
   kv: KVNamespace,
-  userId: string,
+  numericId: string,
   opts: SyncOptions,
 ): Promise<SyncResult> {
   const now = (opts.now ?? (() => new Date()))().toISOString()
@@ -315,7 +323,7 @@ export async function syncCollection(
   let topPageInstanceIds: number[] = []
 
   for (let page = 1; page <= totalPages; page++) {
-    const res = await client.getCollectionPage(userId, {
+    const res = await client.fetchCollectionPage({
       page,
       per_page: PER_PAGE,
       sort: 'added',
@@ -336,7 +344,7 @@ export async function syncCollection(
     topPageInstanceIds,
     items: allItems,
   }
-  await kv.put(snapshotKey(userId), JSON.stringify(snapshot))
+  await kv.put(snapshotKey(numericId), JSON.stringify(snapshot))
 
   return { outcome: 'completed', pagesFetched: totalPages, count: totalCount, fetchedAt: now }
 }
@@ -456,14 +464,13 @@ const RETRY_DELAYS_MS = [1000, 2000, 4000]
 
 async function fetchPageWithRetry(
   client: SyncClient,
-  userId: string,
   page: number,
   sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
 ): Promise<DiscogsCollectionResponse> {
   let lastErr: unknown
   for (let attempt = 0; attempt < RETRY_DELAYS_MS.length; attempt++) {
     try {
-      return await client.getCollectionPage(userId, { page, per_page: PER_PAGE, sort: 'added', sort_order: 'desc' })
+      return await client.fetchCollectionPage({ page, per_page: PER_PAGE, sort: 'added', sort_order: 'desc' })
     } catch (err) {
       lastErr = err
       if (attempt < RETRY_DELAYS_MS.length - 1) await sleep(RETRY_DELAYS_MS[attempt])
@@ -497,7 +504,7 @@ export interface SyncOptions {
 
 // In syncCollection, accept and pass:
 const sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)))
-const res = await fetchPageWithRetry(client, userId, page, sleep)
+const res = await fetchPageWithRetry(client, page, sleep)
 ```
 
 Update the failing test to pass `{ sleep: async () => {} }` so retries are instant:
@@ -592,7 +599,7 @@ export async function syncCollection(
 
   try {
     for (let page = 1; page <= totalPages; page++) {
-      const res = await fetchPageWithRetry(client, userId, page, sleep)
+      const res = await fetchPageWithRetry(client, page, sleep)
       if (page === 1) {
         totalPages = res.pagination.pages
         totalCount = res.pagination.items
@@ -607,7 +614,7 @@ export async function syncCollection(
         const progress: ProgressBlob = {
           startedAt: now, totalPages, totalCount, lastPageFetched, itemsSoFar,
         }
-        await kv.put(progressKey(userId), JSON.stringify(progress))
+        await kv.put(progressKey(numericId), JSON.stringify(progress))
       }
     }
   } catch (err) {
@@ -621,8 +628,8 @@ export async function syncCollection(
   const snapshot: SnapshotBlob = {
     schemaVersion: 1, fetchedAt: now, count: totalCount, topPageInstanceIds, items: itemsSoFar,
   }
-  await kv.put(snapshotKey(userId), JSON.stringify(snapshot))
-  await kv.delete(progressKey(userId))
+  await kv.put(snapshotKey(numericId), JSON.stringify(snapshot))
+  await kv.delete(progressKey(numericId))
 
   return { outcome: 'completed', pagesFetched: lastPageFetched, count: totalCount, fetchedAt: now }
 }
@@ -692,7 +699,7 @@ Replace the early initialisations and loop start with progress-aware versions:
 
 ```ts
 const sevenDaysMs = 7 * 24 * 60 * 60 * 1000
-const existingProgressRaw = await kv.get(progressKey(userId), 'json') as ProgressBlob | null
+const existingProgressRaw = await kv.get(progressKey(numericId), 'json') as ProgressBlob | null
 const progressIsFresh =
   existingProgressRaw &&
   Date.now() - new Date(existingProgressRaw.startedAt).getTime() < sevenDaysMs
@@ -719,7 +726,7 @@ if (progressIsFresh) {
 
 try {
   for (let page = startPage; page <= totalPages; page++) {
-    const res = await fetchPageWithRetry(client, userId, page, sleep)
+    const res = await fetchPageWithRetry(client, page, sleep)
     if (page === 1) {
       totalPages = res.pagination.pages
       totalCount = res.pagination.items
@@ -729,7 +736,7 @@ try {
     lastPageFetched = page
     if (page < totalPages) {
       const progress: ProgressBlob = { startedAt: now, totalPages, totalCount, lastPageFetched, itemsSoFar }
-      await kv.put(progressKey(userId), JSON.stringify(progress))
+      await kv.put(progressKey(numericId), JSON.stringify(progress))
     }
   }
 } catch (err) { /* ... unchanged ... */ }
@@ -807,8 +814,8 @@ Inside the page loop, after the page fetch, before appending items:
 // the totalCount we're carrying forward. Discogs returns the live count in every
 // page response, so any disagreement means the collection changed mid-sync.
 if (resumed && res.pagination.items !== totalCount) {
-  await kv.delete(progressKey(userId))
-  return syncCollection(client, kv, userId, { ...opts, force: true })
+  await kv.delete(progressKey(numericId))
+  return syncCollection(client, kv, numericId, { ...opts, force: true })
 }
 ```
 
@@ -925,8 +932,8 @@ Insert before the main page loop (and after the progress-resume block — probe 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
 if (!resumed && !opts.force) {
-  const existingSnapshot = await kv.get<SnapshotBlob>(snapshotKey(userId), 'json')
-  const lastForced = await kv.get(lastForcedFullSyncKey(userId))
+  const existingSnapshot = await kv.get<SnapshotBlob>(snapshotKey(numericId), 'json')
+  const lastForced = await kv.get(lastForcedFullSyncKey(numericId))
   const lastForcedFresh = lastForced && Date.now() - new Date(lastForced).getTime() < SEVEN_DAYS_MS
 
   if (existingSnapshot && lastForcedFresh) {
@@ -957,7 +964,7 @@ Also: when a full sync completes (not on probe-skip), write `lastForcedFullSyncK
 
 ```ts
 // After the snapshot put, before the progress delete:
-await kv.put(lastForcedFullSyncKey(userId), now)
+await kv.put(lastForcedFullSyncKey(numericId), now)
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
@@ -1177,63 +1184,25 @@ git commit -m "syncCollection: weekly forced full sweep when lastForcedFullSync 
 
 ---
 
-## Task 15: Wire `DiscogsClient.getCollectionPage` for the SyncClient interface
+## Task 15: Confirm `SyncClient` is exported (no new client code needed)
 
-**Files:**
-- Modify: `src/clients/discogs.ts`
+No new method on `DiscogsClient` is needed. The existing `DiscogsClient.searchCollection(username, accessToken, accessTokenSecret, options, consumerKey, consumerSecret)` at `src/clients/discogs.ts:233` already paginates `/users/{username}/collection/folders/0/releases` exactly the way `syncCollection` needs (when `options.query` is omitted, it does plain pagination). The `scheduled()` handler and `refresh_collection` tool will each build a small inline `SyncClient` object that calls it — no factory module needed.
 
-The sync code expects `getCollectionPage(userId, { page, per_page, sort, sort_order })`. Check whether `DiscogsClient` already exposes this shape; if not, add a thin wrapper.
+- [ ] **Step 1: Confirm `SyncClient` is exported from `src/sync/collectionSync.ts`**
 
-- [ ] **Step 1: Inspect existing client surface**
+The `SyncClient` interface defined in Task 3 needs to be exported (used by the scheduled handler and the tool in Tasks 16 and 18). If you wrote it as a non-exported interface, change to `export interface SyncClient`.
 
-Run: `cd ~/git/discogs-mcp && rg -n "getCollectionPage|getCollectionItems|/users/.*collection" src/clients/discogs.ts`
+- [ ] **Step 2: Re-run sync tests**
 
-If `getCollectionPage` already exists with the right shape, skip to Step 4.
+Run: `cd ~/git/discogs-mcp && npx vitest run test/sync/collectionSync.spec.ts`
+Expected: all sync tests still PASS. No code change here, just an export visibility check.
 
-- [ ] **Step 2: Add `getCollectionPage` (if missing)**
-
-```ts
-// In DiscogsClient
-async getCollectionPage(
-  userId: string,
-  opts: { page: number; per_page: number; sort: string; sort_order: string },
-): Promise<DiscogsCollectionResponse> {
-  const params = new URLSearchParams({
-    page: String(opts.page),
-    per_page: String(opts.per_page),
-    sort: opts.sort,
-    sort_order: opts.sort_order,
-  })
-  const url = `https://api.discogs.com/users/${encodeURIComponent(userId)}/collection/folders/0/releases?${params}`
-  return this.signedGet<DiscogsCollectionResponse>(url)
-}
-```
-
-(Use whatever the existing signed-GET helper is named in `discogs.ts` — `signedGet` is illustrative.)
-
-- [ ] **Step 3: Quick sanity test**
-
-```ts
-// test/clients/discogs.spec.ts (extend or create)
-it('getCollectionPage builds the right URL', async () => {
-  const client = new DiscogsClient({ /* ... */ })
-  const fetchSpy = vi.fn().mockResolvedValue(new Response(JSON.stringify({ pagination: {pages:1,page:1,per_page:100,items:0,urls:{}}, releases: [] })))
-  globalThis.fetch = fetchSpy
-  await client.getCollectionPage('u', { page: 2, per_page: 100, sort: 'added', sort_order: 'desc' })
-  const calledUrl = fetchSpy.mock.calls[0][0]
-  expect(String(calledUrl)).toContain('/users/u/collection/folders/0/releases')
-  expect(String(calledUrl)).toContain('page=2')
-  expect(String(calledUrl)).toContain('sort=added')
-})
-```
-
-- [ ] **Step 4: Run + commit**
+- [ ] **Step 3: Commit (only if export was missing)**
 
 ```bash
 cd ~/git/discogs-mcp
-npx vitest run test/clients/discogs.spec.ts
-git add src/clients/discogs.ts test/clients/discogs.spec.ts
-git commit -m "DiscogsClient: getCollectionPage for syncCollection"
+git add src/sync/collectionSync.ts
+git commit -m "Export SyncClient interface for use by scheduled handler and tool"
 ```
 
 ---
@@ -1249,9 +1218,35 @@ git commit -m "DiscogsClient: getCollectionPage for syncCollection"
 ```ts
 // test/sync/scheduled.spec.ts
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { env, createScheduledController } from 'cloudflare:test'
+import { env, createScheduledController, createExecutionContext } from 'cloudflare:test'
 import worker from '../../src/index-oauth'
 import { snapshotKey, tokenMirrorKey } from '../../src/sync/keys'
+
+// The scheduled handler ultimately calls DiscogsClient.searchCollection, which
+// routes through the rate-limiter Durable Object — its fetch runs in a separate
+// isolate where globalThis.fetch stubbing has no effect. To keep the test
+// hermetic, vi.mock DiscogsClient itself so the handler's `new DiscogsClient(...)`
+// returns a fake whose searchCollection resolves with a canned page.
+vi.mock('../../src/clients/discogs', async (orig) => {
+  const actual = (await orig()) as object
+  return {
+    ...actual,
+    DiscogsClient: vi.fn().mockImplementation(() => ({
+      searchCollection: vi.fn().mockResolvedValue({
+        pagination: { pages: 1, page: 1, per_page: 100, items: 1, urls: {} },
+        releases: [{
+          id: 1, instance_id: 101, folder_id: 0, date_added: '2026-01-01T00:00:00Z', rating: 0,
+          basic_information: {
+            id: 1, title: 't', year: 2020,
+            resource_url: '', thumb: '', cover_image: '',
+            formats: [], labels: [], artists: [], genres: [], styles: [],
+          },
+        }],
+      }),
+      setRateLimiter: vi.fn(),
+    })),
+  }
+})
 
 describe('scheduled() handler', () => {
   beforeEach(async () => {
@@ -1260,22 +1255,20 @@ describe('scheduled() handler', () => {
   })
 
   it('syncs every user in ALLOWED_DISCOGS_USER_ID who has a token mirror', async () => {
-    // Seed token mirrors for two users
     for (const id of ['12345', '67890']) {
       await env.MCP_SESSIONS.put(tokenMirrorKey(id), JSON.stringify({
         numericId: id, username: `user${id}`,
         accessToken: 'tok', accessTokenSecret: 'sec',
       }))
     }
-    // Stub Discogs network calls
-    const fetchSpy = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      pagination: { pages: 1, page: 1, per_page: 100, items: 1, urls: {} },
-      releases: [{ id: 1, instance_id: 101, folder_id: 0, date_added: '2026-01-01T00:00:00Z', rating: 0, basic_information: { id: 1, title: 't', year: 2020, resource_url: '', thumb: '', cover_image: '', formats: [], labels: [], artists: [], genres: [], styles: [] }}],
-    })))
-    globalThis.fetch = fetchSpy
 
     const ctrl = createScheduledController({ scheduledTime: Date.now(), cron: '0 * * * *' })
-    await worker.scheduled!(ctrl, { ...env, ALLOWED_DISCOGS_USER_ID: '12345,67890' } as any, { waitUntil: () => {}, passThroughOnException: () => {} } as any)
+    const ctx = createExecutionContext()
+    await worker.scheduled!(
+      ctrl,
+      { ...env, ALLOWED_DISCOGS_USER_ID: '12345,67890' } as any,
+      ctx,
+    )
 
     expect(await env.MCP_SESSIONS.get(snapshotKey('12345'))).toBeTruthy()
     expect(await env.MCP_SESSIONS.get(snapshotKey('67890'))).toBeTruthy()
@@ -1288,37 +1281,58 @@ describe('scheduled() handler', () => {
 Run: `cd ~/git/discogs-mcp && npx vitest run test/sync/scheduled.spec.ts`
 Expected: FAIL — `worker.scheduled` undefined.
 
-- [ ] **Step 3: Add `scheduled()` to `src/index-oauth.ts`**
+- [ ] **Step 3: Add static imports to the top of `src/index-oauth.ts`**
+
+```ts
+import { syncCollection, type SyncClient } from './sync/collectionSync'
+import { tokenMirrorKey } from './sync/keys'
+import type { TokenMirror, SyncResult } from './sync/types'
+import { DiscogsClient } from './clients/discogs'
+```
+
+- [ ] **Step 4: Add `scheduled()` to `src/index-oauth.ts`**
 
 Inside the existing `export default { ... }` object (around line 177), add alongside `fetch`:
 
 ```ts
-async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-  const { syncCollection } = await import('./sync/collectionSync')
-  const { tokenMirrorKey } = await import('./sync/keys')
-  const { DiscogsClient } = await import('./clients/discogs')
-
+async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promise<void> {
   const allowed = (env.ALLOWED_DISCOGS_USER_ID || '').split(',').map((s) => s.trim()).filter(Boolean)
-  for (const userId of allowed) {
+
+  for (const numericId of allowed) {
     try {
-      const tokenStr = await env.MCP_SESSIONS.get(tokenMirrorKey(userId))
+      const tokenStr = await env.MCP_SESSIONS.get(tokenMirrorKey(numericId))
       if (!tokenStr) {
-        await logSyncOutcome(env, userId, { outcome: 'no_token', pagesFetched: 0 })
+        await logSyncOutcome(env, numericId, { outcome: 'no_token', pagesFetched: 0 })
         continue
       }
-      const token = JSON.parse(tokenStr)
-      const client = new DiscogsClient({
-        consumerKey: env.DISCOGS_CONSUMER_KEY,
-        consumerSecret: env.DISCOGS_CONSUMER_SECRET,
-        accessToken: token.accessToken,
-        accessTokenSecret: token.accessTokenSecret,
-        rateLimiter: env.RATE_LIMITER,
-      })
-      const result = await syncCollection(client, env.MCP_SESSIONS, userId, {})
-      await logSyncOutcome(env, userId, result)
+      const token = JSON.parse(tokenStr) as TokenMirror
+
+      // Build the Discogs client the same way every other call site does
+      // (see src/mcp/tools/authenticated.ts — credentials are passed per call,
+      // not via constructor).
+      const discogsClient = new DiscogsClient()
+      discogsClient.setRateLimiter(env.RATE_LIMITER)
+
+      // Inline SyncClient: closes over username + creds, calls the existing
+      // searchCollection method which already paginates the right endpoint.
+      const syncClient: SyncClient = {
+        fetchCollectionPage: (opts) =>
+          discogsClient.searchCollection(
+            token.username,
+            token.accessToken,
+            token.accessTokenSecret,
+            { page: opts.page, per_page: opts.per_page, sort: 'added', sort_order: 'desc' },
+            env.DISCOGS_CONSUMER_KEY,
+            env.DISCOGS_CONSUMER_SECRET,
+          ),
+      }
+
+      const result = await syncCollection(syncClient, env.MCP_SESSIONS, numericId, {})
+      await logSyncOutcome(env, numericId, result)
     } catch (err) {
-      await logSyncOutcome(env, userId, {
-        outcome: 'crashed', pagesFetched: 0,
+      await logSyncOutcome(env, numericId, {
+        outcome: 'crashed',
+        pagesFetched: 0,
         error: err instanceof Error ? err.message : String(err),
       })
     }
@@ -1326,22 +1340,18 @@ async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise
 }
 ```
 
-Add a tiny helper:
+Add a tiny helper at module scope (above the `export default`):
 
 ```ts
-async function logSyncOutcome(env: Env, userId: string, result: SyncResult) {
-  const entry = {
-    timestamp: new Date().toISOString(),
-    userId,
-    ...result,
-  }
-  await env.MCP_LOGS.put(`sync:${entry.timestamp}:${userId}`, JSON.stringify(entry), {
+async function logSyncOutcome(env: Env, numericId: string, result: SyncResult) {
+  const entry = { timestamp: new Date().toISOString(), numericId, ...result }
+  await env.MCP_LOGS.put(`sync:${entry.timestamp}:${numericId}`, JSON.stringify(entry), {
     expirationTtl: 30 * 24 * 60 * 60,
   })
 }
 ```
 
-(Adjust the `DiscogsClient` constructor call to match the actual signature in `src/clients/discogs.ts`. If it differs, conform.)
+Inspect `src/clients/discogs.ts` first to confirm the `new DiscogsClient()` no-arg constructor is correct (line ~152). If it requires args, conform.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -1366,31 +1376,33 @@ git commit -m "Add scheduled() handler iterating ALLOWED_DISCOGS_USER_ID"
 
 ```ts
 it('isolates per-user crashes and continues with the next user', async () => {
+  // Override the top-level vi.mock for this one test to make alpha throw.
+  const { DiscogsClient } = await import('../../src/clients/discogs')
+  ;(DiscogsClient as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => ({
+    searchCollection: vi.fn().mockRejectedValue(new Error('alpha boom')),
+    setRateLimiter: vi.fn(),
+  }))
+
   await env.MCP_SESSIONS.put(tokenMirrorKey('alpha'), JSON.stringify({
     numericId: 'alpha', username: 'a', accessToken: 'tok', accessTokenSecret: 'sec',
   }))
   // 'beta' has no token mirror
 
-  const calls: string[] = []
-  globalThis.fetch = vi.fn().mockImplementation((url: string) => {
-    calls.push(url)
-    if (calls.length === 1) throw new Error('alpha boom')
-    return Promise.resolve(new Response(JSON.stringify({
-      pagination: { pages: 1, page: 1, per_page: 100, items: 0, urls: {} },
-      releases: [],
-    })))
-  })
-
   const ctrl = createScheduledController({ scheduledTime: Date.now(), cron: '0 * * * *' })
-  await worker.scheduled!(ctrl, { ...env, ALLOWED_DISCOGS_USER_ID: 'alpha,beta' } as any, { waitUntil: () => {}, passThroughOnException: () => {} } as any)
+  const ctx = createExecutionContext()
+  await worker.scheduled!(
+    ctrl,
+    { ...env, ALLOWED_DISCOGS_USER_ID: 'alpha,beta' } as any,
+    ctx,
+  )
 
   // alpha crashed, beta got no_token — both logged, neither blocked the other
   const logs = await env.MCP_LOGS.list({ prefix: 'sync:' })
-  const userIds = await Promise.all(logs.keys.map(async (k) => {
-    const v = await env.MCP_LOGS.get(k.name, 'json') as { userId: string }
-    return v.userId
+  const ids = await Promise.all(logs.keys.map(async (k) => {
+    const v = await env.MCP_LOGS.get(k.name, 'json') as { numericId: string; outcome: string }
+    return `${v.numericId}:${v.outcome}`
   }))
-  expect(userIds.sort()).toEqual(['alpha', 'beta'])
+  expect(ids.sort()).toEqual(['alpha:crashed', 'beta:no_token'])
 })
 ```
 
@@ -1410,100 +1422,173 @@ git commit -m "scheduled(): assert per-user crash isolation + no_token skip"
 
 ## Task 18: `refresh_collection` MCP Tool
 
-**Files:**
-- Modify: `src/mcp/tools/authenticated.ts`
-- Test: `test/sync/refresh-collection-tool.spec.ts` (or extend existing `test/mcp/tools` if there's a clear home)
+The actual tool-registration pattern in `src/mcp/tools/authenticated.ts:511` is:
 
-- [ ] **Step 1: Write the failing test**
+```ts
+server.tool(
+  'tool_name',
+  'description',
+  { /* zod schema */ },
+  async ({ args }) => {
+    const { session, connectionId } = await getSessionContext()
+    if (!session) return { content: [{ type: 'text', text: generateAuthInstructions(connectionId) }] }
+    // session.username, session.numericId, session.accessToken, session.accessTokenSecret available
+    // env, getSessionContext are closure variables from registerAuthenticatedTools(server, env, getSessionContext)
+  }
+)
+```
+
+The handler does NOT receive a `ctx` arg — it closes over `env` and `getSessionContext`. There is no `ctx.discogsClient` to pass in; the handler builds the client itself, same as every other tool in the file (see lines 593-595, 743-745).
+
+**Files:**
+- Modify: `src/mcp/tools/authenticated.ts` — register the tool inside `registerAuthenticatedTools`.
+- Test: `test/sync/refresh-collection-tool.spec.ts`.
+
+- [ ] **Step 1: Find an existing authenticated-tool test to mirror**
+
+Run: `cd ~/git/discogs-mcp && rg -l "registerAuthenticatedTools|getSessionContext" test/`
+Read the closest match. The test harness will set up an `McpServer`, call `registerAuthenticatedTools(server, env, fakeGetSessionContext)`, then invoke the tool. Mirror that shape.
+
+- [ ] **Step 2: Write the failing test**
 
 ```ts
 // test/sync/refresh-collection-tool.spec.ts
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { env } from 'cloudflare:test'
-import { snapshotKey, progressKey } from '../../src/sync/keys'
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { registerAuthenticatedTools } from '../../src/mcp/tools/authenticated'
+import { progressKey, snapshotKey } from '../../src/sync/keys'
+
+// Mock DiscogsClient so the tool's call doesn't go through the rate limiter DO.
+vi.mock('../../src/clients/discogs', async (orig) => {
+  const actual = (await orig()) as object
+  return {
+    ...actual,
+    DiscogsClient: vi.fn().mockImplementation(() => ({
+      searchCollection: vi.fn().mockResolvedValue({
+        pagination: { pages: 1, page: 1, per_page: 100, items: 1, urls: {} },
+        releases: [{ id: 1, instance_id: 101, folder_id: 0, date_added: '2026-01-01T00:00:00Z', rating: 0, basic_information: { id: 1, title: 't', year: 2020, resource_url: '', thumb: '', cover_image: '', formats: [], labels: [], artists: [], genres: [], styles: [] } }],
+      }),
+      setRateLimiter: vi.fn(),
+    })),
+  }
+})
+
+const fakeSession = () => ({
+  session: {
+    username: 'u', numericId: '12345',
+    accessToken: 'tok', accessTokenSecret: 'sec',
+  },
+  connectionId: 'conn-1',
+})
+
+async function callRefresh(server: McpServer): Promise<any> {
+  // The MCP SDK's preferred test path is server.callTool — confirm by reading the
+  // existing test harness; if it uses a different invocation, mirror that.
+  const result = await server.request({
+    method: 'tools/call',
+    params: { name: 'refresh_collection', arguments: {} },
+  } as any, undefined as any)
+  return JSON.parse(result.content[0].text)
+}
 
 describe('refresh_collection tool', () => {
-  it('forces a full sync and returns count + fetchedAt', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify({
-      pagination: { pages: 1, page: 1, per_page: 100, items: 1, urls: {} },
-      releases: [{ id: 1, instance_id: 101, folder_id: 0, date_added: '2026-01-01T00:00:00Z', rating: 0, basic_information: { id: 1, title: 't', year: 2020, resource_url: '', thumb: '', cover_image: '', formats: [], labels: [], artists: [], genres: [], styles: [] } }],
-    })))
+  beforeEach(async () => {
+    const list = await env.MCP_SESSIONS.list()
+    for (const k of list.keys) await env.MCP_SESSIONS.delete(k.name)
+  })
 
-    // Build the tool handler context the same way the existing tool tests do.
-    // Find the pattern in test/mcp/tools/* and mirror it.
-    const result = await callTool('refresh_collection', {}, { userId: 'u', /* ... */ })
+  it('forces a full sync and returns status: completed with count + fetchedAt', async () => {
+    const server = new McpServer({ name: 't', version: '0' })
+    registerAuthenticatedTools(server, env as any, async () => fakeSession())
+    const result = await callRefresh(server)
     expect(result.status).toBe('completed')
     expect(result.count).toBe(1)
     expect(result.fetchedAt).toBeTruthy()
+    expect(await env.MCP_SESSIONS.get(snapshotKey('12345'))).toBeTruthy()
   })
 
-  it('returns in_progress when a sync is already running', async () => {
-    // Pre-populate progress key
-    await env.MCP_SESSIONS.put(progressKey('u'), JSON.stringify({
+  it('returns status: in_progress when a fresh progress key exists', async () => {
+    await env.MCP_SESSIONS.put(progressKey('12345'), JSON.stringify({
+      schemaVersion: 1,
       startedAt: new Date().toISOString(),
-      totalPages: 10, totalCount: 1000, lastPageFetched: 3,
-      itemsSoFar: [],
+      totalPages: 10, totalCount: 1000, lastPageFetched: 3, itemsSoFar: [],
     }))
-    const result = await callTool('refresh_collection', {}, { userId: 'u' /* ... */ })
+    const server = new McpServer({ name: 't', version: '0' })
+    registerAuthenticatedTools(server, env as any, async () => fakeSession())
+    const result = await callRefresh(server)
     expect(result.status).toBe('in_progress')
   })
 })
 ```
 
-(Replace `callTool` with whatever harness the existing authenticated tool tests use. Inspect `test/mcp/` first.)
+If the existing test harness invokes tools differently (likely — read it first), replace `callRefresh` to match.
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 3: Run test to verify it fails**
 
 Run: `cd ~/git/discogs-mcp && npx vitest run test/sync/refresh-collection-tool.spec.ts`
 Expected: FAIL — tool not registered.
 
-- [ ] **Step 3: Register the tool in `src/mcp/tools/authenticated.ts`**
+- [ ] **Step 4: Register the tool in `src/mcp/tools/authenticated.ts`**
+
+Add inside `registerAuthenticatedTools` (alongside `search_collection`, around line 511):
 
 ```ts
 server.tool(
   'refresh_collection',
   'Force an immediate full refresh of the cached collection snapshot. Use after adding or removing items in Discogs if you need them visible to search before the next hourly sync.',
-  {},
-  async (_args, ctx) => {
-    const { syncCollection } = await import('../../sync/collectionSync')
-    const { progressKey } = await import('../../sync/keys')
-
-    // Concurrent-call guard: if a progress key is fresh, don't start a duplicate.
-    const existing = await ctx.env.MCP_SESSIONS.get(progressKey(ctx.userId), 'json') as { startedAt: string } | null
-    if (existing && Date.now() - new Date(existing.startedAt).getTime() < 5 * 60 * 1000) {
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({ status: 'in_progress' }),
-        }],
-      }
+  {}, // no args
+  async () => {
+    const { session, connectionId } = await getSessionContext()
+    if (!session) {
+      return { content: [{ type: 'text', text: generateAuthInstructions(connectionId) }] }
     }
 
-    const result = await syncCollection(ctx.discogsClient, ctx.env.MCP_SESSIONS, ctx.userId, { force: true })
+    // Concurrent-call guard: if a progress key is fresh, don't start a duplicate.
+    const existing = await env.MCP_SESSIONS.get(progressKey(session.numericId), 'json') as { startedAt: string } | null
+    if (existing && Date.now() - new Date(existing.startedAt).getTime() < 5 * 60 * 1000) {
+      return { content: [{ type: 'text', text: JSON.stringify({ status: 'in_progress' }) }] }
+    }
+
+    const discogsClient = new DiscogsClient()
+    discogsClient.setRateLimiter(env.RATE_LIMITER)
+
+    const syncClient: SyncClient = {
+      fetchCollectionPage: (opts) =>
+        discogsClient.searchCollection(
+          session.username, session.accessToken, session.accessTokenSecret,
+          { page: opts.page, per_page: opts.per_page, sort: 'added', sort_order: 'desc' },
+          env.DISCOGS_CONSUMER_KEY, env.DISCOGS_CONSUMER_SECRET,
+        ),
+    }
+
+    const result = await syncCollection(syncClient, env.MCP_SESSIONS, session.numericId, { force: true })
     const status = result.outcome === 'resumed' ? 'resumed' : 'completed'
     return {
       content: [{
         type: 'text',
-        text: JSON.stringify({
-          status,
-          count: result.count,
-          fetchedAt: result.fetchedAt,
-          pagesFetched: result.pagesFetched,
-        }),
+        text: JSON.stringify({ status, count: result.count, fetchedAt: result.fetchedAt, pagesFetched: result.pagesFetched }),
       }],
     }
   },
 )
 ```
 
-(Conform to whatever tool-registration pattern the file uses — look at `search_collection` registration nearby for reference.)
+Add the static imports at the top of `src/mcp/tools/authenticated.ts` if not already present:
 
-- [ ] **Step 4: Run test to verify it passes**
+```ts
+import { syncCollection, type SyncClient } from '../../sync/collectionSync'
+import { progressKey } from '../../sync/keys'
+```
+
+(`DiscogsClient` is already imported in this file.)
+
+- [ ] **Step 5: Run test to verify it passes**
 
 Run: `cd ~/git/discogs-mcp && npx vitest run test/sync/refresh-collection-tool.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 6: Commit**
 
 ```bash
 git add src/mcp/tools/authenticated.ts test/sync/refresh-collection-tool.spec.ts
@@ -1514,14 +1599,17 @@ git commit -m "Add refresh_collection MCP tool with concurrent-call guard"
 
 ## Task 19: `search_collection` Reads from Snapshot When Present
 
+The actual method `search_collection` calls is `cachedClient.getCompleteCollection(username, accessToken, accessTokenSecret, consumerKey, consumerSecret, perPage, budgetMs)` (see `src/mcp/tools/authenticated.ts:591` and `src/clients/cachedDiscogs.ts`). It returns `{ releases: DiscogsCollectionItem[], pagination: ..., partial: boolean }`. The fix: short-circuit it to read from `collection:snapshot:{numericId}` when present. The numericId isn't a parameter today, so we add it.
+
 **Files:**
-- Modify: `src/clients/cachedDiscogs.ts` (the `getCollectionItems` method) OR introduce a thin helper used by `search_collection`. Inspect the call site first.
+- Modify: `src/clients/cachedDiscogs.ts` — add a `numericId` parameter to `getCompleteCollection`, check the snapshot first.
+- Modify: `src/mcp/tools/authenticated.ts` — pass `session.numericId` at every `getCompleteCollection` call site.
 - Test: `test/sync/search-collection-snapshot.spec.ts`
 
-- [ ] **Step 1: Locate the call site**
+- [ ] **Step 1: Locate the call sites**
 
-Run: `cd ~/git/discogs-mcp && rg -n "getCollectionItems\(" src/`
-Expected: one or two callers, likely `search_collection` and possibly the recommendations tool.
+Run: `cd ~/git/discogs-mcp && rg -n "getCompleteCollection\(" src/`
+Expected: one or more callers (`search_collection`, possibly recommendations or stats tools). Note the line numbers — every one needs the new `numericId` arg.
 
 - [ ] **Step 2: Write the failing test**
 
@@ -1550,24 +1638,46 @@ describe('search_collection read path', () => {
         },
       }],
     }))
-    const fetchSpy = vi.fn()
-    globalThis.fetch = fetchSpy
+    // Mock DiscogsClient.searchCollection — this is what cachedDiscogs would
+    // call on a cache miss. If it gets called, the snapshot read path is broken.
+    const searchSpy = vi.fn()
+    vi.mock('../../src/clients/discogs', async (orig) => {
+      const actual = (await orig()) as object
+      return {
+        ...actual,
+        DiscogsClient: vi.fn().mockImplementation(() => ({
+          searchCollection: searchSpy,
+          setRateLimiter: vi.fn(),
+        })),
+      }
+    })
 
-    // Call search_collection with a query that should match the snapshot item.
-    const result = await callTool('search_collection', { query: 'snapshot' }, { userId: 'u' })
-    expect(result.results).toHaveLength(1)
-    expect(result.results[0].title).toBe('Snapshot Album')
-    expect(fetchSpy).not.toHaveBeenCalled()
+    // Build the same harness used in Task 18 (registerAuthenticatedTools + fakeSession),
+    // call search_collection. Confirm Snapshot Album is returned and searchSpy was never called.
+    // (Pseudocode — adapt to whatever invocation pattern the existing test harness uses.)
+    const result = await callSearchCollection({ query: 'snapshot' }, { username: 'someuser', numericId: 'u' })
+    expect(result.results.some((r: any) => r.title === 'Snapshot Album')).toBe(true)
+    expect(searchSpy).not.toHaveBeenCalled()
   })
 
   it('falls back to live pagination when no snapshot exists', async () => {
-    const fetchSpy = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+    const searchSpy = vi.fn().mockResolvedValue({
       pagination: { pages: 1, page: 1, per_page: 100, items: 1, urls: {} },
-      releases: [/* one release with title "Live" */],
-    })))
-    globalThis.fetch = fetchSpy
-    await callTool('search_collection', { query: 'live' }, { userId: 'u' })
-    expect(fetchSpy).toHaveBeenCalled()
+      releases: [], // shape doesn't matter here; we only assert it was called
+    })
+    vi.mock('../../src/clients/discogs', async (orig) => {
+      const actual = (await orig()) as object
+      return {
+        ...actual,
+        DiscogsClient: vi.fn().mockImplementation(() => ({
+          searchCollection: searchSpy,
+          setRateLimiter: vi.fn(),
+        })),
+      }
+    })
+
+    await callSearchCollection({ query: 'live' }, { username: 'someuser', numericId: 'u' })
+    expect(searchSpy).toHaveBeenCalled()
   })
 })
 ```
@@ -1577,23 +1687,41 @@ describe('search_collection read path', () => {
 Run: `cd ~/git/discogs-mcp && npx vitest run test/sync/search-collection-snapshot.spec.ts`
 Expected: FAIL — snapshot path not wired.
 
-- [ ] **Step 4: Wire the snapshot read into `getCollectionItems` (or wrap it)**
+- [ ] **Step 4: Wire the snapshot read into `getCompleteCollection`**
 
-In `src/clients/cachedDiscogs.ts`, at the top of `getCollectionItems`:
+Add `numericId` as the first parameter (or after `username` — pick whichever fits the existing signature naturally). At the top of the method, check the snapshot:
 
 ```ts
-async getCollectionItems(userId: string): Promise<DiscogsCollectionItem[]> {
-  const { snapshotKey } = await import('../sync/keys')
-  const snapshot = await this.kv.get<{ items: DiscogsCollectionItem[] }>(snapshotKey(userId), 'json')
+import { snapshotKey } from '../sync/keys'
+import type { SnapshotBlob } from '../sync/types'
+
+async getCompleteCollection(
+  numericId: string,
+  username: string,
+  accessToken: string,
+  accessTokenSecret: string,
+  consumerKey: string,
+  consumerSecret: string,
+  perPage: number,
+  budgetMs: number,
+): Promise<{ releases: DiscogsCollectionItem[]; pagination: any; partial: boolean }> {
+  // Snapshot fast path — the cron has been pre-fetching this user's collection.
+  const snapshot = await this.kv.get<SnapshotBlob>(snapshotKey(numericId), 'json')
   if (snapshot && Array.isArray(snapshot.items)) {
-    return snapshot.items
+    return {
+      releases: snapshot.items,
+      pagination: { page: 1, pages: 1, per_page: snapshot.items.length, items: snapshot.count, urls: {} },
+      partial: false,
+    }
   }
-  // Existing pagination path
-  return this.fetchCollectionItemsLive(userId)
+  // Existing live pagination path — unchanged
+  return this.fetchCompleteCollectionLive(username, accessToken, accessTokenSecret, consumerKey, consumerSecret, perPage, budgetMs)
 }
 ```
 
-(Rename the existing body into `fetchCollectionItemsLive` for clarity. Keep the per-method KV cache layer the legacy path uses.)
+Rename the existing body into `private fetchCompleteCollectionLive(...)`. Keep its existing per-method KV cache layer untouched.
+
+Update every call site (`rg -n "getCompleteCollection\(" src/mcp/tools/authenticated.ts`) to pass `session.numericId` as the new first argument.
 
 - [ ] **Step 5: Run test to verify it passes**
 
