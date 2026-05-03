@@ -27,15 +27,7 @@ export interface TokenMirror {
 	accessTokenSecret: string
 }
 
-export type SyncOutcome =
-	| 'completed'
-	| 'resumed'
-	| 'skipped'
-	| 'failed'
-	| 'crashed'
-	| 'no_token'
-	| 'token_invalid'
-	| 'in_progress'
+export type SyncOutcome = 'completed' | 'resumed' | 'skipped' | 'failed' | 'crashed' | 'no_token' | 'token_invalid' | 'in_progress'
 
 export interface SyncResult {
 	outcome: SyncOutcome

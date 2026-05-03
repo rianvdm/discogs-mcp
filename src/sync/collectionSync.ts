@@ -6,12 +6,7 @@ import { lastForcedFullSyncKey, progressKey, snapshotKey } from './keys'
 import type { ProgressBlob, SnapshotBlob, SyncOptions, SyncOutcome, SyncResult } from './types'
 
 export interface SyncClient {
-	fetchCollectionPage(opts: {
-		page: number
-		per_page: number
-		sort: string
-		sort_order: string
-	}): Promise<DiscogsCollectionResponse>
+	fetchCollectionPage(opts: { page: number; per_page: number; sort: string; sort_order: string }): Promise<DiscogsCollectionResponse>
 }
 
 const PER_PAGE = 100
@@ -34,12 +29,7 @@ async function fetchPageWithRetry(
 	throw lastErr
 }
 
-export async function syncCollection(
-	client: SyncClient,
-	kv: KVNamespace,
-	numericId: string,
-	opts: SyncOptions,
-): Promise<SyncResult> {
+export async function syncCollection(client: SyncClient, kv: KVNamespace, numericId: string, opts: SyncOptions): Promise<SyncResult> {
 	const nowDate = (opts.now ?? (() => new Date()))()
 	const now = nowDate.toISOString()
 	const nowMs = nowDate.getTime()
@@ -47,8 +37,7 @@ export async function syncCollection(
 
 	const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 	const existingProgressRaw = (await kv.get(progressKey(numericId), 'json')) as ProgressBlob | null
-	const progressIsFresh =
-		existingProgressRaw && nowMs - new Date(existingProgressRaw.startedAt).getTime() < SEVEN_DAYS_MS
+	const progressIsFresh = existingProgressRaw && nowMs - new Date(existingProgressRaw.startedAt).getTime() < SEVEN_DAYS_MS
 
 	let resumed = false
 	let itemsSoFar: DiscogsCollectionItem[] = []

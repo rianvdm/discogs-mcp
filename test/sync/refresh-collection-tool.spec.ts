@@ -70,7 +70,14 @@ async function callRefresh(server: McpServer): Promise<{ status: string; count?:
 	// The MCP SDK stores registrations on the server instance; reach in and call
 	// the callback directly. This mirrors how the MCP server eventually invokes
 	// it for a tools/call request, without standing up the full transport.
-	const tools = (server as unknown as { _registeredTools: Record<string, { handler: (args: unknown, extra?: unknown) => Promise<{ content: Array<{ type: string; text: string }> }> }> })._registeredTools
+	const tools = (
+		server as unknown as {
+			_registeredTools: Record<
+				string,
+				{ handler: (args: unknown, extra?: unknown) => Promise<{ content: Array<{ type: string; text: string }> }> }
+			>
+		}
+	)._registeredTools
 	const tool = tools['refresh_collection']
 	if (!tool) throw new Error('refresh_collection tool not registered')
 	const res = await tool.handler({}, {})

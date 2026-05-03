@@ -209,12 +209,7 @@ describe('syncCollection — first-run bootstrap', () => {
 				if (opts.page === 3) return makePage([makeItem(3, 103)], 3, 3, 4)
 				// Restart from page 1 — collection is now 4 items across 1 page
 				if (opts.page === 1) {
-					return makePage(
-						[makeItem(1, 101), makeItem(2, 102), makeItem(3, 103), makeItem(4, 104)],
-						1,
-						1,
-						4,
-					)
+					return makePage([makeItem(1, 101), makeItem(2, 102), makeItem(3, 103), makeItem(4, 104)], 1, 1, 4)
 				}
 				throw new Error(`unexpected page ${opts.page}`)
 			},

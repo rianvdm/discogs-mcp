@@ -66,7 +66,14 @@ function buildServer() {
 }
 
 async function callSearch(server: McpServer, query: string): Promise<string> {
-	const tools = (server as unknown as { _registeredTools: Record<string, { handler: (args: unknown, extra?: unknown) => Promise<{ content: Array<{ type: string; text: string }> }> }> })._registeredTools
+	const tools = (
+		server as unknown as {
+			_registeredTools: Record<
+				string,
+				{ handler: (args: unknown, extra?: unknown) => Promise<{ content: Array<{ type: string; text: string }> }> }
+			>
+		}
+	)._registeredTools
 	const tool = tools['search_collection']
 	if (!tool) throw new Error('search_collection tool not registered')
 	const res = await tool.handler({ query, per_page: 50, page: 1, group_pressings: false }, {})
