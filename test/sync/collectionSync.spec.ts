@@ -228,4 +228,29 @@ describe('syncCollection — first-run bootstrap', () => {
 		expect(snap?.count).toBe(4)
 		expect(snap?.items).toHaveLength(4)
 	})
+
+	it('ignores progress older than 7 days and starts fresh', async () => {
+		// startedAt 30+ days ago — well outside the 7-day fresh window
+		const ancient: ProgressBlob = {
+			schemaVersion: 1,
+			startedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+			totalPages: 3,
+			totalCount: 3,
+			lastPageFetched: 2,
+			itemsSoFar: [makeItem(1, 101), makeItem(2, 102)],
+		}
+		await env.MCP_SESSIONS.put(progressKey('u'), JSON.stringify(ancient))
+
+		const calls: number[] = []
+		const client: SyncClient = {
+			async fetchCollectionPage(opts) {
+				calls.push(opts.page)
+				return makePage([makeItem(opts.page, opts.page * 100)], opts.page, 1, 1)
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
+		expect(result.outcome).toBe('completed') // not "resumed"
+		expect(calls[0]).toBe(1) // started fresh
+	})
 })
