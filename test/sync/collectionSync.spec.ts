@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
 import { syncCollection, type SyncClient } from '../../src/sync/collectionSync'
-import { snapshotKey, progressKey } from '../../src/sync/keys'
+import { snapshotKey, progressKey, lastForcedFullSyncKey } from '../../src/sync/keys'
 import type { SnapshotBlob, ProgressBlob } from '../../src/sync/types'
 import type { DiscogsCollectionItem, DiscogsCollectionResponse } from '../../src/clients/discogs'
 
@@ -252,5 +252,31 @@ describe('syncCollection — first-run bootstrap', () => {
 		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
 		expect(result.outcome).toBe('completed') // not "resumed"
 		expect(calls[0]).toBe(1) // started fresh
+	})
+
+	it('skips full repaginate when count and topPageInstanceIds both match', async () => {
+		const prev: SnapshotBlob = {
+			schemaVersion: 1,
+			fetchedAt: '2026-05-03T00:00:00Z',
+			count: 2,
+			topPageInstanceIds: [101, 102],
+			items: [makeItem(1, 101), makeItem(2, 102)],
+		}
+		await env.MCP_SESSIONS.put(snapshotKey('u'), JSON.stringify(prev))
+		// Recent forced full sweep so weekly-sweep doesn't trigger
+		await env.MCP_SESSIONS.put(lastForcedFullSyncKey('u'), new Date().toISOString())
+
+		const calls: number[] = []
+		const client: SyncClient = {
+			async fetchCollectionPage(opts) {
+				calls.push(opts.page)
+				// Same count, same page-1 instance_ids
+				return makePage([makeItem(1, 101), makeItem(2, 102)], 1, 1, 2)
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
+		expect(result.outcome).toBe('skipped')
+		expect(calls).toEqual([1]) // only the probe call, no full repaginate
 	})
 })
