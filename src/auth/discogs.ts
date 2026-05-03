@@ -97,16 +97,34 @@ export class DiscogsAuth {
 	}
 
 	/**
-	 * Create OAuth signature base string
+	 * Create OAuth signature base string per RFC 5849 §3.4.1.
+	 * The base string URI excludes any query string; query parameters are
+	 * extracted and merged with the supplied parameters before sorting.
 	 */
 	private createSignatureBaseString(method: string, url: string, parameters: Record<string, string>): string {
-		// Sort parameters by key
-		const sortedParams = Object.keys(parameters)
-			.sort()
-			.map((key) => `${percentEncode(key)}=${percentEncode(parameters[key])}`)
+		const parsed = new URL(url)
+		const baseUrl = `${parsed.protocol}//${parsed.host}${parsed.pathname}`
+
+		const allParams: Array<[string, string]> = []
+		for (const [key, value] of parsed.searchParams) {
+			allParams.push([percentEncode(key), percentEncode(value)])
+		}
+		for (const [key, value] of Object.entries(parameters)) {
+			allParams.push([percentEncode(key), percentEncode(value)])
+		}
+
+		const sortedParams = allParams
+			.sort(([k1, v1], [k2, v2]) => {
+				if (k1 < k2) return -1
+				if (k1 > k2) return 1
+				if (v1 < v2) return -1
+				if (v1 > v2) return 1
+				return 0
+			})
+			.map(([k, v]) => `${k}=${v}`)
 			.join('&')
 
-		return `${method}&${percentEncode(url)}&${percentEncode(sortedParams)}`
+		return `${method}&${percentEncode(baseUrl)}&${percentEncode(sortedParams)}`
 	}
 
 	/**

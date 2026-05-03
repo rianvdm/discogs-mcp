@@ -188,5 +188,30 @@ describe('DiscogsAuth', () => {
 
 			expect(headers1.Authorization).toBe(headers2.Authorization)
 		})
+
+		it('should include URL query parameters in the signature base string', async () => {
+			vi.spyOn(Date, 'now').mockReturnValue(new Date('2023-01-01T00:00:00Z').getTime())
+			vi.spyOn(Math, 'random').mockReturnValue(0.5)
+
+			const token = { key: 'test-token', secret: 'test-secret' }
+			const extractSig = (auth: string) => /oauth_signature="([^"]+)"/.exec(auth)?.[1]
+
+			const withQuery = await auth.getAuthHeaders(
+				'https://api.discogs.com/users/x/collection/folders/0/releases?page=1&per_page=100',
+				'GET',
+				token,
+			)
+			const withoutQuery = await auth.getAuthHeaders('https://api.discogs.com/users/x/collection/folders/0/releases', 'GET', token)
+			const reorderedQuery = await auth.getAuthHeaders(
+				'https://api.discogs.com/users/x/collection/folders/0/releases?per_page=100&page=1',
+				'GET',
+				token,
+			)
+
+			// Query parameters must affect the signature (otherwise Discogs rejects the request).
+			expect(extractSig(withQuery.Authorization)).not.toBe(extractSig(withoutQuery.Authorization))
+			// Query parameter order must not matter (signing sorts them).
+			expect(extractSig(withQuery.Authorization)).toBe(extractSig(reorderedQuery.Authorization))
+		})
 	})
 })
