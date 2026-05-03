@@ -95,8 +95,12 @@ export class DiscogsRateLimiter implements DurableObject {
     const path = new URL(limiterReq.url).pathname
     console.log(`[RL] Request: ${limiterReq.method} ${path} | budget: ${this.budget.remaining}/${this.budget.limit} | queue: ${this.queue.length}`)
     const response = await this.enqueue(limiterReq)
+    // Always 200 on the outer DO response — the upstream Discogs status is
+    // carried inside the JSON payload. If we used response.status here, a
+    // 204 from Discogs would make `new Response(<json>, { status: 204 })`
+    // throw because null-body statuses can't have a body.
     return new Response(JSON.stringify(response), {
-      status: response.status,
+      status: 200,
       headers: { 'Content-Type': 'application/json' },
     })
   }
