@@ -158,4 +158,35 @@ describe('syncCollection — first-run bootstrap', () => {
 		expect(prog?.totalCount).toBe(3)
 		expect(prog?.itemsSoFar).toHaveLength(2)
 	})
+
+	it('resumes from progress.lastPageFetched + 1 when progress key exists', async () => {
+		const progress: ProgressBlob = {
+			schemaVersion: 1,
+			startedAt: new Date().toISOString(),
+			totalPages: 3,
+			totalCount: 3,
+			lastPageFetched: 2,
+			itemsSoFar: [makeItem(1, 101), makeItem(2, 102)],
+		}
+		await env.MCP_SESSIONS.put(progressKey('u'), JSON.stringify(progress))
+
+		const calls: number[] = []
+		const client: SyncClient = {
+			async fetchCollectionPage(opts) {
+				calls.push(opts.page)
+				if (opts.page === 3) return makePage([makeItem(3, 103)], 3, 3, 3)
+				throw new Error(`unexpected page ${opts.page}`)
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
+
+		expect(result.outcome).toBe('resumed')
+		expect(calls).toEqual([3])
+		const snap = await env.MCP_SESSIONS.get<SnapshotBlob>(snapshotKey('u'), 'json')
+		expect(snap?.items.map((i) => i.instance_id)).toEqual([101, 102, 103])
+		expect(snap?.count).toBe(3)
+		// Progress cleaned up
+		expect(await env.MCP_SESSIONS.get(progressKey('u'))).toBeNull()
+	})
 })

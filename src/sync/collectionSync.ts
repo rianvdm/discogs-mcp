@@ -3,7 +3,7 @@
 
 import type { DiscogsCollectionItem, DiscogsCollectionResponse } from '../clients/discogs'
 import { progressKey, snapshotKey } from './keys'
-import type { ProgressBlob, SnapshotBlob, SyncOptions, SyncResult } from './types'
+import type { ProgressBlob, SnapshotBlob, SyncOptions, SyncOutcome, SyncResult } from './types'
 
 export interface SyncClient {
 	fetchCollectionPage(opts: {
@@ -43,14 +43,34 @@ export async function syncCollection(
 	const now = (opts.now ?? (() => new Date()))().toISOString()
 	const sleep = opts.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)))
 
-	const itemsSoFar: DiscogsCollectionItem[] = []
+	const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
+	const existingProgressRaw = (await kv.get(progressKey(numericId), 'json')) as ProgressBlob | null
+	const progressIsFresh =
+		existingProgressRaw && Date.now() - new Date(existingProgressRaw.startedAt).getTime() < SEVEN_DAYS_MS
+
+	let resumed = false
+	let itemsSoFar: DiscogsCollectionItem[] = []
 	let totalPages = 1
 	let totalCount = 0
 	let topPageInstanceIds: number[] = []
 	let lastPageFetched = 0
+	let startPage = 1
+
+	if (progressIsFresh && existingProgressRaw) {
+		resumed = true
+		itemsSoFar = [...existingProgressRaw.itemsSoFar]
+		totalPages = existingProgressRaw.totalPages
+		totalCount = existingProgressRaw.totalCount
+		lastPageFetched = existingProgressRaw.lastPageFetched
+		startPage = existingProgressRaw.lastPageFetched + 1
+		// On resume we don't refetch page 1, so topPageInstanceIds is reconstructed
+		// from the buffered items. itemsSoFar is in date_added desc order (the sort
+		// the page fetch uses), so the first 100 entries are the page-1 set.
+		topPageInstanceIds = itemsSoFar.slice(0, 100).map((i) => i.instance_id)
+	}
 
 	try {
-		for (let page = 1; page <= totalPages; page++) {
+		for (let page = startPage; page <= totalPages; page++) {
 			const res = await fetchPageWithRetry(client, page, sleep)
 			if (page === 1) {
 				totalPages = res.pagination.pages
@@ -100,5 +120,6 @@ export async function syncCollection(
 	await kv.put(snapshotKey(numericId), snapshotJson)
 	await kv.delete(progressKey(numericId))
 
-	return { outcome: 'completed', pagesFetched: lastPageFetched, count: totalCount, fetchedAt: now }
+	const outcome: SyncOutcome = resumed ? 'resumed' : 'completed'
+	return { outcome, pagesFetched: lastPageFetched, count: totalCount, fetchedAt: now }
 }
