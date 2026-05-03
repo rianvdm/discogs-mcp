@@ -69,4 +69,41 @@ describe('scheduled() handler', () => {
 		expect(await env.MCP_SESSIONS.get(snapshotKey('12345'))).toBeTruthy()
 		expect(await env.MCP_SESSIONS.get(snapshotKey('67890'))).toBeTruthy()
 	})
+
+	it('isolates per-user crashes and continues with the next user', async () => {
+		// Override the top-level DiscogsClient mock so alpha throws on its first searchCollection.
+		const { DiscogsClient } = await import('../../src/clients/discogs')
+		;(DiscogsClient as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => ({
+			searchCollection: vi.fn().mockRejectedValue(new Error('alpha boom')),
+			setRateLimiter: vi.fn(),
+		}))
+
+		await env.MCP_SESSIONS.put(
+			tokenMirrorKey('alpha'),
+			JSON.stringify({
+				numericId: 'alpha',
+				username: 'a',
+				accessToken: 'tok',
+				accessTokenSecret: 'sec',
+			}),
+		)
+		// 'beta' has no token mirror → handler should log no_token and continue
+
+		const ctrl = createScheduledController({ scheduledTime: Date.now(), cron: '0 * * * *' })
+		const ctx = createExecutionContext()
+		await worker.scheduled!(ctrl, { ...env, ALLOWED_DISCOGS_USER_ID: 'alpha,beta' } as any, ctx)
+
+		const logs = await env.MCP_LOGS.list({ prefix: 'sync:' })
+		const ids = await Promise.all(
+			logs.keys.map(async (k) => {
+				const v = (await env.MCP_LOGS.get(k.name, 'json')) as { numericId: string; outcome: string }
+				return `${v.numericId}:${v.outcome}`
+			}),
+		)
+		// alpha's searchCollection rejects → syncCollection's try/catch catches it
+		// and returns outcome: 'failed' (not 'crashed' — that's reserved for errors
+		// that escape syncCollection itself, e.g. during DiscogsClient construction).
+		// Either way, the assertion that matters is: beta still got processed.
+		expect(ids.sort()).toEqual(['alpha:failed', 'beta:no_token'])
+	})
 })
