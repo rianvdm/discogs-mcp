@@ -47,7 +47,7 @@ describe('CachedDiscogsClient.getCompleteCollection', () => {
       return Promise.resolve(makePageResponse(opts.page, totalPages, totalItems))
     })
 
-    const result = await client.getCompleteCollection('user', 'token', 'secret', 'key', 'consumerSecret')
+    const result = await client.getCompleteCollection('', 'user', 'token', 'secret', 'key', 'consumerSecret')
 
     expect(result.pagination.items).toBe(4000)
     expect(result.releases).toHaveLength(4000)
@@ -62,7 +62,7 @@ describe('CachedDiscogsClient.getCompleteCollection', () => {
       return Promise.resolve(makePageResponse(opts.page, totalPages, totalItems))
     })
 
-    const result = await client.getCompleteCollection('user', 'token', 'secret', 'key', 'consumerSecret')
+    const result = await client.getCompleteCollection('', 'user', 'token', 'secret', 'key', 'consumerSecret')
 
     // pagination.items should be the REAL Discogs total (7000), not truncated count (5000)
     expect(result.pagination.items).toBe(7000)
@@ -77,7 +77,7 @@ describe('CachedDiscogsClient.getCompleteCollection', () => {
       return Promise.resolve(makePageResponse(opts.page, 60, totalItems))
     })
 
-    await client.getCompleteCollection('user', 'token', 'secret', 'key', 'consumerSecret')
+    await client.getCompleteCollection('', 'user', 'token', 'secret', 'key', 'consumerSecret')
 
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('truncated'))
   })
@@ -88,7 +88,7 @@ describe('CachedDiscogsClient.getCompleteCollection', () => {
       return Promise.resolve(makePageResponse(opts.page, 10, 1000)) // 1000 items, 10 pages
     })
 
-    await client.getCompleteCollection('user', 'token', 'secret', 'key', 'consumerSecret')
+    await client.getCompleteCollection('', 'user', 'token', 'secret', 'key', 'consumerSecret')
 
     const truncationLogs = consoleSpy.mock.calls.filter(args => String(args[0]).includes('truncated'))
     expect(truncationLogs).toHaveLength(0)
@@ -120,7 +120,7 @@ describe('CachedDiscogsClient.getCompleteCollection — time budget', () => {
     )
 
     // Budget of 75ms: fits page 1 (50ms) but not page 2 (would be 100ms total)
-    const resultPromise = client.getCompleteCollection('user', 'tok', 'sec', 'key', 'csec', 50, 75)
+    const resultPromise = client.getCompleteCollection('', 'user', 'tok', 'sec', 'key', 'csec', 50, 75)
     await vi.runAllTimersAsync()
     const result = await resultPromise
 
@@ -137,7 +137,7 @@ describe('CachedDiscogsClient.getCompleteCollection — time budget', () => {
       Promise.resolve(makePageResponse(opts.page, 3, 300))
     )
 
-    const result = await client.getCompleteCollection('user', 'tok', 'sec', 'key', 'csec', 50, 30000)
+    const result = await client.getCompleteCollection('', 'user', 'tok', 'sec', 'key', 'csec', 50, 30000)
 
     expect(result.partial).toBeUndefined() // no partial flag on complete results
     expect(result.releases).toHaveLength(300)
@@ -154,7 +154,7 @@ describe('CachedDiscogsClient.getCompleteCollection — time budget', () => {
       }
     )
 
-    const firstPromise = client.getCompleteCollection('user', 'tok', 'sec', 'key', 'csec', 50, 75)
+    const firstPromise = client.getCompleteCollection('', 'user', 'tok', 'sec', 'key', 'csec', 50, 75)
     await vi.runAllTimersAsync()
     await firstPromise
 
@@ -165,7 +165,7 @@ describe('CachedDiscogsClient.getCompleteCollection — time budget', () => {
       Promise.resolve(makePageResponse(opts.page, 5, 500))
     )
 
-    const result = await client.getCompleteCollection('user', 'tok', 'sec', 'key', 'csec', 50, 30000)
+    const result = await client.getCompleteCollection('', 'user', 'tok', 'sec', 'key', 'csec', 50, 30000)
 
     expect(result.partial).toBeUndefined()
     expect(result.releases).toHaveLength(500)
@@ -176,10 +176,10 @@ describe('CachedDiscogsClient.getCompleteCollection — time budget', () => {
       Promise.resolve(makePageResponse(opts.page, 3, 300))
     )
 
-    await client.getCompleteCollection('user', 'tok', 'sec', 'key', 'csec', 50, 30000)
+    await client.getCompleteCollection('', 'user', 'tok', 'sec', 'key', 'csec', 50, 30000)
     const callsAfterFirst = mockSearchCollection.mock.calls.length
 
-    await client.getCompleteCollection('user', 'tok', 'sec', 'key', 'csec', 50, 30000)
+    await client.getCompleteCollection('', 'user', 'tok', 'sec', 'key', 'csec', 50, 30000)
 
     // Second call should hit KV cache; no additional searchCollection calls
     expect(mockSearchCollection.mock.calls.length).toBe(callsAfterFirst)

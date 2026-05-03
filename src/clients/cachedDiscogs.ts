@@ -21,6 +21,8 @@ import {
 } from './discogs'
 import { SmartCache, CacheKeys, createDiscogsCache } from '../utils/cache'
 import type { RateLimiterStub } from '../rate-limiter/types'
+import { snapshotKey } from '../sync/keys'
+import type { SnapshotBlob } from '../sync/types'
 
 export class CachedDiscogsClient {
 	private client: DiscogsClient
@@ -248,6 +250,51 @@ export class CachedDiscogsClient {
 	 * continues from where the previous call left off.
 	 */
 	async getCompleteCollection(
+		numericId: string,
+		username: string,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+		maxPages: number = 50,
+		timeBudgetMs: number = 35000,
+	): Promise<DiscogsCollectionResponse & { partial?: boolean }> {
+		// Snapshot fast path — the cron and refresh_collection tool pre-fetch the
+		// user's full collection into KV. When the snapshot is present, every
+		// reader (search, stats, recommendations) bypasses live pagination.
+		if (numericId) {
+			try {
+				const raw = await this.cache.getKV().get(snapshotKey(numericId))
+				const snapshot = raw ? (JSON.parse(raw) as SnapshotBlob) : null
+				if (snapshot && Array.isArray(snapshot.items)) {
+					return {
+						releases: snapshot.items,
+						pagination: {
+							page: 1,
+							pages: 1,
+							per_page: snapshot.items.length,
+							items: snapshot.count,
+							urls: {} as { last?: string; next?: string },
+						},
+					}
+				}
+			} catch {
+				// KV read failure → fall through to live pagination.
+			}
+		}
+
+		return this.fetchCompleteCollectionLive(
+			username,
+			accessToken,
+			accessTokenSecret,
+			consumerKey,
+			consumerSecret,
+			maxPages,
+			timeBudgetMs,
+		)
+	}
+
+	private async fetchCompleteCollectionLive(
 		username: string,
 		accessToken: string,
 		accessTokenSecret: string,
@@ -393,6 +440,7 @@ export class CachedDiscogsClient {
 	 * can apply its own retry loop.
 	 */
 	async getCompleteCollectionReleases(
+		numericId: string,
 		username: string,
 		accessToken: string,
 		accessTokenSecret: string,
@@ -401,7 +449,7 @@ export class CachedDiscogsClient {
 		timeBudgetMs: number = 35000,
 	): Promise<{ releases: DiscogsCollectionItem[]; partial?: boolean }> {
 		const collection = await this.getCompleteCollection(
-			username, accessToken, accessTokenSecret, consumerKey, consumerSecret,
+			numericId, username, accessToken, accessTokenSecret, consumerKey, consumerSecret,
 			50, timeBudgetMs,
 		)
 		return { releases: collection.releases, partial: collection.partial }

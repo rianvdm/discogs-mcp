@@ -647,6 +647,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					const TOOL_BUDGET_MS = 105000 // 105s total; raised from 40s so full collection fetch finishes under rate-limit pressure
 
 					let collection = await cachedClient.getCompleteCollection(
+						session.numericId,
 						userProfile.username,
 						session.accessToken,
 						session.accessTokenSecret,
@@ -658,6 +659,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					while (collection.partial && Date.now() - toolStart < TOOL_BUDGET_MS - 5000) {
 						const remaining = Math.max(TOOL_BUDGET_MS - (Date.now() - toolStart), 5000)
 						collection = await cachedClient.getCompleteCollection(
+							session.numericId,
 							userProfile.username,
 							session.accessToken,
 							session.accessTokenSecret,
@@ -1012,6 +1014,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 						const toolStart = Date.now()
 						const TOOL_BUDGET_MS = 105000
 						let collection = await cachedClient.getCompleteCollection(
+							session.numericId,
 							userProfile.username,
 							session.accessToken,
 							session.accessTokenSecret,
@@ -1023,6 +1026,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 						while (collection.partial && Date.now() - toolStart < TOOL_BUDGET_MS - 5000) {
 							const remaining = Math.max(TOOL_BUDGET_MS - (Date.now() - toolStart), 5000)
 							collection = await cachedClient.getCompleteCollection(
+								session.numericId,
 								userProfile.username,
 								session.accessToken,
 								session.accessTokenSecret,
@@ -1091,6 +1095,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					const TOOL_BUDGET_MS = 105000
 
 					let collection = await cachedClient.getCompleteCollection(
+						session.numericId,
 						userProfile.username,
 						session.accessToken,
 						session.accessTokenSecret,
@@ -1102,6 +1107,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					while (collection.partial && Date.now() - toolStart < TOOL_BUDGET_MS - 5000) {
 						const remaining = Math.max(TOOL_BUDGET_MS - (Date.now() - toolStart), 5000)
 						collection = await cachedClient.getCompleteCollection(
+							session.numericId,
 							userProfile.username,
 							session.accessToken,
 							session.accessTokenSecret,
@@ -1251,6 +1257,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					const TOOL_BUDGET_MS = 105000
 
 					let collectionResult = await cachedClient.getCompleteCollectionReleases(
+						session.numericId,
 						userProfile.username,
 						session.accessToken,
 						session.accessTokenSecret,
@@ -1261,6 +1268,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					while (collectionResult.partial && Date.now() - toolStart < TOOL_BUDGET_MS - 5000) {
 						const remaining = Math.max(TOOL_BUDGET_MS - (Date.now() - toolStart), 5000)
 						collectionResult = await cachedClient.getCompleteCollectionReleases(
+							session.numericId,
 							userProfile.username,
 							session.accessToken,
 							session.accessTokenSecret,

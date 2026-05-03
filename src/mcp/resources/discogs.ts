@@ -58,6 +58,7 @@ export function registerResources(server: McpServer, env: Env, getSessionContext
 					const TOOL_BUDGET_MS = 105000
 
 					collection = await cachedClient.getCompleteCollection(
+						session.numericId,
 						userProfile.username,
 						session.accessToken,
 						session.accessTokenSecret,
@@ -69,6 +70,7 @@ export function registerResources(server: McpServer, env: Env, getSessionContext
 					while (collection.partial && Date.now() - toolStart < TOOL_BUDGET_MS - 5000) {
 						const remaining = Math.max(TOOL_BUDGET_MS - (Date.now() - toolStart), 5000)
 						collection = await cachedClient.getCompleteCollection(
+							session.numericId,
 							userProfile.username,
 							session.accessToken,
 							session.accessTokenSecret,
@@ -181,6 +183,7 @@ export function registerResources(server: McpServer, env: Env, getSessionContext
 					const TOOL_BUDGET_MS = 105000
 
 					let collectionResult = await cachedClient.getCompleteCollectionReleases(
+						session.numericId,
 						userProfile.username,
 						session.accessToken,
 						session.accessTokenSecret,
@@ -191,6 +194,7 @@ export function registerResources(server: McpServer, env: Env, getSessionContext
 					while (collectionResult.partial && Date.now() - toolStart < TOOL_BUDGET_MS - 5000) {
 						const remaining = Math.max(TOOL_BUDGET_MS - (Date.now() - toolStart), 5000)
 						collectionResult = await cachedClient.getCompleteCollectionReleases(
+							session.numericId,
 							userProfile.username,
 							session.accessToken,
 							session.accessTokenSecret,
