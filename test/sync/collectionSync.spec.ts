@@ -279,4 +279,79 @@ describe('syncCollection — first-run bootstrap', () => {
 		expect(result.outcome).toBe('skipped')
 		expect(calls).toEqual([1]) // only the probe call, no full repaginate
 	})
+
+	it('triggers full repaginate when probe count differs from snapshot count', async () => {
+		const prev: SnapshotBlob = {
+			schemaVersion: 1,
+			fetchedAt: '2026-05-03T00:00:00Z',
+			count: 2,
+			topPageInstanceIds: [101, 102],
+			items: [makeItem(1, 101), makeItem(2, 102)],
+		}
+		await env.MCP_SESSIONS.put(snapshotKey('u'), JSON.stringify(prev))
+		await env.MCP_SESSIONS.put(lastForcedFullSyncKey('u'), new Date().toISOString())
+
+		const calls: number[] = []
+		const client: SyncClient = {
+			async fetchCollectionPage(opts) {
+				calls.push(opts.page)
+				// Probe + page 1 of new sync: count is now 3
+				if (opts.page === 1) return makePage([makeItem(1, 101), makeItem(2, 102), makeItem(3, 103)], 1, 1, 3)
+				throw new Error(`unexpected page ${opts.page}`)
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
+		expect(result.outcome).toBe('completed')
+		expect(result.count).toBe(3)
+		// Page 1 fetched once total — probe response is reused as page 1 of the sync
+		expect(calls).toEqual([1])
+	})
+
+	it('detects add+remove swap when count matches but page-1 instance_ids differ', async () => {
+		const prev: SnapshotBlob = {
+			schemaVersion: 1,
+			fetchedAt: '2026-05-03T00:00:00Z',
+			count: 2,
+			topPageInstanceIds: [101, 102],
+			items: [makeItem(1, 101), makeItem(2, 102)],
+		}
+		await env.MCP_SESSIONS.put(snapshotKey('u'), JSON.stringify(prev))
+		await env.MCP_SESSIONS.put(lastForcedFullSyncKey('u'), new Date().toISOString())
+
+		const client: SyncClient = {
+			async fetchCollectionPage(opts) {
+				// count=2 still, but instance 102 was removed and 103 was added
+				if (opts.page === 1) return makePage([makeItem(1, 101), makeItem(3, 103)], 1, 1, 2)
+				throw new Error(`unexpected page ${opts.page}`)
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
+		expect(result.outcome).toBe('completed')
+		const snap = await env.MCP_SESSIONS.get<SnapshotBlob>(snapshotKey('u'), 'json')
+		expect(snap?.topPageInstanceIds).toEqual([101, 103])
+	})
+
+	it('skips probe and runs a full repaginate when force is true', async () => {
+		const prev: SnapshotBlob = {
+			schemaVersion: 1,
+			fetchedAt: '2026-05-03T00:00:00Z',
+			count: 1,
+			topPageInstanceIds: [101],
+			items: [makeItem(1, 101)],
+		}
+		await env.MCP_SESSIONS.put(snapshotKey('u'), JSON.stringify(prev))
+		await env.MCP_SESSIONS.put(lastForcedFullSyncKey('u'), new Date().toISOString())
+
+		const client: SyncClient = {
+			async fetchCollectionPage(_opts) {
+				// Identical to snapshot — without force, probe would skip
+				return makePage([makeItem(1, 101)], 1, 1, 1)
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { force: true, sleep: async () => {} })
+		expect(result.outcome).toBe('completed') // not "skipped"
+	})
 })
