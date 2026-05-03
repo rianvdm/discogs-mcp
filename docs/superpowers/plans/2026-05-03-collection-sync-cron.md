@@ -386,7 +386,7 @@ it('does not write to snapshot key until all pages have been fetched', async () 
 
   const observed: Array<SnapshotBlob | null> = []
   const client: SyncClient = {
-    async getCollectionPage(_u, opts) {
+    async fetchCollectionPage(opts) {
       // After each page, peek at the snapshot key
       observed.push(await env.MCP_SESSIONS.get(snapshotKey('u'), 'json'))
       if (opts.page === 1) return makePage([makeItem(1, 101)], 1, 3, 3)
@@ -434,7 +434,7 @@ git commit -m "syncCollection: assert atomic swap, readers never see partial sna
 it('retries a transient page failure up to 3 times', async () => {
   let attempts = 0
   const client: SyncClient = {
-    async getCollectionPage(_u, opts) {
+    async fetchCollectionPage(opts) {
       if (opts.page === 1) {
         attempts++
         if (attempts < 3) throw new Error('500 Internal Server Error')
@@ -483,13 +483,13 @@ async function fetchPageWithRetry(
 Then change the page fetch in `syncCollection` from:
 
 ```ts
-const res = await client.getCollectionPage(userId, { ... })
+const res = await client.fetchCollectionPage({ page, per_page: PER_PAGE, sort: 'added', sort_order: 'desc' })
 ```
 
 to:
 
 ```ts
-const res = await fetchPageWithRetry(client, userId, page)
+const res = await fetchPageWithRetry(client, page)
 ```
 
 For tests, inject a no-op sleep so the test isn't slow. Add `sleep?: (ms: number) => Promise<void>` to `SyncOptions`, default real `setTimeout`. Pass through into `fetchPageWithRetry`.
@@ -547,7 +547,7 @@ it('persists progress and leaves snapshot untouched when retries are exhausted',
   await env.MCP_SESSIONS.put(snapshotKey('u'), JSON.stringify(prev))
 
   const client: SyncClient = {
-    async getCollectionPage(_u, opts) {
+    async fetchCollectionPage(opts) {
       if (opts.page === 1) return makePage([makeItem(1, 101)], 1, 3, 3)
       if (opts.page === 2) return makePage([makeItem(2, 102)], 2, 3, 3)
       throw new Error('500 on page 3')
@@ -612,9 +612,12 @@ export async function syncCollection(
       // commit the final snapshot atomically and delete progress in one go).
       if (page < totalPages) {
         const progress: ProgressBlob = {
-          startedAt: now, totalPages, totalCount, lastPageFetched, itemsSoFar,
+          schemaVersion: 1, startedAt: now, totalPages, totalCount, lastPageFetched, itemsSoFar,
         }
-        await kv.put(progressKey(numericId), JSON.stringify(progress))
+        await kv.put(progressKey(numericId), JSON.stringify(progress), {
+          // 7-day TTL so abandoned syncs auto-cleanup. Spec §KV Schema.
+          expirationTtl: 7 * 24 * 60 * 60,
+        })
       }
     }
   } catch (err) {
@@ -628,7 +631,12 @@ export async function syncCollection(
   const snapshot: SnapshotBlob = {
     schemaVersion: 1, fetchedAt: now, count: totalCount, topPageInstanceIds, items: itemsSoFar,
   }
-  await kv.put(snapshotKey(numericId), JSON.stringify(snapshot))
+  const snapshotJson = JSON.stringify(snapshot)
+  // KV value limit is 25MB. ~600B/item × 1,500 items ≈ 900KB is comfortable;
+  // a self-hoster with 5,000+ items will start pushing 3MB. Log the size so
+  // we can spot the problem before it hits the limit.
+  console.log(`sync ${numericId}: snapshot size ${snapshotJson.length} bytes, ${totalCount} items`)
+  await kv.put(snapshotKey(numericId), snapshotJson)
   await kv.delete(progressKey(numericId))
 
   return { outcome: 'completed', pagesFetched: lastPageFetched, count: totalCount, fetchedAt: now }
@@ -669,7 +677,7 @@ it('resumes from progress.lastPageFetched + 1 when progress key exists', async (
 
   const calls: number[] = []
   const client: SyncClient = {
-    async getCollectionPage(_u, opts) {
+    async fetchCollectionPage(opts) {
       calls.push(opts.page)
       if (opts.page === 3) return makePage([makeItem(3, 103)], 3, 3, 3)
       throw new Error(`unexpected page ${opts.page}`)
@@ -735,8 +743,8 @@ try {
     itemsSoFar.push(...res.releases)
     lastPageFetched = page
     if (page < totalPages) {
-      const progress: ProgressBlob = { startedAt: now, totalPages, totalCount, lastPageFetched, itemsSoFar }
-      await kv.put(progressKey(numericId), JSON.stringify(progress))
+      const progress: ProgressBlob = { schemaVersion: 1, startedAt: now, totalPages, totalCount, lastPageFetched, itemsSoFar }
+      await kv.put(progressKey(numericId), JSON.stringify(progress), { expirationTtl: 7 * 24 * 60 * 60 })
     }
   }
 } catch (err) { /* ... unchanged ... */ }
@@ -780,7 +788,7 @@ it('discards progress and restarts when totalCount changes mid-resume', async ()
 
   const calls: number[] = []
   const client: SyncClient = {
-    async getCollectionPage(_u, opts) {
+    async fetchCollectionPage(opts) {
       calls.push(opts.page)
       // Page 3 reports a different count → drift
       if (opts.page === 3) return makePage([makeItem(3, 103)], 3, 3, 4)
@@ -805,21 +813,23 @@ it('discards progress and restarts when totalCount changes mid-resume', async ()
 Run: `cd ~/git/discogs-mcp && npx vitest run test/sync/collectionSync.spec.ts -t "discards progress"`
 Expected: FAIL — no drift check yet.
 
-- [ ] **Step 3: Add drift detection + recursive restart**
+- [ ] **Step 3: Add drift detection on every page (not just on resume)**
 
-Inside the page loop, after the page fetch, before appending items:
+Inside the page loop, after the page fetch, before appending items. Spec §Sync Flow step 4 calls for this on every page — a fresh full sync that grows from 1,500→1,600 mid-pagination should restart, same as a resumed one.
 
 ```ts
-// Drift check: if we resumed, every subsequent page's pagination.items must match
-// the totalCount we're carrying forward. Discogs returns the live count in every
-// page response, so any disagreement means the collection changed mid-sync.
-if (resumed && res.pagination.items !== totalCount) {
+// Drift check: every page's pagination.items must match the totalCount
+// recorded on page 1 (or carried forward from progress on resume). Discogs
+// returns the live count in every page response, so any disagreement means
+// the collection changed mid-sync. Skip the check on page 1 itself — that's
+// the page that defines totalCount.
+if (page > 1 && res.pagination.items !== totalCount) {
   await kv.delete(progressKey(numericId))
   return syncCollection(client, kv, numericId, { ...opts, force: true })
 }
 ```
 
-Note: the recursive call passes the same opts. The fresh entry won't see a progress key (we just deleted it), so it starts from page 1.
+The recursive call passes the same opts. The fresh entry won't see a progress key (we just deleted it), so it starts from page 1.
 
 - [ ] **Step 4: Run test to verify it passes**
 
@@ -855,7 +865,7 @@ it('ignores progress older than 7 days and starts fresh', async () => {
 
   const calls: number[] = []
   const client: SyncClient = {
-    async getCollectionPage(_u, opts) {
+    async fetchCollectionPage(opts) {
       calls.push(opts.page)
       return makePage([makeItem(opts.page, opts.page * 100)], opts.page, 1, 1)
     },
@@ -906,7 +916,7 @@ it('skips full repaginate when count and topPageInstanceIds both match', async (
 
   const calls: number[] = []
   const client: SyncClient = {
-    async getCollectionPage(_u, opts) {
+    async fetchCollectionPage(opts) {
       calls.push(opts.page)
       // Same count, same page-1 instance_ids
       return makePage([makeItem(1, 101), makeItem(2, 102)], 1, 1, 2)
@@ -932,13 +942,18 @@ Insert before the main page loop (and after the progress-resume block — probe 
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
 
 if (!resumed && !opts.force) {
+  // Probe gate: only runs when both a snapshot exists AND a recent
+  // lastForcedFullSync is on file. On a fresh deploy neither key exists,
+  // so this block is skipped and we fall through to a full pagination
+  // (the bootstrap path). Don't "fix" the gate to run probe whenever a
+  // snapshot exists — that would skip the weekly forced full sweep.
   const existingSnapshot = await kv.get<SnapshotBlob>(snapshotKey(numericId), 'json')
   const lastForced = await kv.get(lastForcedFullSyncKey(numericId))
   const lastForcedFresh = lastForced && Date.now() - new Date(lastForced).getTime() < SEVEN_DAYS_MS
 
   if (existingSnapshot && lastForcedFresh) {
     // Run probe: fetch page 1, compare count + top instance_ids
-    const probe = await fetchPageWithRetry(client, userId, 1, sleep)
+    const probe = await fetchPageWithRetry(client, 1, sleep)
     const probeTopIds = probe.releases.map((r) => r.instance_id)
     const sameCount = probe.pagination.items === existingSnapshot.count
     const sameTopIds =
@@ -1000,7 +1015,7 @@ it('triggers full repaginate when probe count differs from snapshot count', asyn
 
   const calls: number[] = []
   const client: SyncClient = {
-    async getCollectionPage(_u, opts) {
+    async fetchCollectionPage(opts) {
       calls.push(opts.page)
       // Probe + page 1 of new sync: count is now 3
       if (opts.page === 1) return makePage([makeItem(1, 101), makeItem(2, 102), makeItem(3, 103)], 1, 1, 3)
@@ -1048,7 +1063,7 @@ it('detects add+remove swap when count matches but page-1 instance_ids differ', 
   await env.MCP_SESSIONS.put(lastForcedFullSyncKey('u'), new Date().toISOString())
 
   const client: SyncClient = {
-    async getCollectionPage(_u, opts) {
+    async fetchCollectionPage(opts) {
       // count=2 still, but instance 102 was removed and 103 was added
       if (opts.page === 1) return makePage([makeItem(1, 101), makeItem(3, 103)], 1, 1, 2)
       throw new Error(`unexpected page ${opts.page}`)
@@ -1094,7 +1109,7 @@ it('skips probe and runs a full repaginate when force is true', async () => {
   await env.MCP_SESSIONS.put(lastForcedFullSyncKey('u'), new Date().toISOString())
 
   const client: SyncClient = {
-    async getCollectionPage(_u, opts) {
+    async fetchCollectionPage(opts) {
       // Identical to snapshot — without force, probe would skip
       return makePage([makeItem(1, 101)], 1, 1, 1)
     },
@@ -1137,7 +1152,7 @@ it('forces full repaginate when lastForcedFullSync is older than 7 days', async 
   await env.MCP_SESSIONS.put(lastForcedFullSyncKey('u'), '2026-04-25T00:00:00Z')
 
   const client: SyncClient = {
-    async getCollectionPage(_u, opts) {
+    async fetchCollectionPage(opts) {
       return makePage([makeItem(1, 101)], 1, 1, 1)
     },
   }
@@ -1330,11 +1345,16 @@ async scheduled(_event: ScheduledEvent, env: Env, _ctx: ExecutionContext): Promi
       const result = await syncCollection(syncClient, env.MCP_SESSIONS, numericId, {})
       await logSyncOutcome(env, numericId, result)
     } catch (err) {
-      await logSyncOutcome(env, numericId, {
-        outcome: 'crashed',
-        pagesFetched: 0,
-        error: err instanceof Error ? err.message : String(err),
-      })
+      const msg = err instanceof Error ? err.message : String(err)
+      // 401 → token revoked. Delete the mirror so the cron stops crashing
+      // on this user every hour until they re-authenticate via the MCP flow.
+      // Spec §Error Handling: log token_invalid, skip.
+      if (/\b401\b|Unauthorized/i.test(msg)) {
+        await env.MCP_SESSIONS.delete(tokenMirrorKey(numericId))
+        await logSyncOutcome(env, numericId, { outcome: 'token_invalid', pagesFetched: 0, error: msg })
+      } else {
+        await logSyncOutcome(env, numericId, { outcome: 'crashed', pagesFetched: 0, error: msg })
+      }
     }
   }
 }
@@ -1349,6 +1369,14 @@ async function logSyncOutcome(env: Env, numericId: string, result: SyncResult) {
     expirationTtl: 30 * 24 * 60 * 60,
   })
 }
+
+// Note on concurrency: users in ALLOWED_DISCOGS_USER_ID are processed
+// sequentially. With an allowlist of 1-2 users (the maintainer + occasional
+// shared account), sequential is well within Workers' wall-time budget for
+// scheduled handlers and keeps the rate-limiter DO simple. If the allowlist
+// ever grows past ~5 users with large collections, switch to Promise.all
+// over the user loop. Don't reach for ctx.waitUntil here — that's a fetch-
+// handler pattern; scheduled handlers should await everything they care about.
 ```
 
 Inspect `src/clients/discogs.ts` first to confirm the `new DiscogsClient()` no-arg constructor is correct (line ~152). If it requires args, conform.
@@ -1508,16 +1536,23 @@ describe('refresh_collection tool', () => {
     expect(await env.MCP_SESSIONS.get(snapshotKey('12345'))).toBeTruthy()
   })
 
-  it('returns status: in_progress when a fresh progress key exists', async () => {
+  it('returns status: resumed when a fresh progress key exists', async () => {
+    // Pre-populate progress that says "we've fetched page 1 of 1, totalCount 1"
     await env.MCP_SESSIONS.put(progressKey('12345'), JSON.stringify({
       schemaVersion: 1,
       startedAt: new Date().toISOString(),
-      totalPages: 10, totalCount: 1000, lastPageFetched: 3, itemsSoFar: [],
+      totalPages: 1, totalCount: 1, lastPageFetched: 1,
+      itemsSoFar: [{
+        id: 1, instance_id: 101, folder_id: 0, date_added: '2026-01-01T00:00:00Z', rating: 0,
+        basic_information: { id: 1, title: 't', year: 2020, resource_url: '', thumb: '', cover_image: '', formats: [], labels: [], artists: [], genres: [], styles: [] },
+      }],
     }))
     const server = new McpServer({ name: 't', version: '0' })
     registerAuthenticatedTools(server, env as any, async () => fakeSession())
     const result = await callRefresh(server)
-    expect(result.status).toBe('in_progress')
+    // syncCollection sees a fresh progress key with lastPageFetched === totalPages,
+    // so the loop runs zero iterations and goes straight to atomic swap.
+    expect(result.status).toBe('resumed')
   })
 })
 ```
@@ -1544,12 +1579,6 @@ server.tool(
       return { content: [{ type: 'text', text: generateAuthInstructions(connectionId) }] }
     }
 
-    // Concurrent-call guard: if a progress key is fresh, don't start a duplicate.
-    const existing = await env.MCP_SESSIONS.get(progressKey(session.numericId), 'json') as { startedAt: string } | null
-    if (existing && Date.now() - new Date(existing.startedAt).getTime() < 5 * 60 * 1000) {
-      return { content: [{ type: 'text', text: JSON.stringify({ status: 'in_progress' }) }] }
-    }
-
     const discogsClient = new DiscogsClient()
     discogsClient.setRateLimiter(env.RATE_LIMITER)
 
@@ -1562,23 +1591,31 @@ server.tool(
         ),
     }
 
+    // Force a full sync. If a stalled progress key exists, syncCollection
+    // resumes it and returns outcome: 'resumed' — the tool surfaces that
+    // verbatim so the user knows partial work was salvaged. Concurrent calls
+    // race harmlessly: each one drives the same sync forward; the second
+    // arrival just sees a more advanced progress key.
     const result = await syncCollection(syncClient, env.MCP_SESSIONS, session.numericId, { force: true })
-    const status = result.outcome === 'resumed' ? 'resumed' : 'completed'
     return {
       content: [{
         type: 'text',
-        text: JSON.stringify({ status, count: result.count, fetchedAt: result.fetchedAt, pagesFetched: result.pagesFetched }),
+        text: JSON.stringify({
+          status: result.outcome,
+          count: result.count,
+          fetchedAt: result.fetchedAt,
+          pagesFetched: result.pagesFetched,
+        }),
       }],
     }
   },
 )
 ```
 
-Add the static imports at the top of `src/mcp/tools/authenticated.ts` if not already present:
+Add the static import at the top of `src/mcp/tools/authenticated.ts` if not already present:
 
 ```ts
 import { syncCollection, type SyncClient } from '../../sync/collectionSync'
-import { progressKey } from '../../sync/keys'
 ```
 
 (`DiscogsClient` is already imported in this file.)
@@ -1721,7 +1758,13 @@ async getCompleteCollection(
 
 Rename the existing body into `private fetchCompleteCollectionLive(...)`. Keep its existing per-method KV cache layer untouched.
 
-Update every call site (`rg -n "getCompleteCollection\(" src/mcp/tools/authenticated.ts`) to pass `session.numericId` as the new first argument.
+Update every call site to pass `numericId` as the new first argument. Confirmed call sites:
+
+* `src/mcp/tools/authenticated.ts:592, 603, 957, 968` — pass `session.numericId`.
+* `src/mcp/resources/discogs.ts:60, 71` — pass the numeric ID from the resource's session context (read the file to confirm the variable name).
+* `src/clients/cachedDiscogs.ts:403` — self-call inside another method on the same class; pass through whatever `numericId` that method receives. This means the *caller* method also needs `numericId` added to its signature; trace the chain with `rg -n "getCompleteCollection\(" src/`.
+
+Run `npx tsc --noEmit` after the changes to confirm every caller compiles. Missing one will surface here.
 
 - [ ] **Step 5: Run test to verify it passes**
 
