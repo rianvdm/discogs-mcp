@@ -114,7 +114,13 @@ export class DiscogsAuth {
 		}
 
 		const sortedParams = allParams
-			.sort(([k1, v1], [k2, v2]) => (k1 < k2 ? -1 : k1 > k2 ? 1 : v1 < v2 ? -1 : v1 > v2 ? 1 : 0))
+			.sort(([k1, v1], [k2, v2]) => {
+				if (k1 < k2) return -1
+				if (k1 > k2) return 1
+				if (v1 < v2) return -1
+				if (v1 > v2) return 1
+				return 0
+			})
 			.map(([k, v]) => `${k}=${v}`)
 			.join('&')
 
