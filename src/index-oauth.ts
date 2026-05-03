@@ -1,12 +1,16 @@
 // ABOUTME: Main entry point supporting MCP OAuth 2.1 and session-based authentication.
 // ABOUTME: Routes /mcp requests to session handler or OAuth provider based on auth state.
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider'
-import type { ExecutionContext } from '@cloudflare/workers-types'
+import type { ExecutionContext, ScheduledController } from '@cloudflare/workers-types'
 import { createMcpHandler } from 'agents/mcp'
 
 import { DiscogsOAuthHandler, parseAllowlist, type DiscogsUserProps } from './auth/oauth-handler'
+import { DiscogsClient } from './clients/discogs'
 import { MARKETING_PAGE_HTML } from './marketing-page.js'
 import { createMcpServer } from './mcp/server'
+import { syncCollection, type SyncClient } from './sync/collectionSync'
+import { tokenMirrorKey } from './sync/keys'
+import type { SyncResult, TokenMirror } from './sync/types'
 import type { Env } from './types/env'
 
 // Re-export Durable Object class for Wrangler binding
@@ -174,6 +178,20 @@ async function stripResourceParam(request: Request): Promise<Request> {
   })
 }
 
+async function logSyncOutcome(env: Env, numericId: string, result: SyncResult): Promise<void> {
+  const entry = { timestamp: new Date().toISOString(), numericId, ...result }
+  await env.MCP_LOGS.put(`sync:${entry.timestamp}:${numericId}`, JSON.stringify(entry), {
+    expirationTtl: 30 * 24 * 60 * 60,
+  })
+}
+
+// Note on concurrency: users in ALLOWED_DISCOGS_USER_ID are processed sequentially.
+// With an allowlist of 1-2 users (the maintainer + occasional shared account),
+// sequential is well within Workers' wall-time budget for scheduled handlers and
+// keeps the rate-limiter DO simple. If the allowlist ever grows past ~5 users
+// with large collections, switch to Promise.all over the user loop. Don't reach
+// for ctx.waitUntil here — that's a fetch-handler pattern; scheduled handlers
+// should await everything they care about.
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url)
@@ -290,5 +308,60 @@ export default {
     // All other routes → OAuth provider (handles /authorize, /discogs-callback, /login,
     // /callback, /.well-known/oauth-protected-resource, /.well-known/oauth-authorization-server)
     return oauthProvider.fetch(request, env, ctx)
+  },
+
+  async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    const allowed = (env.ALLOWED_DISCOGS_USER_ID || '')
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+
+    for (const numericId of allowed) {
+      try {
+        const tokenStr = await env.MCP_SESSIONS.get(tokenMirrorKey(numericId))
+        if (!tokenStr) {
+          await logSyncOutcome(env, numericId, { outcome: 'no_token', pagesFetched: 0 })
+          continue
+        }
+        const token = JSON.parse(tokenStr) as TokenMirror
+
+        // Build the Discogs client the same way other call sites do
+        // (see src/mcp/tools/authenticated.ts — credentials are passed per call,
+        // not via constructor).
+        const discogsClient = new DiscogsClient()
+        if (env.RATE_LIMITER) {
+          const rlId = env.RATE_LIMITER.idFromName('discogs-rate-limiter')
+          discogsClient.setRateLimiter(env.RATE_LIMITER.get(rlId))
+        }
+
+        // Inline SyncClient: closes over username + creds, calls the existing
+        // searchCollection method which already paginates the right endpoint.
+        const syncClient: SyncClient = {
+          fetchCollectionPage: (opts) =>
+            discogsClient.searchCollection(
+              token.username,
+              token.accessToken,
+              token.accessTokenSecret,
+              { page: opts.page, per_page: opts.per_page, sort: 'added', sort_order: 'desc' },
+              env.DISCOGS_CONSUMER_KEY,
+              env.DISCOGS_CONSUMER_SECRET,
+            ),
+        }
+
+        const result = await syncCollection(syncClient, env.MCP_SESSIONS, numericId, {})
+        await logSyncOutcome(env, numericId, result)
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        // 401 → token revoked. Delete the mirror so the cron stops crashing
+        // on this user every hour until they re-authenticate via the MCP flow.
+        // Spec §Error Handling: log token_invalid, skip.
+        if (/\b401\b|Unauthorized/i.test(msg)) {
+          await env.MCP_SESSIONS.delete(tokenMirrorKey(numericId))
+          await logSyncOutcome(env, numericId, { outcome: 'token_invalid', pagesFetched: 0, error: msg })
+        } else {
+          await logSyncOutcome(env, numericId, { outcome: 'crashed', pagesFetched: 0, error: msg })
+        }
+      }
+    }
   },
 }
