@@ -7,6 +7,7 @@ import { z } from 'zod'
 import type { Env } from '../../types/env.js'
 
 import { DiscogsClient } from '../../clients/discogs.js'
+import { syncCollection, type SyncClient } from '../../sync/collectionSync.js'
 import { CachedDiscogsClient } from '../../clients/cachedDiscogs.js'
 import { analyzeMoodQuery, hasMoodContent, generateMoodSearchTerms } from '../../utils/moodMapping.js'
 import { formatSearchDiscogsResults } from '../../utils/searchDiscogsFormatter.js'
@@ -507,6 +508,62 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			`Try page ${totalPages} or lower.`
 		)
 	}
+
+	server.tool(
+		'refresh_collection',
+		'Force an immediate full refresh of the cached collection snapshot. Use after adding or removing items in Discogs if you need them visible to search before the next hourly sync.',
+		{},
+		async () => {
+			const { session, connectionId } = await getSessionContext()
+			if (!session) {
+				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId) }] }
+			}
+
+			// Build a dedicated DiscogsClient + rate-limiter stub the same way the
+			// scheduled handler does. The module-level `discogsClient` above is
+			// shared across tool invocations and already wired to the rate limiter,
+			// but constructing a fresh one here keeps the refresh path symmetric
+			// with src/index-oauth.ts's scheduled() and avoids reaching across the
+			// optional CachedDiscogsClient wrapper.
+			const refreshDiscogs = new DiscogsClient()
+			if (env.RATE_LIMITER) {
+				const rlId = env.RATE_LIMITER.idFromName('discogs-rate-limiter')
+				refreshDiscogs.setRateLimiter(env.RATE_LIMITER.get(rlId))
+			}
+
+			const syncClient: SyncClient = {
+				fetchCollectionPage: (opts) =>
+					refreshDiscogs.searchCollection(
+						session.username,
+						session.accessToken,
+						session.accessTokenSecret,
+						{ page: opts.page, per_page: opts.per_page, sort: 'added', sort_order: 'desc' },
+						env.DISCOGS_CONSUMER_KEY,
+						env.DISCOGS_CONSUMER_SECRET,
+					),
+			}
+
+			// Force a full sync. If a stalled progress key exists, syncCollection
+			// resumes it and returns outcome: 'resumed' — surface verbatim so the
+			// user knows partial work was salvaged. Concurrent calls race harmlessly:
+			// each one drives the same sync forward; the second arrival just sees a
+			// more advanced progress key.
+			const result = await syncCollection(syncClient, env.MCP_SESSIONS, session.numericId, { force: true })
+			return {
+				content: [
+					{
+						type: 'text',
+						text: JSON.stringify({
+							status: result.outcome,
+							count: result.count,
+							fetchedAt: result.fetchedAt,
+							pagesFetched: result.pagesFetched,
+						}),
+					},
+				],
+			}
+		},
+	)
 
 	server.tool(
 		'search_collection',

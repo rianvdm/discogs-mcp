@@ -15,6 +15,8 @@ import { registerPrompts } from './prompts/collection.js'
  */
 export interface SessionPayload {
   userId: string
+  username: string
+  numericId: string
   accessToken: string
   accessTokenSecret: string
   iat: number
@@ -79,9 +81,11 @@ export function createMcpServer(env: Env, baseUrl: string): McpServerWithContext
     if (!context.session) {
       return { session: null, connectionId: context.sessionId ?? undefined }
     }
-    const { username, accessToken, accessTokenSecret } = context.session
+    const { username, numericId, accessToken, accessTokenSecret } = context.session
     const sessionPayload: SessionPayload = {
       userId: username,
+      username,
+      numericId,
       accessToken,
       accessTokenSecret,
       iat: 0,
