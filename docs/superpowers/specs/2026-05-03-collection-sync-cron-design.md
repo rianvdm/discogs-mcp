@@ -237,6 +237,17 @@ Same triggers block under `[env.production]`.
 * **OAuth token storage shape.** Confirm during implementation whether the existing OAuth code already writes a per-user Discogs access token in KV. If yes, no mirror key needed; if no, add one in the OAuth callback handler. Implementation discovery, not a design decision.
 * **KV binding choice.** Spec uses `MCP_SESSIONS` for snapshot + progress + lastForcedFullSync keys. Reasonable default given the existing namespaces, but a dedicated `COLLECTION_KV` namespace would be cleaner if we expect snapshot growth or want separate eviction policies. Decide during implementation; either path is reversible with a one-line wrangler change + key migration.
 
+## Future Work
+
+* **Deploy to Workers button.** Once this spec ships and is validated on the maintainer's deploy, the next initiative is making self-hosting one-click via Cloudflare's `https://deploy.workers.cloudflare.com/?url=<repo>` button. Will need its own spec covering:
+  * `wrangler.toml` declarations that prompt for the three secrets (`DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `JWT_SECRET`) on first deploy.
+  * Auto-creation of KV namespaces (`MCP_SESSIONS`, `MCP_LOGS`, `OAUTH_KV`, plus whatever this spec settles on for collection storage).
+  * Durable Object `DiscogsRateLimiter` migration tag on first deploy.
+  * README walkthrough for the one part that *can't* be automated: registering a Discogs OAuth application to get a consumer key/secret pair. Self-hoster has to do that step manually before clicking the button.
+  * README badge linking to the deploy URL.
+  * Validation: actually click the button against a fresh Cloudflare account and verify a clean self-host.
+* **Pre-serialized MiniSearch index.** If on-demand index rebuild becomes a measurable latency tax post-launch, store the serialized index alongside the snapshot (`collection:search-index:{userId}`) and load via `MiniSearch.loadJSON()`.
+
 ## References
 
 * Issue [#18](https://github.com/rianvdm/discogs-mcp/issues/18) — cold-cache fetch budget timeouts.
