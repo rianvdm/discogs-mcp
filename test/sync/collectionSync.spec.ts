@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
 import { syncCollection, type SyncClient } from '../../src/sync/collectionSync'
-import { snapshotKey } from '../../src/sync/keys'
-import type { SnapshotBlob } from '../../src/sync/types'
+import { snapshotKey, progressKey } from '../../src/sync/keys'
+import type { SnapshotBlob, ProgressBlob } from '../../src/sync/types'
 import type { DiscogsCollectionItem, DiscogsCollectionResponse } from '../../src/clients/discogs'
 
 function makeItem(id: number, instanceId: number, dateAdded = '2026-01-01T00:00:00Z'): DiscogsCollectionItem {
@@ -122,5 +122,40 @@ describe('syncCollection — first-run bootstrap', () => {
 		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
 		expect(result.outcome).toBe('completed')
 		expect(attempts).toBe(3)
+	})
+
+	it('persists progress and leaves snapshot untouched when retries are exhausted', async () => {
+		const prev: SnapshotBlob = {
+			schemaVersion: 1,
+			fetchedAt: '2026-01-01T00:00:00Z',
+			count: 1,
+			topPageInstanceIds: [999],
+			items: [makeItem(99, 999)],
+		}
+		await env.MCP_SESSIONS.put(snapshotKey('u'), JSON.stringify(prev))
+
+		const client: SyncClient = {
+			async fetchCollectionPage(opts) {
+				if (opts.page === 1) return makePage([makeItem(1, 101)], 1, 3, 3)
+				if (opts.page === 2) return makePage([makeItem(2, 102)], 2, 3, 3)
+				throw new Error('500 on page 3')
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
+
+		expect(result.outcome).toBe('failed')
+		expect(result.pagesFetched).toBe(2)
+
+		// Snapshot still the previous one
+		const snap = await env.MCP_SESSIONS.get<SnapshotBlob>(snapshotKey('u'), 'json')
+		expect(snap?.count).toBe(1)
+
+		// Progress recorded
+		const prog = await env.MCP_SESSIONS.get<ProgressBlob>(progressKey('u'), 'json')
+		expect(prog?.lastPageFetched).toBe(2)
+		expect(prog?.totalPages).toBe(3)
+		expect(prog?.totalCount).toBe(3)
+		expect(prog?.itemsSoFar).toHaveLength(2)
 	})
 })
