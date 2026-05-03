@@ -43,8 +43,13 @@ export async function rateLimitedFetch(
 
   const result: RateLimiterResponse = await doResponse.json()
 
-  // Reconstruct a standard Response from the DO's response
-  return new Response(result.body, {
+  // Null-body statuses (101/204/205/304) reject any body — even an empty string —
+  // when passed to the Response constructor. Discogs returns 204 on successful
+  // collection mutations, so we must pass null in those cases.
+  const hasNullBodyStatus =
+    result.status === 101 || result.status === 204 || result.status === 205 || result.status === 304
+
+  return new Response(hasNullBodyStatus ? null : result.body, {
     status: result.status,
     headers: result.headers,
   })

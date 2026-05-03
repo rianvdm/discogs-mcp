@@ -54,6 +54,28 @@ describe('rateLimitedFetch', () => {
     expect(response.status).toBe(503)
   })
 
+  it('reconstructs a 204 response without throwing (Discogs write success)', async () => {
+    // Regression: Discogs returns 204 No Content on successful collection
+    // mutations. The DO sends back body="" via response.text(). Constructing
+    // `new Response("", { status: 204 })` throws "null body status cannot
+    // have a body", which surfaced to users as a "failed" write even though
+    // the mutation succeeded. See issue #25.
+    const stub = createMockStub({
+      status: 204,
+      headers: { 'x-discogs-ratelimit-remaining': '59' },
+      body: '',
+    })
+
+    const response = await rateLimitedFetch(stub, 'https://api.discogs.com/users/x/collection/folders/1/releases/2/instances/3', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{"folder_id":7}',
+    })
+
+    expect(response.status).toBe(204)
+    expect(response.body).toBeNull()
+  })
+
   it('passes POST body through to the DO', async () => {
     const stub = createMockStub({
       status: 200,
