@@ -460,6 +460,12 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			? `\n\n⚠️ Showing ${capped.length} of ${allReleases.length} releases (prioritized by rating and recency).`
 			: ''
 
+		const nextSteps = buildNextSteps([
+			{ tool: 'get_release', args: 'release_id=<ID>', hint: 'expand a selected release using its [ID:...] from the list' },
+			{ tool: 'rate_release', args: 'instance_id=<INSTANCE>, folder_id=<FOLDER>, rating=1..5', hint: 'rate a selection (use the [Inst:...] from the list and the folder it lives in)' },
+			{ tool: 'search_discogs', args: `query="${query}", type="master"`, hint: 'broaden to the catalog if collection picks fall short' },
+		])
+
 		return {
 			content: [
 				{
@@ -471,8 +477,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 						`Use your knowledge of these artists, albums, and genres to identify the strongest matches. ` +
 						`For each result, include a brief note (1 sentence) explaining why it fits. ` +
 						`If you find fewer than 8 strong matches, return only the ones you're confident about — do not pad with weak matches.\n\n` +
-						`${compactList}${cappedNote}\n\n` +
-						`**Tip:** Use the release IDs with the get_release tool for detailed information about specific albums.`,
+						`${compactList}${cappedNote}${nextSteps}`,
 				},
 			],
 		}
