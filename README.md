@@ -126,9 +126,8 @@ git clone https://github.com/rianvdm/discogs-mcp.git
 cd discogs-mcp
 npm install
 
-# Create the three KV namespaces and copy the returned IDs into wrangler.toml
+# Create the two KV namespaces and copy the returned IDs into wrangler.toml
 # (replace the empty `id = ""` values under the top-level [[kv_namespaces]] blocks)
-wrangler kv namespace create MCP_LOGS
 wrangler kv namespace create MCP_SESSIONS
 wrangler kv namespace create OAUTH_KV
 

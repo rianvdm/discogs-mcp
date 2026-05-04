@@ -37,10 +37,6 @@ new_classes = ["DiscogsRateLimiter"]
 # Maintainer's hosted instance (discogs-mcp.com) deploys against
 # [env.production] below via `npm run deploy:prod`.
 [[kv_namespaces]]
-binding = "MCP_LOGS"
-id = "b0c83f4b63a94c7490a609095e35b84f"
-
-[[kv_namespaces]]
 binding = "MCP_SESSIONS"
 id = "a0bc40f523d54a6ab70fa947ac3daeaf"
 
@@ -64,10 +60,6 @@ bindings = [
 
 [env.production.triggers]
 crons = ["0 * * * *"]
-
-[[env.production.kv_namespaces]]
-binding = "MCP_LOGS"
-id = "768f383bd9a54f8c837decbaeb869b68"
 
 [[env.production.kv_namespaces]]
 binding = "MCP_SESSIONS"

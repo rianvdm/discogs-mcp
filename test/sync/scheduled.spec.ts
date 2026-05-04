@@ -89,21 +89,32 @@ describe('scheduled() handler', () => {
 		)
 		// 'beta' has no token mirror → handler should log no_token and continue
 
+		// Sync outcomes are now structured-logged to console.log (Workers
+		// Observability ingests them) — capture and parse to verify behavior.
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
 		const ctrl = createScheduledController({ scheduledTime: Date.now(), cron: '0 * * * *' })
 		const ctx = createExecutionContext()
 		await worker.scheduled!(ctrl, { ...env, ALLOWED_DISCOGS_USER_ID: 'alpha,beta' } as any, ctx)
 
-		const logs = await env.MCP_LOGS.list({ prefix: 'sync:' })
-		const ids = await Promise.all(
-			logs.keys.map(async (k) => {
-				const v = (await env.MCP_LOGS.get(k.name, 'json')) as { numericId: string; outcome: string }
-				return `${v.numericId}:${v.outcome}`
-			}),
-		)
+		const ids = logSpy.mock.calls
+			.map((args) => args[0])
+			.filter((s): s is string => typeof s === 'string')
+			.map((s) => {
+				try {
+					return JSON.parse(s) as { event?: string; numericId?: string; outcome?: string }
+				} catch {
+					return null
+				}
+			})
+			.filter((e): e is { event: string; numericId: string; outcome: string } => e?.event === 'sync')
+			.map((e) => `${e.numericId}:${e.outcome}`)
 		// alpha's searchCollection rejects → syncCollection's try/catch catches it
 		// and returns outcome: 'failed' (not 'crashed' — that's reserved for errors
 		// that escape syncCollection itself, e.g. during DiscogsClient construction).
 		// Either way, the assertion that matters is: beta still got processed.
 		expect(ids.sort()).toEqual(['alpha:failed', 'beta:no_token'])
+
+		logSpy.mockRestore()
 	})
 })

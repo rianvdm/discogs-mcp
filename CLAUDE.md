@@ -59,7 +59,7 @@ src/
 ### Infrastructure
 
 - **Runtime**: Cloudflare Workers (ES2021 target, Node.js compat enabled)
-- **Storage**: KV namespaces for sessions (`MCP_SESSIONS`), logs (`MCP_LOGS`), OAuth state (`OAUTH_KV`)
+- **Storage**: KV namespaces for sessions (`MCP_SESSIONS`) and OAuth state (`OAUTH_KV`); sync outcomes structured-log to console (Workers Observability)
 - **Durable Objects**: `DiscogsRateLimiter` class
 - **Secrets** (via `wrangler secret put`): `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `JWT_SECRET`
 - **CI**: GitHub Actions — lint → test → build → auto-deploy to prod on main push

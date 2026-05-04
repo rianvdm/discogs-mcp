@@ -2,13 +2,6 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import worker from '../../src/index-oauth'
 import type { Env } from '../../src/types/env'
 
-// Mock KV namespaces
-const mockMCP_LOGS = {
-	put: vi.fn(),
-	get: vi.fn(),
-	list: vi.fn(),
-}
-
 const mockMCP_SESSIONS = {
 	put: vi.fn(),
 	get: vi.fn(),
@@ -19,7 +12,6 @@ const mockMCP_SESSIONS = {
 const mockEnv: Env = {
 	DISCOGS_CONSUMER_KEY: 'test-key',
 	DISCOGS_CONSUMER_SECRET: 'test-secret',
-	MCP_LOGS: mockMCP_LOGS as any,
 	MCP_SESSIONS: mockMCP_SESSIONS as any,
 }
 
@@ -269,8 +261,6 @@ describe('MCP Client Integration Tests', () => {
 	beforeEach(() => {
 		vi.clearAllMocks()
 		client = new MockMCPClient()
-
-		mockMCP_LOGS.put.mockResolvedValue(undefined)
 
 		// Mock Discogs API calls
 		globalThis.fetch = vi.fn().mockImplementation((url: string) => {

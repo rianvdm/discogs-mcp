@@ -178,11 +178,9 @@ async function stripResourceParam(request: Request): Promise<Request> {
   })
 }
 
-async function logSyncOutcome(env: Env, numericId: string, result: SyncResult): Promise<void> {
-  const entry = { timestamp: new Date().toISOString(), numericId, ...result }
-  await env.MCP_LOGS.put(`sync:${entry.timestamp}:${numericId}`, JSON.stringify(entry), {
-    expirationTtl: 30 * 24 * 60 * 60,
-  })
+async function logSyncOutcome(_env: Env, numericId: string, result: SyncResult): Promise<void> {
+  const entry = { event: 'sync', timestamp: new Date().toISOString(), numericId, ...result }
+  console.log(JSON.stringify(entry))
 }
 
 // Note on concurrency: users in ALLOWED_DISCOGS_USER_ID are processed sequentially.
