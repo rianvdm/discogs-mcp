@@ -43,6 +43,10 @@
 		"zod": "^4.1.13"
 	},
 	"cloudflare": {
+		"label": "Discogs MCP Server",
+		"products": ["Workers", "KV", "Durable Objects"],
+		"categories": ["ai"],
+		"docs_url": "https://github.com/rianvdm/discogs-mcp#readme",
 		"bindings": {
 			"DISCOGS_CONSUMER_KEY": {
 				"description": "Your Discogs app **Consumer Key**. Register an app at [discogs.com/settings/developers](https://www.discogs.com/settings/developers) — name it anything, callback URL doesn't need to match yet (you'll update it after deploy)."
