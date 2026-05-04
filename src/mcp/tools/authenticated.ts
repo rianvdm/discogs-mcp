@@ -16,6 +16,7 @@ import { applySearchPipeline, type DedupedCollectionItem } from '../../utils/sea
 import { buildIndex, searchIndex } from '../../utils/searchIndex.js'
 import type { DiscogsCollectionItem } from '../../clients/discogs.js'
 import type { SessionContext } from '../server.js'
+import { buildNextSteps } from '../../utils/breadcrumb.js'
 
 /**
  * Type for release with relevance score
@@ -549,19 +550,25 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			// each one drives the same sync forward; the second arrival just sees a
 			// more advanced progress key.
 			const result = await syncCollection(syncClient, env.MCP_SESSIONS, session.numericId, { force: true })
-			return {
-				content: [
-					{
-						type: 'text',
-						text: JSON.stringify({
-							status: result.outcome,
-							count: result.count,
-							fetchedAt: result.fetchedAt,
-							pagesFetched: result.pagesFetched,
-						}),
-					},
-				],
+			const nextSteps = buildNextSteps([
+				{ tool: 'search_collection', args: 'query="..."', hint: 'newly cached items are now searchable' },
+				{ tool: 'get_collection_stats', args: '', hint: 'see updated totals' },
+			])
+			const content: Array<{ type: 'text'; text: string }> = [
+				{
+					type: 'text',
+					text: JSON.stringify({
+						status: result.outcome,
+						count: result.count,
+						fetchedAt: result.fetchedAt,
+						pagesFetched: result.pagesFetched,
+					}),
+				},
+			]
+			if (nextSteps) {
+				content.push({ type: 'text', text: nextSteps.trimStart() })
 			}
+			return { content }
 		},
 	)
 
@@ -868,11 +875,18 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 
 				const resultTruncationNote = buildResultTruncationNote(query, allResults.length, page, per_page)
 
+				const nextSteps = buildNextSteps([
+					{ tool: 'get_release', args: 'release_id=<ID>', hint: 'expand a hit using the [ID: ...] from the list above' },
+					{ tool: 'rate_release', args: 'instance_id=<INSTANCE>, folder_id=<FOLDER>, rating=1..5', hint: 'rate one of these items in your collection' },
+					{ tool: 'move_release', args: 'release_id=<ID>, instance_id=<INSTANCE>, source_folder_id=<FROM>, destination_folder_id=<TO>', hint: 'move a hit to another folder' },
+					{ tool: 'remove_from_collection', args: 'release_id=<ID>, instance_id=<INSTANCE>, folder_id=<FOLDER>', hint: 'drop a hit from your collection' },
+				])
+
 				return {
 					content: [
 						{
 							type: 'text',
-							text: `${summary}${temporalInfo}${moodInfo}\n${releaseList}\n\n**Tip:** Use the release IDs with the get_release tool for detailed information about specific albums. Use Instance and Folder IDs with move_release, rate_release, and remove_from_collection tools.${resultTruncationNote}${collectionTruncationNote}`,
+							text: `${summary}${temporalInfo}${moodInfo}\n${releaseList}${resultTruncationNote}${collectionTruncationNote}${nextSteps}`,
 						},
 					],
 				}
@@ -937,6 +951,13 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 						text += '\n'
 					})
 				}
+
+				text += buildNextSteps([
+					{ tool: 'add_to_collection', args: `release_id=${release_id}, folder_id=<FOLDER>`, hint: 'add this release to a folder in your collection' },
+					{ tool: 'rate_release', args: 'instance_id=<INSTANCE>, folder_id=<FOLDER>, rating=1..5', hint: 'rate this release if you already own it (instance_id comes from search_collection)' },
+					{ tool: 'search_discogs', args: `query="${artists}", type="master"`, hint: 'find more from this artist on Discogs' },
+					{ tool: 'search_collection', args: `query="${artists}"`, hint: 'check what you already own by this artist' },
+				])
 
 				return {
 					content: [
@@ -1050,8 +1071,13 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				}
 
 				const text = formatSearchDiscogsResults(searchResponse, ownedMasterIds, ownedReleaseIds, query, type)
+				const nextSteps = buildNextSteps([
+					{ tool: 'get_release', args: 'release_id=<ID>', hint: 'expand a hit (use the release ID from the list above)' },
+					{ tool: 'add_to_collection', args: 'release_id=<ID>, folder_id=<FOLDER>', hint: 'add a hit to your collection (call list_folders first if you need a folder_id)' },
+					{ tool: 'search_collection', args: `query="${query}"`, hint: 'cross-reference against what you already own' },
+				])
 				return {
-					content: [{ type: 'text', text }],
+					content: [{ type: 'text', text: text + nextSteps }],
 				}
 			} catch (error) {
 				throw new Error(`Failed to search Discogs: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -1170,6 +1196,12 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				if (isIncomplete) {
 					text += `\n⚠️ Only ${collectionIndexedItems} of your ${collectionTotalItems} releases have been indexed. Stats above reflect the indexed portion only.`
 				}
+
+				text += buildNextSteps([
+					{ tool: 'search_collection', args: 'query="<genre or decade>"', hint: 'drill into a slice of the collection' },
+					{ tool: 'get_recommendations', args: 'genre="<top genre>"', hint: 'pull picks from a top-genre slice' },
+					{ tool: 'list_folders', args: '', hint: 'see how your collection is organized' },
+				])
 
 				return {
 					content: [
@@ -1608,8 +1640,13 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 						text += `   Release ID: ${release.id}\n\n`
 					})
 
-					text += `**Tip:** Use the get_release tool with any Release ID for detailed information about specific albums.`
 				}
+
+				text += buildNextSteps([
+					{ tool: 'get_release', args: 'release_id=<ID>', hint: 'expand a recommendation using its Release ID' },
+					{ tool: 'get_recommendations', args: 'mood="<descriptor>"', hint: 'try a different mood or context filter' },
+					{ tool: 'search_collection', args: 'query="..."', hint: 'free-text search if recommendations missed the mark' },
+				])
 
 				return {
 					content: [
@@ -1680,6 +1717,11 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				text += '• Better rate limit compliance\n'
 				text += '• Request deduplication for concurrent users\n'
 
+				text += buildNextSteps([
+					{ tool: 'refresh_collection', args: '', hint: 'force a fresh collection sync if cache looks stale' },
+					{ tool: 'server_info', args: '', hint: 'see server version and feature list' },
+				])
+
 				return {
 					content: [
 						{
@@ -1738,6 +1780,13 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					text += `• **${folder.name}** (ID: ${folder.id}) — ${folder.count} releases\n`
 				}
 
+				text += buildNextSteps([
+					{ tool: 'create_folder', args: 'name="..."', hint: 'add a new folder' },
+					{ tool: 'edit_folder', args: 'folder_id=<ID>, name="..."', hint: 'rename a folder' },
+					{ tool: 'delete_folder', args: 'folder_id=<ID>', hint: 'remove an empty folder' },
+					{ tool: 'move_release', args: 'release_id=<ID>, instance_id=<INSTANCE>, source_folder_id=<FROM>, destination_folder_id=<TO>', hint: 'move a release between folders' },
+				])
+
 				return {
 					content: [{ type: 'text', text }],
 				}
@@ -1783,11 +1832,15 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					env.DISCOGS_CONSUMER_SECRET,
 				)
 
+				const nextSteps = buildNextSteps([
+					{ tool: 'move_release', args: `release_id=<ID>, instance_id=<INSTANCE>, source_folder_id=<FROM>, destination_folder_id=${folder.id}`, hint: 'move a release into the new folder' },
+					{ tool: 'list_folders', args: '', hint: 'see all folders' },
+				])
 				return {
 					content: [
 						{
 							type: 'text',
-							text: `Created folder **${folder.name}** (ID: ${folder.id})`,
+							text: `Created folder **${folder.name}** (ID: ${folder.id})${nextSteps}`,
 						},
 					],
 				}
@@ -1835,11 +1888,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					env.DISCOGS_CONSUMER_SECRET,
 				)
 
+				const nextSteps = buildNextSteps([
+					{ tool: 'list_folders', args: '', hint: 'confirm the rename' },
+				])
 				return {
 					content: [
 						{
 							type: 'text',
-							text: `Renamed folder ${folder_id} to **${folder.name}**`,
+							text: `Renamed folder ${folder_id} to **${folder.name}**${nextSteps}`,
 						},
 					],
 				}
@@ -1885,11 +1941,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					env.DISCOGS_CONSUMER_SECRET,
 				)
 
+				const nextSteps = buildNextSteps([
+					{ tool: 'list_folders', args: '', hint: 'confirm the deletion' },
+				])
 				return {
 					content: [
 						{
 							type: 'text',
-							text: `Deleted folder ${folder_id}`,
+							text: `Deleted folder ${folder_id}${nextSteps}`,
 						},
 					],
 				}
@@ -1937,11 +1996,16 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					env.DISCOGS_CONSUMER_SECRET,
 				)
 
+				const nextSteps = buildNextSteps([
+					{ tool: 'rate_release', args: `instance_id=${result.instance_id}, folder_id=${folder_id}, rating=1..5`, hint: 'rate the release you just added' },
+					{ tool: 'list_custom_fields', args: '', hint: 'see custom fields you can fill in for this release' },
+					{ tool: 'get_release', args: `release_id=${release_id}`, hint: 'pull tracklist and full metadata for the release' },
+				])
 				return {
 					content: [
 						{
 							type: 'text',
-							text: `Added release ${release_id} to folder ${folder_id} (instance ID: ${result.instance_id})`,
+							text: `Added release ${release_id} to folder ${folder_id} (instance ID: ${result.instance_id})${nextSteps}`,
 						},
 					],
 				}
@@ -1991,11 +2055,15 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					env.DISCOGS_CONSUMER_SECRET,
 				)
 
+				const nextSteps = buildNextSteps([
+					{ tool: 'search_collection', args: 'query="..."', hint: 'verify the release is gone or find another one' },
+					{ tool: 'get_collection_stats', args: '', hint: 'see updated totals' },
+				])
 				return {
 					content: [
 						{
 							type: 'text',
-							text: `Removed release ${release_id} (instance ${instance_id}) from folder ${folder_id}`,
+							text: `Removed release ${release_id} (instance ${instance_id}) from folder ${folder_id}${nextSteps}`,
 						},
 					],
 				}
@@ -2047,11 +2115,15 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					env.DISCOGS_CONSUMER_SECRET,
 				)
 
+				const nextSteps = buildNextSteps([
+					{ tool: 'rate_release', args: `instance_id=${instance_id}, folder_id=${target_folder_id}, rating=1..5`, hint: 'rate the release in its new folder' },
+					{ tool: 'list_folders', args: '', hint: 'see updated folder counts' },
+				])
 				return {
 					content: [
 						{
 							type: 'text',
-							text: `Moved release ${release_id} (instance ${instance_id}) from folder ${folder_id} to folder ${target_folder_id}`,
+							text: `Moved release ${release_id} (instance ${instance_id}) from folder ${folder_id} to folder ${target_folder_id}${nextSteps}`,
 						},
 					],
 				}
@@ -2104,11 +2176,15 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				)
 
 				const ratingText = rating === 0 ? 'Removed rating from' : `Rated ${rating}/5 stars:`
+				const nextSteps = buildNextSteps([
+					{ tool: 'get_release', args: `release_id=${release_id}`, hint: 'pull full metadata for the release you just rated' },
+					{ tool: 'search_collection', args: 'query="..."', hint: 'find another release to rate' },
+				])
 				return {
 					content: [
 						{
 							type: 'text',
-							text: `${ratingText} release ${release_id} (instance ${instance_id})`,
+							text: `${ratingText} release ${release_id} (instance ${instance_id})${nextSteps}`,
 						},
 					],
 				}
@@ -2171,6 +2247,10 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					text += '\n'
 				}
 
+				text += buildNextSteps([
+					{ tool: 'edit_custom_field', args: 'release_id=<ID>, instance_id=<INSTANCE>, folder_id=<FOLDER>, field_id=<FIELD>, value="..."', hint: 'set a custom field value on a release instance' },
+				])
+
 				return {
 					content: [{ type: 'text', text }],
 				}
@@ -2224,11 +2304,15 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					env.DISCOGS_CONSUMER_SECRET,
 				)
 
+				const nextSteps = buildNextSteps([
+					{ tool: 'list_custom_fields', args: '', hint: 'see all custom fields and their options' },
+					{ tool: 'get_release', args: `release_id=${release_id}`, hint: 'pull full metadata for the release' },
+				])
 				return {
 					content: [
 						{
 							type: 'text',
-							text: `Updated field ${field_id} to "${value}" on release ${release_id} (instance ${instance_id})`,
+							text: `Updated field ${field_id} to "${value}" on release ${release_id} (instance ${instance_id})${nextSteps}`,
 						},
 					],
 				}

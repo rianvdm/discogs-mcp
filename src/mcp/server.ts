@@ -64,10 +64,27 @@ export interface McpServerWithContext {
  * @param baseUrl - Base URL for constructing auth URLs (e.g. https://host)
  */
 export function createMcpServer(env: Env, baseUrl: string): McpServerWithContext {
-  const server = new McpServer({
-    name: 'discogs-mcp',
-    version: '1.0.0',
-  })
+  const server = new McpServer(
+    {
+      name: 'discogs-mcp',
+      version: '1.0.0',
+    },
+    {
+      instructions: [
+        'Recommended path:',
+        '- Discovery in your collection: `search_collection` (free-text, ranked) → `get_release` to expand a hit.',
+        '- Discovery across the Discogs catalog: `search_discogs` (catalog-wide, marks in-collection items) → `get_release` to expand.',
+        '- Personalized picks: `get_recommendations` → `get_release` → `add_to_collection` if you want to keep it.',
+        '- Stats and shape of the collection: `get_collection_stats`.',
+        '- Mutations on a known release: `add_to_collection` / `remove_from_collection` / `move_release` / `rate_release`.',
+        '- Folder management: `list_folders` / `create_folder` / `edit_folder` / `delete_folder`.',
+        '- Custom fields on collection items: `list_custom_fields` / `edit_custom_field`.',
+        '- Auth and diagnostics: `auth_status`, `server_info`, `ping`, `get_cache_stats`, `refresh_collection`.',
+        '',
+        'Most tool responses end with a "Next steps" block listing the most likely follow-up calls and the exact argument shape — copy those verbatim when chaining.',
+      ].join('\n'),
+    },
+  )
 
   // Mutable context — set by the caller before the MCP handler runs
   const context: McpRequestContext = {

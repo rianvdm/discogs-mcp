@@ -6,6 +6,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import type { Env } from '../../types/env.js'
 import type { SessionContext } from '../server.js'
+import { buildNextSteps } from '../../utils/breadcrumb.js'
 
 /**
  * Generate authentication URL with connection ID if available
@@ -27,11 +28,15 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 			message: z.string().optional().default('Hello from Discogs MCP!').describe('Message to echo back'),
 		},
 		async ({ message }) => {
+			const nextSteps = buildNextSteps([
+				{ tool: 'server_info', args: '', hint: 'see server version and feature list' },
+				{ tool: 'auth_status', args: '', hint: 'check whether you are authenticated' },
+			])
 			return {
 				content: [
 					{
 						type: 'text',
-						text: `Pong! You said: ${message}`,
+						text: `Pong! You said: ${message}${nextSteps}`,
 					},
 				],
 			}
@@ -43,11 +48,16 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 		const { connectionId } = await getSessionContext()
 		const authUrl = getAuthUrl(connectionId)
 
+		const nextSteps = buildNextSteps([
+			{ tool: 'auth_status', args: '', hint: 'check whether the current session is authenticated' },
+			{ tool: 'ping', args: '', hint: 'test connectivity' },
+		])
+
 		return {
 			content: [
 				{
 					type: 'text',
-					text: `Discogs MCP Server v3.1.0\n\nStatus: Running\nProtocol: MCP 2024-11-05\nFeatures:\n- Resources: Collection, Releases, Search\n- Authentication: OAuth 1.0a\n- Rate Limiting: Enabled\n\nTo get started, authenticate at ${authUrl}`,
+					text: `Discogs MCP Server v3.1.0\n\nStatus: Running\nProtocol: MCP 2024-11-05\nFeatures:\n- Resources: Collection, Releases, Search\n- Authentication: OAuth 1.0a\n- Rate Limiting: Enabled\n\nTo get started, authenticate at ${authUrl}${nextSteps}`,
 				},
 			],
 		}
@@ -60,6 +70,11 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 
 		// Check if user is authenticated
 		if (session) {
+			const nextSteps = buildNextSteps([
+				{ tool: 'search_collection', args: 'query="..."', hint: 'free-text ranked search of your collection' },
+				{ tool: 'get_collection_stats', args: '', hint: 'see the shape of your collection' },
+				{ tool: 'get_recommendations', args: '', hint: 'personalized picks based on your collection' },
+			])
 			return {
 				content: [
 					{
@@ -78,7 +93,7 @@ You are successfully authenticated with Discogs!
 *Collection management:* add_to_collection, remove_from_collection, move_release, rate_release
 *Folders:* list_folders, create_folder, edit_folder, delete_folder
 *Custom fields:* list_custom_fields, edit_custom_field
-*Diagnostics:* get_cache_stats`,
+*Diagnostics:* get_cache_stats${nextSteps}`,
 					},
 				],
 			}
