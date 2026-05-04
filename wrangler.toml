@@ -27,7 +27,15 @@ bindings = [
 tag = "v1"
 new_classes = ["DiscogsRateLimiter"]
 
-# Development environment (default)
+# Top-level config doubles as (a) the maintainer's local `wrangler dev` /
+# preview deploy target, and (b) the template the "Deploy to Cloudflare" button
+# clones into a self-hoster's account. The button auto-provisions fresh KV
+# namespaces and rewrites the `id` fields below in the user's fork. The IDs
+# committed here belong to the maintainer's account; they will fail any
+# unrelated `wrangler deploy` (account boundary), which is the desired safety
+# net — self-hosters can't accidentally write to the maintainer's namespaces.
+# Maintainer's hosted instance (discogs-mcp.com) deploys against
+# [env.production] below via `npm run deploy:prod`.
 [[kv_namespaces]]
 binding = "MCP_LOGS"
 id = "b0c83f4b63a94c7490a609095e35b84f"
@@ -69,7 +77,8 @@ id = "e45edcc5347e4b409169c1d0a9b2ed5d"
 binding = "OAUTH_KV"
 id = "35c396a7d0924dd8a5527334cd4538d3"
 
-# Secrets (set via wrangler secret put):
+# Secrets — declared in .dev.vars.example so the Deploy button prompts for them.
+# For the maintainer's hosted instance, set with `wrangler secret put <NAME> --env production`:
 # - DISCOGS_CONSUMER_KEY
 # - DISCOGS_CONSUMER_SECRET
 # - JWT_SECRET

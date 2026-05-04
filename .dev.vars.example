@@ -1,0 +1,16 @@
+# Discogs MCP — required secrets.
+#
+# The "Deploy to Cloudflare" button reads this file and prompts for each value
+# at deploy time, then stores them as Worker secrets in your account. For local
+# development, copy this file to .dev.vars and fill in real values:
+#
+#   cp .dev.vars.example .dev.vars
+#
+# Where to get these:
+#   DISCOGS_CONSUMER_KEY    — https://www.discogs.com/settings/developers (create a new app)
+#   DISCOGS_CONSUMER_SECRET — same page, shown alongside the key
+#   JWT_SECRET              — any random string; e.g. `openssl rand -hex 32`
+
+DISCOGS_CONSUMER_KEY=
+DISCOGS_CONSUMER_SECRET=
+JWT_SECRET=

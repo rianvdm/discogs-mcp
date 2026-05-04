@@ -41,5 +41,12 @@
 		"minisearch": "^7.2.0",
 		"oauth-1.0a": "^2.2.6",
 		"zod": "^4.1.13"
+	},
+	"cloudflare": {
+		"bindings": {
+			"DISCOGS_CONSUMER_KEY": "Your Discogs app **Consumer Key**. Register an app at https://www.discogs.com/settings/developers — name it anything, callback URL doesn't need to match yet (you'll update it after deploy).",
+			"DISCOGS_CONSUMER_SECRET": "Your Discogs app **Consumer Secret** (shown alongside the Consumer Key on the same page).",
+			"JWT_SECRET": "A random string used to sign session tokens. Generate one with `openssl rand -hex 32` or any password-style generator. Keep it secret; don't reuse across instances."
+		}
 	}
 }

@@ -1,10 +1,11 @@
 # 🎵 Discogs MCP Server
 
-[![Version](https://img.shields.io/badge/version-3.1.0-blue.svg)](https://github.com/rianvdm/discogs-mcp/releases/tag/v3.1.0)
+[![Version](https://img.shields.io/badge/version-3.3.0-blue.svg)](https://github.com/rianvdm/discogs-mcp/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
 [![MCP](https://img.shields.io/badge/MCP-2024--11--05-blue)](https://github.com/modelcontextprotocol)
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/rianvdm/discogs-mcp)
 
 A powerful **Model Context Protocol (MCP) server** that enables AI assistants to interact with your personal Discogs music collection. Built on Cloudflare Workers using the official **Cloudflare Agents SDK** and **@modelcontextprotocol/sdk**.
 
@@ -28,44 +29,40 @@ The good news: deploying your own copy is straightforward, runs on the Cloudflar
 
 ## 🚀 Self-Hosting
 
-### Prerequisites
+The fastest path is the **Deploy to Cloudflare** button above. It clones this repo into your GitHub account, provisions the KV namespaces and Durable Object in your Cloudflare account, prompts you for the three secrets, and sets up Workers Builds so future pushes to your fork redeploy automatically.
 
-- Node.js 18+
-- Cloudflare account (free tier is fine)
-- Discogs account with a [registered developer app](https://www.discogs.com/settings/developers) (you'll need a **Consumer Key** and **Consumer Secret**)
+### 1. Register a Discogs developer app
 
-### 1. Clone and install
+Go to [discogs.com/settings/developers](https://www.discogs.com/settings/developers) → **Create an Application**. Name it anything; the Callback URL can be a placeholder for now (you'll come back and set it after the Worker is deployed). Save the **Consumer Key** and **Consumer Secret** — you'll paste them in next.
 
-```bash
-git clone https://github.com/rianvdm/discogs-mcp.git
-cd discogs-mcp
-npm install
+### 2. Click the button
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/rianvdm/discogs-mcp)
+
+When prompted, paste:
+
+| Secret | Value |
+|---|---|
+| `DISCOGS_CONSUMER_KEY` | from step 1 |
+| `DISCOGS_CONSUMER_SECRET` | from step 1 |
+| `JWT_SECRET` | any random string — `openssl rand -hex 32` works |
+
+After the deploy completes, Cloudflare shows your Worker URL — something like `https://discogs-mcp.<your-subdomain>.workers.dev`. The MCP endpoint is `/mcp`.
+
+### 3. Update your Discogs app callback URL
+
+Go back to [your Discogs app](https://www.discogs.com/settings/developers) and set the **Callback URL** to:
+
 ```
-
-### 2. Create KV namespaces
-
-```bash
-wrangler kv namespace create MCP_SESSIONS --env production
-wrangler kv namespace create MCP_LOGS --env production
-wrangler kv namespace create OAUTH_KV --env production
-```
-
-Copy the returned IDs into `wrangler.toml` under `[env.production]`.
-
-### 3. Set your Discogs credentials
-
-```bash
-wrangler secret put DISCOGS_CONSUMER_KEY --env production
-wrangler secret put DISCOGS_CONSUMER_SECRET --env production
-wrangler secret put JWT_SECRET --env production   # any random string
+https://discogs-mcp.<your-subdomain>.workers.dev/discogs-callback
 ```
 
 ### 4. (Optional but recommended) Lock your instance to your own Discogs user
 
-By default, anyone with a Discogs account who discovers your Worker URL can authenticate and consume your rate-limit budget. To restrict it to just you — or to a small group of trusted users — set `ALLOWED_DISCOGS_USER_ID` in `wrangler.toml` under `[env.production.vars]`:
+By default, anyone who discovers your Worker URL can authenticate and consume your Discogs rate-limit budget. To restrict it, edit `wrangler.toml` in your fork and set `ALLOWED_DISCOGS_USER_ID` under `[vars]`:
 
 ```toml
-[env.production.vars]
+[vars]
 # Single user
 ALLOWED_DISCOGS_USER_ID = "123456"
 
@@ -73,17 +70,9 @@ ALLOWED_DISCOGS_USER_ID = "123456"
 ALLOWED_DISCOGS_USER_ID = "123456,789012,345678"
 ```
 
-You can find your numeric ID by visiting `https://api.discogs.com/users/<your-username>` and looking at the `id` field. Leave the value empty to run an open instance.
+Find your numeric ID by visiting `https://api.discogs.com/users/<your-username>` and looking at the `id` field. Push the change — Workers Builds redeploys automatically.
 
-### 5. Deploy
-
-```bash
-npm run deploy:prod
-```
-
-Your Worker URL will be something like `https://discogs-mcp.<your-subdomain>.workers.dev`. The MCP endpoint is `/mcp`.
-
-### 6. Connect your MCP client
+### 5. Connect your MCP client
 
 Replace `https://your-worker.workers.dev` below with your own URL.
 
@@ -125,6 +114,32 @@ claude mcp add --transport http discogs https://your-worker.workers.dev/mcp
 ```bash
 npx @modelcontextprotocol/inspector https://your-worker.workers.dev/mcp
 ```
+
+### Manual deploy (alternative)
+
+If you'd rather skip the button — for example, you want a fully local clone or you're on a Cloudflare account where the button doesn't work:
+
+```bash
+git clone https://github.com/rianvdm/discogs-mcp.git
+cd discogs-mcp
+npm install
+
+# Create the three KV namespaces and copy the returned IDs into wrangler.toml
+# (replace the empty `id = ""` values under the top-level [[kv_namespaces]] blocks)
+wrangler kv namespace create MCP_LOGS
+wrangler kv namespace create MCP_SESSIONS
+wrangler kv namespace create OAUTH_KV
+
+# Set the three secrets
+wrangler secret put DISCOGS_CONSUMER_KEY
+wrangler secret put DISCOGS_CONSUMER_SECRET
+wrangler secret put JWT_SECRET
+
+# Deploy
+npm run deploy
+```
+
+Then follow steps 3–5 above (callback URL, optional allowlist, connect your MCP client).
 
 ## 🔐 Authentication
 
