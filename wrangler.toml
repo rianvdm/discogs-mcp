@@ -7,9 +7,10 @@ compatibility_flags = ["nodejs_compat"]
 enabled = true
 
 # Hourly cron — drives the collection-sync background refresh.
-# See src/index-oauth.ts scheduled() handler.
+# See src/index-oauth.ts scheduled() handler. Every 6 hours (00/06/12/18 UTC)
+# is plenty for collection-add cadence and reduces 429 surface area vs hourly.
 [triggers]
-crons = ["0 * * * *"]
+crons = ["0 */6 * * *"]
 
 # Optional allowlist: numeric Discogs user ID(s) permitted to authenticate.
 # Accepts a single ID or a comma-separated list (e.g. "123,456,789").
@@ -59,7 +60,7 @@ bindings = [
 ]
 
 [env.production.triggers]
-crons = ["0 * * * *"]
+crons = ["0 */6 * * *"]
 
 [[env.production.kv_namespaces]]
 binding = "MCP_SESSIONS"
