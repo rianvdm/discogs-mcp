@@ -71,7 +71,10 @@ describe('resolveUsernamesToIds', () => {
 
     expect(mockFetch).toHaveBeenCalledTimes(1)
     expect(mockFetch.mock.calls[0][0]).toBe('https://api.discogs.com/users/elezea-records')
-    expect(mockFetch.mock.calls[0][1].headers['User-Agent']).toBe('discogs-mcp/1.0.0')
+    // User-Agent identifies the app + version + repo per Discogs API guidance.
+    expect(mockFetch.mock.calls[0][1].headers['User-Agent']).toMatch(
+      /^discogs-mcp\/\d+\.\d+\.\d+ \(\+https:\/\/github\.com\/rianvdm\/discogs-mcp\)$/,
+    )
 
     expect(kv.put).toHaveBeenCalledWith(
       'username-id:elezea-records',
@@ -147,6 +150,20 @@ describe('resolveUsernamesToIds', () => {
     expect(result.sort()).toEqual(['1', '3'])
     expect(mockFetch).toHaveBeenCalledTimes(3)
   })
+
+  it('caps retries at 1 for transient 5xx so the auth path fails fast', async () => {
+    // Default fetchWithRetry would retry 3 times with exponential backoff (~7s),
+    // tying up an OAuth callback on a single Discogs blip. Resolution failures
+    // here just deny the user — there's no recovery benefit to long retries.
+    // mockImplementation (not mockResolvedValue) so each retry gets a fresh
+    // Response — Response bodies lock after first read.
+    mockFetch.mockImplementation(async () => new Response('upstream busy', { status: 503 }))
+    const kv = makeKv()
+    const result = await resolveUsernamesToIds(['transient'], kv)
+    expect(result).toEqual([])
+    // 1 retry → 2 total attempts (initial + retry)
+    expect(mockFetch).toHaveBeenCalledTimes(2)
+  }, 10_000)
 
   it('treats KV read errors as a cache miss and proceeds to fetch', async () => {
     mockFetch.mockResolvedValueOnce(

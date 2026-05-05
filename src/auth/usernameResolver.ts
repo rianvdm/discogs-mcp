@@ -1,10 +1,14 @@
 // ABOUTME: Resolves Discogs usernames to numeric user IDs via the public
 // ABOUTME: GET /users/{username} endpoint, with module-level + KV caching.
 import { fetchWithRetry } from '../utils/retry'
+import { SERVER_VERSION } from '../version'
 
-const USER_AGENT = 'discogs-mcp/1.0.0'
+const USER_AGENT = `discogs-mcp/${SERVER_VERSION} (+https://github.com/rianvdm/discogs-mcp)`
 const KV_PREFIX = 'username-id:'
 const KV_TTL_SECONDS = 7 * 24 * 60 * 60 // 7 days
+// Cap retries on the auth path: a single Discogs blip would otherwise stall
+// the OAuth callback ~7s before fail-closing. 1 retry → 2 total attempts.
+const RESOLVE_MAX_RETRIES = 1
 
 const hotCache = new Map<string, string>()
 
@@ -67,6 +71,7 @@ async function resolveOne(username: string, kv: KVNamespace): Promise<string | n
           Accept: 'application/json',
         },
       },
+      { maxRetries: RESOLVE_MAX_RETRIES },
     )
     const body = (await response.json()) as { id?: number }
     if (typeof body.id !== 'number') {

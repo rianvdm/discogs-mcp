@@ -32,6 +32,9 @@ async function isAllowedUser(numericId: string | undefined, env: Env): Promise<b
   const numericIds = parseAllowlist(env.ALLOWED_DISCOGS_USER_ID)
   const parsedUsernames = parseUsernameList(env.ALLOWED_DISCOGS_USERNAMES)
   if (numericIds.length === 0 && parsedUsernames.length === 0) return true
+  // Fast path: if the caller's numeric ID is already in the static list, skip
+  // username resolution entirely (avoids a fetch-per-name fan-out on cold isolates).
+  if (numericId && numericIds.includes(numericId)) return true
   const usernameIds = await resolveUsernamesToIds(parsedUsernames, env.MCP_SESSIONS)
   const allowed = new Set([...numericIds, ...usernameIds])
   return !!numericId && allowed.has(numericId)

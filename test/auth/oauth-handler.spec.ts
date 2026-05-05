@@ -169,6 +169,17 @@ describe('checkAllowlist with usernames', () => {
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
+  it('short-circuits when numeric ID already matches static list (no fetch, no KV read)', async () => {
+    // When the caller's numeric ID is already accepted by ALLOWED_DISCOGS_USER_ID,
+    // there's no reason to resolve any usernames — every cold isolate would
+    // otherwise fan out a fetch per configured username before answering.
+    const kv = makeKv()
+    const res = await checkAllowlist(identity, '2579319', 'alice,bob,carol', kv)
+    expect(res).toBeNull()
+    expect(mockFetch).not.toHaveBeenCalled()
+    expect(kv.get).not.toHaveBeenCalled()
+  })
+
   it('lowercases the username before lookup', async () => {
     mockFetch.mockResolvedValueOnce(
       new Response(JSON.stringify({ id: 2579319, username: 'elezea-records' }), { status: 200 }),

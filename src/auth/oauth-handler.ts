@@ -54,6 +54,9 @@ export async function checkAllowlist(
   // If a var is set but resolution fails (e.g. network error or 404), deny
   // rather than falling back to open — misconfigured allowlist ≠ no allowlist.
   if (numericIds.length === 0 && parsedUsernames.length === 0) return null
+  // Fast path: if the caller's numeric ID is already in the static list, skip
+  // username resolution entirely (avoids a fetch-per-name fan-out on cold isolates).
+  if (numericIds.includes(String(identity.id))) return null
   const usernameIds = await resolveUsernamesToIds(parsedUsernames, kv)
   const allowed = new Set([...numericIds, ...usernameIds])
   if (allowed.has(String(identity.id))) return null
