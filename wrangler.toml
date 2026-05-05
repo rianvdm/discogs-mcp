@@ -13,9 +13,15 @@ crons = ["0 * * * *"]
 
 # Optional allowlist: numeric Discogs user ID(s) permitted to authenticate.
 # Accepts a single ID or a comma-separated list (e.g. "123,456,789").
-# Empty = no allowlist (open; default for local dev and self-hosters).
+# Empty on both vars below = no allowlist (open; default for local dev and self-hosters).
+#
+# ALLOWED_DISCOGS_USERNAMES is the friendlier alternative — list Discogs
+# usernames (e.g. "jhuggart,rianvdm") and the Worker resolves each to its
+# numeric ID via GET /users/<name> (cached in MCP_SESSIONS for 7 days).
+# Both vars merge; entries on either are accepted.
 [vars]
 ALLOWED_DISCOGS_USER_ID = ""
+ALLOWED_DISCOGS_USERNAMES = ""
 
 # Durable Object for coordinated Discogs API rate limiting
 [durable_objects]
@@ -52,6 +58,7 @@ name = "discogs-mcp-prod"
 # Discogs API rate limits are too tight to share, so anyone else must self-host.
 [env.production.vars]
 ALLOWED_DISCOGS_USER_ID = "2579319,2316828"
+ALLOWED_DISCOGS_USERNAMES = ""
 
 [env.production.durable_objects]
 bindings = [

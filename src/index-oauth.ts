@@ -5,6 +5,7 @@ import type { ExecutionContext, ScheduledController } from '@cloudflare/workers-
 import { createMcpHandler } from 'agents/mcp'
 
 import { DiscogsOAuthHandler, parseAllowlist, type DiscogsUserProps } from './auth/oauth-handler'
+import { parseUsernameList, resolveUsernamesToIds } from './auth/usernameResolver'
 import { DiscogsClient } from './clients/discogs'
 import { MARKETING_PAGE_HTML } from './marketing-page.js'
 import { createMcpServer } from './mcp/server'
@@ -22,15 +23,18 @@ const SERVER_VERSION = '1.0.0'
 const ACCESS_TOKEN_TTL = 7 * 24 * 60 * 60
 
 /**
- * Enforce ALLOWED_DISCOGS_USER_ID on authenticated MCP requests.
- * Primary gate is at the OAuth callback, but we also check here so that any
- * pre-existing grants/sessions issued before the allowlist was set are
- * invalidated on their next request.
+ * Enforce ALLOWED_DISCOGS_USER_ID / ALLOWED_DISCOGS_USERNAMES on authenticated
+ * MCP requests. Primary gate is at the OAuth callback, but we also check here
+ * so that any pre-existing grants/sessions issued before the allowlist was set
+ * are invalidated on their next request.
  */
-function isAllowedUser(numericId: string | undefined, env: Env): boolean {
-  const allowed = parseAllowlist(env.ALLOWED_DISCOGS_USER_ID)
-  if (allowed.length === 0) return true
-  return !!numericId && allowed.includes(numericId)
+async function isAllowedUser(numericId: string | undefined, env: Env): Promise<boolean> {
+  const numericIds = parseAllowlist(env.ALLOWED_DISCOGS_USER_ID)
+  const parsedUsernames = parseUsernameList(env.ALLOWED_DISCOGS_USERNAMES)
+  if (numericIds.length === 0 && parsedUsernames.length === 0) return true
+  const usernameIds = await resolveUsernamesToIds(parsedUsernames, env.MCP_SESSIONS)
+  const allowed = new Set([...numericIds, ...usernameIds])
+  return !!numericId && allowed.has(numericId)
 }
 
 function accessDeniedResponse(): Response {
@@ -63,7 +67,7 @@ const oauthProvider = new OAuthProvider({
       const { server, setContext } = createMcpServer(env, baseUrl)
 
       const props = (ctx as unknown as { props?: DiscogsUserProps }).props
-      if (props && !isAllowedUser(props.numericId, env)) {
+      if (props && !(await isAllowedUser(props.numericId, env))) {
         return accessDeniedResponse()
       }
       if (props?.username && props?.accessToken) {
@@ -114,7 +118,7 @@ async function handleSessionBasedMcp(
 
   const sessionData = JSON.parse(sessionDataStr)
 
-  if (!isAllowedUser(sessionData.numericId, env)) {
+  if (!(await isAllowedUser(sessionData.numericId, env))) {
     // Delete the stale unauthorized session so retry fails cleanly with 401
     await env.MCP_SESSIONS.delete(`session:${sessionId}`)
     return accessDeniedResponse()
@@ -309,10 +313,12 @@ export default {
   },
 
   async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
-    const allowed = (env.ALLOWED_DISCOGS_USER_ID || '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean)
+    const numericIds = parseAllowlist(env.ALLOWED_DISCOGS_USER_ID)
+    const usernameIds = await resolveUsernamesToIds(
+      parseUsernameList(env.ALLOWED_DISCOGS_USERNAMES),
+      env.MCP_SESSIONS,
+    )
+    const allowed = [...new Set([...numericIds, ...usernameIds])]
 
     for (const numericId of allowed) {
       try {

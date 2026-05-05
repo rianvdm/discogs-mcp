@@ -5,6 +5,7 @@ import type { ExecutionContext } from '@cloudflare/workers-types'
 import { DiscogsAuth } from './discogs'
 import type { Env } from '../types/env'
 import { tokenMirrorKey } from '../sync/keys'
+import { parseUsernameList, resolveUsernamesToIds } from './usernameResolver'
 
 // Env with OAuth helpers injected by the provider at runtime
 interface OAuthEnv extends Env {
@@ -35,17 +36,27 @@ export function parseAllowlist(raw: string | undefined): string[] {
 }
 
 /**
- * If ALLOWED_DISCOGS_USER_ID is set (non-empty), verify that the authenticated
- * Discogs identity matches one of the allowed IDs. Returns a 403 response for
- * unauthorized users, or null to proceed. Empty/unset = open instance.
+ * If either ALLOWED_DISCOGS_USER_ID or ALLOWED_DISCOGS_USERNAMES is non-empty,
+ * verify that the authenticated Discogs identity matches one of the allowed
+ * numeric IDs (after resolving usernames via the public Discogs API).
+ * Returns a 403 response for unauthorized users, or null to proceed.
+ * Empty/unset on both = open instance.
  */
-export function checkAllowlist(
+export async function checkAllowlist(
   identity: { id: number; username: string },
   allowedIdRaw: string | undefined,
-): Response | null {
-  const allowed = parseAllowlist(allowedIdRaw)
-  if (allowed.length === 0) return null
-  if (allowed.includes(String(identity.id))) return null
+  allowedUsernamesRaw: string | undefined,
+  kv: KVNamespace,
+): Promise<Response | null> {
+  const numericIds = parseAllowlist(allowedIdRaw)
+  const parsedUsernames = parseUsernameList(allowedUsernamesRaw)
+  // Open instance only when neither var is configured at all.
+  // If a var is set but resolution fails (e.g. network error or 404), deny
+  // rather than falling back to open — misconfigured allowlist ≠ no allowlist.
+  if (numericIds.length === 0 && parsedUsernames.length === 0) return null
+  const usernameIds = await resolveUsernamesToIds(parsedUsernames, kv)
+  const allowed = new Set([...numericIds, ...usernameIds])
+  if (allowed.has(String(identity.id))) return null
 
   console.warn(
     `[AUTH] Rejected unauthorized user: ${identity.username} (${identity.id})`,
@@ -181,7 +192,12 @@ async function handleDiscogsCallback(request: Request, env: OAuthEnv): Promise<R
     const identity = await identityRes.json() as { id: number; username: string }
 
     // Allowlist gate (set on maintainer's deployment; empty = open)
-    const denied = checkAllowlist(identity, env.ALLOWED_DISCOGS_USER_ID)
+    const denied = await checkAllowlist(
+      identity,
+      env.ALLOWED_DISCOGS_USER_ID,
+      env.ALLOWED_DISCOGS_USERNAMES,
+      env.MCP_SESSIONS,
+    )
     if (denied) return denied
 
     const userProps: DiscogsUserProps = {
@@ -353,7 +369,12 @@ async function handleManualCallback(request: Request, env: OAuthEnv): Promise<Re
     const identity = await identityRes.json() as { id: number; username: string }
 
     // Allowlist gate (set on maintainer's deployment; empty = open)
-    const denied = checkAllowlist(identity, env.ALLOWED_DISCOGS_USER_ID)
+    const denied = await checkAllowlist(
+      identity,
+      env.ALLOWED_DISCOGS_USER_ID,
+      env.ALLOWED_DISCOGS_USERNAMES,
+      env.MCP_SESSIONS,
+    )
     if (denied) return denied
 
     // Store session in KV (7 days)

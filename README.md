@@ -61,18 +61,26 @@ https://discogs-mcp.<your-subdomain>.workers.dev/discogs-callback
 
 ### 4. (Optional but recommended) Lock your instance to your own Discogs user
 
-By default, anyone who discovers your Worker URL can authenticate and consume your Discogs rate-limit budget. To restrict it, edit `wrangler.toml` in your fork and set `ALLOWED_DISCOGS_USER_ID` under `[vars]`:
+By default, anyone who discovers your Worker URL can authenticate and consume your Discogs rate-limit budget. To restrict it, edit `wrangler.toml` in your fork and set `ALLOWED_DISCOGS_USERNAMES` under `[vars]`:
 
 ```toml
 [vars]
-# Single user
-ALLOWED_DISCOGS_USER_ID = "123456"
+# Single user — the Worker resolves the username to a numeric ID automatically
+ALLOWED_DISCOGS_USERNAMES = "your-discogs-username"
 
 # Or a comma-separated list for multiple users
-ALLOWED_DISCOGS_USER_ID = "123456,789012,345678"
+ALLOWED_DISCOGS_USERNAMES = "alice,bob,carol"
 ```
 
-Find your numeric ID by visiting `https://api.discogs.com/users/<your-username>` and looking at the `id` field. Push the change — Workers Builds redeploys automatically.
+Push the change — Workers Builds redeploys automatically. The Worker looks up each username via the Discogs API on first use and caches the result for 7 days, so there's no manual ID lookup required.
+
+If you prefer to supply numeric Discogs user IDs directly (find yours at `https://api.discogs.com/users/<your-username>`, field `id`), use `ALLOWED_DISCOGS_USER_ID` instead — or set both; entries from either var are merged:
+
+```toml
+[vars]
+ALLOWED_DISCOGS_USER_ID = "123456"
+ALLOWED_DISCOGS_USERNAMES = "carol"
+```
 
 ### 5. Connect your MCP client
 

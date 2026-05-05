@@ -13,6 +13,12 @@ export interface Env {
   // Empty / unset = no allowlist (open instance, for self-hosters and local dev).
   ALLOWED_DISCOGS_USER_ID?: string
 
+  // Optional allowlist by Discogs username (resolved to numeric ID at runtime
+  // via GET /users/<name>, cached in MCP_SESSIONS for 7 days).
+  // Accepts a single name ("jhuggart") or comma-separated list ("a,b,c").
+  // Merged with ALLOWED_DISCOGS_USER_ID. Empty/unset on both = open instance.
+  ALLOWED_DISCOGS_USERNAMES?: string
+
   // Optional debug token for the GET /debug/budget endpoint.
   // If unset, the debug endpoint returns 404 (no surface area exposed).
   // Set via `wrangler secret put DEBUG_TOKEN --env production` with any random string.

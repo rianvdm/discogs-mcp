@@ -1,6 +1,6 @@
 // ABOUTME: Tests for DiscogsOAuthHandler auth routes.
 import { env, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { DiscogsOAuthHandler, checkAllowlist } from '../../src/auth/oauth-handler'
 import { tokenMirrorKey } from '../../src/sync/keys'
 
@@ -25,26 +25,30 @@ vi.stubGlobal('fetch', mockFetch)
 
 describe('checkAllowlist', () => {
   const identity = { id: 2579319, username: 'elezea-records' }
+  const stubKv = {
+    get: vi.fn().mockResolvedValue(null),
+    put: vi.fn().mockResolvedValue(undefined),
+  } as unknown as KVNamespace
 
-  it('returns null when allowlist is unset (open instance)', () => {
-    expect(checkAllowlist(identity, undefined)).toBeNull()
+  it('returns null when allowlist is unset (open instance)', async () => {
+    expect(await checkAllowlist(identity, undefined, undefined, stubKv)).toBeNull()
   })
 
-  it('returns null when allowlist is empty string (open instance)', () => {
-    expect(checkAllowlist(identity, '')).toBeNull()
-    expect(checkAllowlist(identity, '   ')).toBeNull()
+  it('returns null when allowlist is empty string (open instance)', async () => {
+    expect(await checkAllowlist(identity, '', '', stubKv)).toBeNull()
+    expect(await checkAllowlist(identity, '   ', '   ', stubKv)).toBeNull()
   })
 
-  it('returns null when numeric ID matches', () => {
-    expect(checkAllowlist(identity, '2579319')).toBeNull()
+  it('returns null when numeric ID matches', async () => {
+    expect(await checkAllowlist(identity, '2579319', undefined, stubKv)).toBeNull()
   })
 
-  it('trims whitespace before comparing', () => {
-    expect(checkAllowlist(identity, '  2579319  ')).toBeNull()
+  it('trims whitespace before comparing', async () => {
+    expect(await checkAllowlist(identity, '  2579319  ', undefined, stubKv)).toBeNull()
   })
 
   it('returns a 403 HTML response when numeric ID does not match', async () => {
-    const res = checkAllowlist(identity, '99999')
+    const res = await checkAllowlist(identity, '99999', undefined, stubKv)
     expect(res).not.toBeNull()
     expect(res!.status).toBe(403)
     expect(res!.headers.get('Content-Type')).toContain('text/html')
@@ -53,32 +57,127 @@ describe('checkAllowlist', () => {
     expect(body).toContain('github.com/rianvdm/discogs-mcp')
   })
 
-  it('compares by numeric ID, not username (usernames are mutable)', () => {
-    const res = checkAllowlist({ id: 111, username: 'elezea-records' }, '2579319')
+  it('compares by numeric ID, not username (usernames are mutable)', async () => {
+    const res = await checkAllowlist(
+      { id: 111, username: 'elezea-records' },
+      '2579319',
+      undefined,
+      stubKv,
+    )
     expect(res).not.toBeNull()
     expect(res!.status).toBe(403)
   })
 
-  it('accepts a comma-separated list and allows any match', () => {
-    expect(checkAllowlist(identity, '111,2579319,222')).toBeNull()
-    expect(checkAllowlist({ id: 111, username: 'a' }, '111,2579319,222')).toBeNull()
-    expect(checkAllowlist({ id: 222, username: 'b' }, '111,2579319,222')).toBeNull()
+  it('accepts a comma-separated list and allows any match', async () => {
+    expect(await checkAllowlist(identity, '111,2579319,222', undefined, stubKv)).toBeNull()
+    expect(
+      await checkAllowlist({ id: 111, username: 'a' }, '111,2579319,222', undefined, stubKv),
+    ).toBeNull()
+    expect(
+      await checkAllowlist({ id: 222, username: 'b' }, '111,2579319,222', undefined, stubKv),
+    ).toBeNull()
   })
 
-  it('rejects when numeric ID is absent from the list', () => {
-    const res = checkAllowlist({ id: 999, username: 'nope' }, '111,2579319,222')
+  it('rejects when numeric ID is absent from the list', async () => {
+    const res = await checkAllowlist(
+      { id: 999, username: 'nope' },
+      '111,2579319,222',
+      undefined,
+      stubKv,
+    )
     expect(res).not.toBeNull()
     expect(res!.status).toBe(403)
   })
 
-  it('trims whitespace around list entries', () => {
-    expect(checkAllowlist(identity, ' 111 , 2579319 , 222 ')).toBeNull()
+  it('trims whitespace around list entries', async () => {
+    expect(
+      await checkAllowlist(identity, ' 111 , 2579319 , 222 ', undefined, stubKv),
+    ).toBeNull()
   })
 
-  it('ignores empty entries in the list (e.g. trailing commas)', () => {
-    expect(checkAllowlist(identity, '2579319,,,')).toBeNull()
-    const res = checkAllowlist({ id: 999, username: 'nope' }, ',,,')
+  it('ignores empty entries in the list (e.g. trailing commas)', async () => {
+    expect(await checkAllowlist(identity, '2579319,,,', undefined, stubKv)).toBeNull()
+    const res = await checkAllowlist(
+      { id: 999, username: 'nope' },
+      ',,,',
+      undefined,
+      stubKv,
+    )
     expect(res).toBeNull() // all-empty = open instance
+  })
+})
+
+describe('checkAllowlist with usernames', () => {
+  const identity = { id: 2579319, username: 'elezea-records' }
+
+  function makeKv() {
+    const store = new Map<string, string>()
+    return {
+      get: vi.fn(async (key: string) => store.get(key) ?? null),
+      put: vi.fn(async (key: string, value: string) => {
+        store.set(key, value)
+      }),
+      _store: store,
+    } as unknown as KVNamespace & { _store: Map<string, string> }
+  }
+
+  beforeEach(async () => {
+    mockFetch.mockReset()
+    const { _resetHotCacheForTests } = await import('../../src/auth/usernameResolver')
+    _resetHotCacheForTests()
+  })
+
+  it('allows when only ALLOWED_DISCOGS_USERNAMES matches (resolved via fetch)', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: 2579319, username: 'elezea-records' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      }),
+    )
+    const kv = makeKv()
+    const res = await checkAllowlist(identity, undefined, 'elezea-records', kv)
+    expect(res).toBeNull()
+    expect(mockFetch).toHaveBeenCalledTimes(1)
+    expect(mockFetch.mock.calls[0][0]).toBe('https://api.discogs.com/users/elezea-records')
+    // KV cache populated for cross-isolate reuse
+    expect(await kv.get('username-id:elezea-records')).toBe('2579319')
+  })
+
+  it('merges username and numeric-id allowlists', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: 111, username: 'somebody' }), { status: 200 }),
+    )
+    const kv = makeKv()
+    // identity (2579319) matches the numeric list; username 'somebody' is also allowed
+    const res = await checkAllowlist(identity, '2579319', 'somebody', kv)
+    expect(res).toBeNull()
+  })
+
+  it('rejects when username resolution fails (404) and no other entry matches', async () => {
+    mockFetch.mockResolvedValueOnce(new Response('Not Found', { status: 404 }))
+    const kv = makeKv()
+    const res = await checkAllowlist(identity, undefined, 'definitelynotreal', kv)
+    expect(res).not.toBeNull()
+    expect(res!.status).toBe(403)
+  })
+
+  it('uses KV cache on second call without re-fetching', async () => {
+    const kv = makeKv()
+    await kv.put('username-id:elezea-records', '2579319')
+    const res = await checkAllowlist(identity, undefined, 'elezea-records', kv)
+    expect(res).toBeNull()
+    expect(mockFetch).not.toHaveBeenCalled()
+  })
+
+  it('lowercases the username before lookup', async () => {
+    mockFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ id: 2579319, username: 'elezea-records' }), { status: 200 }),
+    )
+    const kv = makeKv()
+    const res = await checkAllowlist(identity, undefined, 'Elezea-Records', kv)
+    expect(res).toBeNull()
+    expect(mockFetch.mock.calls[0][0]).toBe('https://api.discogs.com/users/elezea-records')
+    expect(await kv.get('username-id:elezea-records')).toBe('2579319')
   })
 })
 
