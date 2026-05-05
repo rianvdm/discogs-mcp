@@ -1,7 +1,17 @@
 // test/rate-limiter/durable-object.test.ts
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-import { getDelay, updateBudgetFromHeaders, shouldRejectQueue } from '../../src/rate-limiter/durable-object'
+import {
+  getDelay,
+  updateBudgetFromHeaders,
+  shouldRejectQueue,
+  shouldGiveUpEntry,
+  shouldTripCircuit,
+  isInCooldown,
+  cooldownRetryAfterSecs,
+  MAX_ATTEMPTS_PER_ENTRY,
+  TRIP_THRESHOLD,
+} from '../../src/rate-limiter/durable-object'
 import type { BudgetState } from '../../src/rate-limiter/types'
 
 describe('getDelay', () => {
@@ -58,5 +68,57 @@ describe('shouldRejectQueue', () => {
 
   it('returns true when queue is at max depth', () => {
     expect(shouldRejectQueue(20)).toBe(true)
+  })
+})
+
+describe('shouldGiveUpEntry', () => {
+  it('keeps retrying below the cap', () => {
+    for (let n = 0; n < MAX_ATTEMPTS_PER_ENTRY; n++) {
+      expect(shouldGiveUpEntry(n)).toBe(false)
+    }
+  })
+
+  it('gives up at and beyond the cap', () => {
+    expect(shouldGiveUpEntry(MAX_ATTEMPTS_PER_ENTRY)).toBe(true)
+    expect(shouldGiveUpEntry(MAX_ATTEMPTS_PER_ENTRY + 5)).toBe(true)
+  })
+})
+
+describe('shouldTripCircuit', () => {
+  it('does not trip below the threshold', () => {
+    for (let n = 0; n < TRIP_THRESHOLD; n++) {
+      expect(shouldTripCircuit(n)).toBe(false)
+    }
+  })
+
+  it('trips at and above the threshold', () => {
+    expect(shouldTripCircuit(TRIP_THRESHOLD)).toBe(true)
+    expect(shouldTripCircuit(TRIP_THRESHOLD + 1)).toBe(true)
+  })
+})
+
+describe('isInCooldown', () => {
+  it('returns false when trippedUntil is null', () => {
+    expect(isInCooldown(null, 1_000_000)).toBe(false)
+  })
+
+  it('returns true while now is before trippedUntil', () => {
+    expect(isInCooldown(2_000, 1_999)).toBe(true)
+  })
+
+  it('returns false once now reaches trippedUntil', () => {
+    expect(isInCooldown(2_000, 2_000)).toBe(false)
+    expect(isInCooldown(2_000, 2_001)).toBe(false)
+  })
+})
+
+describe('cooldownRetryAfterSecs', () => {
+  it('rounds up the seconds remaining', () => {
+    expect(cooldownRetryAfterSecs(10_500, 10_000)).toBe(1)
+    expect(cooldownRetryAfterSecs(11_001, 10_000)).toBe(2)
+  })
+
+  it('returns 0 when cooldown has elapsed', () => {
+    expect(cooldownRetryAfterSecs(10_000, 11_000)).toBe(0)
   })
 })
