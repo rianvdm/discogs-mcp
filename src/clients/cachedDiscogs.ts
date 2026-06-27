@@ -18,6 +18,8 @@ import {
 	type DiscogsCollectionItem,
 	type DiscogsFolder,
 	type DiscogsCustomField,
+	type DiscogsWant,
+	type DiscogsWantlistResponse,
 } from './discogs'
 import { SmartCache, CacheKeys, createDiscogsCache } from '../utils/cache'
 import type { RateLimiterStub } from '../rate-limiter/types'
@@ -209,6 +211,62 @@ export class CachedDiscogsClient {
 			this.cache.invalidate(`searches:${username}`),
 			this.cache.invalidate(`stats:${username}`),
 		])
+	}
+
+	/**
+	 * Get the user's wantlist with caching
+	 */
+	async getWantlist(
+		username: string,
+		accessToken: string,
+		accessTokenSecret: string,
+		options: { page?: number; per_page?: number } = {},
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<DiscogsWantlistResponse> {
+		const cacheKey = CacheKeys.wantlist(username, options.page)
+		return this.cache.getOrFetch('wantlists', cacheKey, () =>
+			this.client.getWantlist(username, accessToken, accessTokenSecret, options, consumerKey, consumerSecret),
+		)
+	}
+
+	/**
+	 * Add or update a wantlist item, then invalidate the wantlist cache
+	 */
+	async addToWantlist(
+		username: string,
+		releaseId: number,
+		changes: { notes?: string; rating?: number },
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<DiscogsWant> {
+		const result = await this.client.addToWantlist(username, releaseId, changes, accessToken, accessTokenSecret, consumerKey, consumerSecret)
+		await this.invalidateWantlistCache(username)
+		return result
+	}
+
+	/**
+	 * Remove a wantlist item, then invalidate the wantlist cache
+	 */
+	async removeFromWantlist(
+		username: string,
+		releaseId: number,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<void> {
+		await this.client.removeFromWantlist(username, releaseId, accessToken, accessTokenSecret, consumerKey, consumerSecret)
+		await this.invalidateWantlistCache(username)
+	}
+
+	/**
+	 * Invalidate cached wantlist pages for a user
+	 */
+	async invalidateWantlistCache(username: string) {
+		await this.cache.invalidate(`wantlists:${username}`)
 	}
 
 	/**

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { CachedDiscogsClient } from '../../src/clients/cachedDiscogs'
 import { DiscogsClient } from '../../src/clients/discogs'
+import { CacheKeys } from '../../src/utils/cache'
 
 // Minimal KV mock
 function makeKV(): KVNamespace {
@@ -29,6 +30,9 @@ function makeMockClient() {
 		editInstance: vi.fn(async () => undefined),
 		listCustomFields: vi.fn(async () => [{ id: 1, name: 'Notes', type: 'textarea', public: true, position: 1 }]),
 		editCustomFieldValue: vi.fn(async () => undefined),
+		getWantlist: vi.fn(async () => ({ pagination: { pages: 1, page: 1, per_page: 50, items: 0, urls: {} }, wants: [] })),
+		addToWantlist: vi.fn(async () => ({ id: 333, rating: 5, date_added: '', resource_url: '', basic_information: { id: 333, title: 'Album C', year: 2003, resource_url: '', thumb: '', cover_image: '', formats: [], labels: [], artists: [], genres: [], styles: [] } })),
+		removeFromWantlist: vi.fn(async () => undefined),
 	} as unknown as DiscogsClient
 }
 
@@ -109,6 +113,40 @@ describe('CachedDiscogsClient — write operations & cache invalidation', () => 
 
 			expect((mockClient as any).editCustomFieldValue).toHaveBeenCalledOnce()
 			expect(invalidateSpy).not.toHaveBeenCalled()
+		})
+	})
+
+	describe('wantlist operations', () => {
+		it('CacheKeys.wantlist formats username + page', () => {
+			expect(CacheKeys.wantlist('user', 2)).toBe('user:2')
+			expect(CacheKeys.wantlist('user')).toBe('user:all')
+		})
+
+		it('getWantlist passes through and does NOT invalidate', async () => {
+			const wlSpy = vi.spyOn(cached, 'invalidateWantlistCache').mockResolvedValue(undefined)
+
+			const result = await cached.getWantlist('user', 'token', 'secret', { page: 1 }, 'key', 'csecret')
+
+			expect(result.wants).toEqual([])
+			expect((mockClient as any).getWantlist).toHaveBeenCalledOnce()
+			expect(wlSpy).not.toHaveBeenCalled()
+		})
+
+		it('addToWantlist invalidates the wantlist cache', async () => {
+			const wlSpy = vi.spyOn(cached, 'invalidateWantlistCache').mockResolvedValue(undefined)
+
+			const result = await cached.addToWantlist('user', 333, { rating: 5 }, ...a)
+
+			expect(result.id).toBe(333)
+			expect(wlSpy).toHaveBeenCalledWith('user')
+		})
+
+		it('removeFromWantlist invalidates the wantlist cache', async () => {
+			const wlSpy = vi.spyOn(cached, 'invalidateWantlistCache').mockResolvedValue(undefined)
+
+			await cached.removeFromWantlist('user', 333, ...a)
+
+			expect(wlSpy).toHaveBeenCalledWith('user')
 		})
 	})
 })
