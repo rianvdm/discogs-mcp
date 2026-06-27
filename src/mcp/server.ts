@@ -77,6 +77,7 @@ export function createMcpServer(env: Env, baseUrl: string): McpServerWithContext
         '- Personalized picks: `get_recommendations` → `get_release` → `add_to_collection` if you want to keep it.',
         '- Stats and shape of the collection: `get_collection_stats`.',
         '- Mutations on a known release: `add_to_collection` / `remove_from_collection` / `move_release` / `rate_release`.',
+        '- Wantlist (releases you want but don\'t own): `get_wantlist` to browse, `add_to_wantlist` (add or update notes/rating), `remove_from_wantlist`.',
         '- Folder management: `list_folders` / `create_folder` / `edit_folder` / `delete_folder`.',
         '- Custom fields on collection items: `list_custom_fields` / `edit_custom_field`.',
         '- Auth and diagnostics: `auth_status`, `server_info`, `ping`, `get_cache_stats`, `refresh_collection`.',
