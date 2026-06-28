@@ -139,6 +139,7 @@ describe('CachedDiscogsClient — write operations & cache invalidation', () => 
 
 			expect(result.id).toBe(333)
 			expect(wlSpy).toHaveBeenCalledWith('user')
+			expect(invalidateSpy).not.toHaveBeenCalled()
 		})
 
 		it('removeFromWantlist invalidates the wantlist cache', async () => {
@@ -147,6 +148,7 @@ describe('CachedDiscogsClient — write operations & cache invalidation', () => 
 			await cached.removeFromWantlist('user', 333, ...a)
 
 			expect(wlSpy).toHaveBeenCalledWith('user')
+			expect(invalidateSpy).not.toHaveBeenCalled()
 		})
 	})
 })

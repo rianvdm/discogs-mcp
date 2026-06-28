@@ -2335,8 +2335,8 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 		'get_wantlist',
 		"List releases on your Discogs wantlist (releases you want but don't own). Paginated.",
 		{
-			page: z.number().optional().default(1).describe('Page number (default: 1)'),
-			per_page: z.number().optional().default(50).describe('Items per page, max 100 (default: 50)'),
+			page: z.number().min(1).optional().default(1).describe('Page number (default: 1)'),
+			per_page: z.number().min(1).max(100).optional().default(50).describe('Items per page, max 100 (default: 50)'),
 		},
 		async ({ page, per_page }) => {
 			const { session, connectionId } = await getSessionContext()
