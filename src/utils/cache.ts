@@ -19,6 +19,7 @@ export interface CacheConfig {
 	stats: number // 1 hour
 	searches: number // 15 minutes
 	userProfiles: number // 6 hours
+	wantlists: number // 30 minutes
 }
 
 export const DEFAULT_CACHE_CONFIG: CacheConfig = {
@@ -27,6 +28,7 @@ export const DEFAULT_CACHE_CONFIG: CacheConfig = {
 	stats: 60 * 60, // 1 hour in seconds
 	searches: 30 * 60, // 30 minutes in seconds (increased from 15 to reduce API load)
 	userProfiles: 6 * 60 * 60, // 6 hours in seconds
+	wantlists: 30 * 60, // 30 minutes in seconds
 }
 
 export interface CacheEntry<T> {
@@ -298,6 +300,8 @@ export const CacheKeys = {
 
 	stats: (username: string) => username,
 
+	wantlist: (username: string, page?: number) => `${username}:${page || 'all'}`,
+
 	userProfile: (userId: string) => userId,
 }
 
@@ -312,5 +316,6 @@ export function createDiscogsCache(kv: KVNamespace): SmartCache {
 		stats: 60 * 60, // Stats can be cached for an hour
 		searches: 15 * 60, // Search results cached for 15 minutes
 		userProfiles: 6 * 60 * 60, // User profiles rarely change
+		wantlists: 30 * 60, // Wantlists change more often than collections; invalidated on write
 	})
 } 

@@ -272,6 +272,93 @@ describe('Discogs Client — Collection Write Operations', () => {
 	})
 })
 
+describe('Wantlist operations', () => {
+	beforeEach(() => {
+		vi.resetAllMocks()
+	})
+
+	const basicInfo = (id: number, title: string, year: number) => ({
+		id,
+		title,
+		year,
+		resource_url: '',
+		thumb: '',
+		cover_image: '',
+		formats: [],
+		labels: [],
+		artists: [{ name: 'Some Artist', id: 1 }],
+		genres: [],
+		styles: [],
+	})
+
+	it('getWantlist returns wants + pagination and hits the wants endpoint', async () => {
+		mockOk({
+			pagination: { pages: 1, page: 1, per_page: 50, items: 2, urls: {} },
+			wants: [
+				{ id: 111, rating: 0, date_added: '2026-01-01', resource_url: '', basic_information: basicInfo(111, 'Album A', 2001) },
+				{ id: 222, rating: 4, notes: 'want the repress', date_added: '2026-02-01', resource_url: '', basic_information: basicInfo(222, 'Album B', 2002) },
+			],
+		})
+
+		const result = await discogsClient.getWantlist(
+			auth.username,
+			auth.accessToken,
+			auth.accessTokenSecret,
+			{ page: 1, per_page: 50 },
+			auth.consumerKey,
+			auth.consumerSecret,
+		)
+
+		expect(result.wants).toHaveLength(2)
+		expect(result.wants[1].notes).toBe('want the repress')
+		expect(result.pagination.items).toBe(2)
+
+		const calledUrl = mockFetch.mock.calls[0][0] as string
+		expect(calledUrl).toContain('/users/testuser/wants?')
+		expect(calledUrl).toContain('page=1')
+		expect(calledUrl).toContain('per_page=50')
+	})
+
+	it('addToWantlist PUTs (no body) and returns the want', async () => {
+		mockOk({ id: 333, rating: 0, date_added: '2026-03-01', resource_url: '', basic_information: basicInfo(333, 'Album C', 2003) })
+
+		const result = await discogsClient.addToWantlist(
+			auth.username,
+			333,
+			auth.accessToken,
+			auth.accessTokenSecret,
+			auth.consumerKey,
+			auth.consumerSecret,
+		)
+
+		expect(result.id).toBe(333)
+		const [calledUrl, init] = mockFetch.mock.calls[0]
+		expect(calledUrl).toBe('https://api.discogs.com/users/testuser/wants/333')
+		expect(init.method).toBe('PUT')
+		expect(init.body).toBeUndefined()
+	})
+
+	it('removeFromWantlist DELETEs and resolves on 204', async () => {
+		mock204()
+
+		await expect(
+			discogsClient.removeFromWantlist(auth.username, 333, auth.accessToken, auth.accessTokenSecret, auth.consumerKey, auth.consumerSecret),
+		).resolves.toBeUndefined()
+
+		const [calledUrl, init] = mockFetch.mock.calls[0]
+		expect(calledUrl).toBe('https://api.discogs.com/users/testuser/wants/333')
+		expect(init.method).toBe('DELETE')
+	})
+
+	it('wraps errors with a descriptive message', async () => {
+		mockFetch.mockRejectedValueOnce(new Error('Forbidden'))
+
+		await expect(
+			discogsClient.addToWantlist(auth.username, 333, auth.accessToken, auth.accessTokenSecret, auth.consumerKey, auth.consumerSecret),
+		).rejects.toThrow('Failed to add to wantlist')
+	})
+})
+
 describe('Discogs Client — 429 rate limit handling', () => {
 	beforeEach(() => {
 		vi.useFakeTimers()

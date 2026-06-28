@@ -92,6 +92,20 @@ export interface DiscogsCollectionResponse {
 	releases: DiscogsCollectionItem[]
 }
 
+export interface DiscogsWant {
+	id: number // release id
+	rating: number
+	notes?: string
+	date_added: string
+	resource_url: string
+	basic_information: DiscogsCollectionItem['basic_information']
+}
+
+export interface DiscogsWantlistResponse {
+	pagination: DiscogsCollectionResponse['pagination']
+	wants: DiscogsWant[]
+}
+
 export interface DiscogsSearchResponse {
 	pagination: {
 		pages: number
@@ -1021,6 +1035,103 @@ export class DiscogsClient {
 			}
 		} catch (error) {
 			throw new Error(`Failed to edit custom field: ${error instanceof Error ? error.message : 'Unknown error'}`)
+		}
+	}
+
+	/**
+	 * Get the authenticated user's wantlist (paginated)
+	 */
+	async getWantlist(
+		username: string,
+		accessToken: string,
+		accessTokenSecret: string,
+		options: { page?: number; per_page?: number } = {},
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<DiscogsWantlistResponse> {
+		const params = new URLSearchParams()
+		if (options.page) params.append('page', options.page.toString())
+		if (options.per_page) params.append('per_page', options.per_page.toString())
+
+		const qs = params.toString()
+		const url = `${this.baseUrl}/users/${username}/wants${qs ? `?${qs}` : ''}`
+		const authHeader = await this.createOAuthHeader(url, 'GET', accessToken, accessTokenSecret, consumerKey, consumerSecret)
+
+		try {
+			const response = await this.discogsApiFetch(url, {
+				method: 'GET',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
+				},
+			})
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+			}
+			return response.json()
+		} catch (error) {
+			throw new Error(`Failed to fetch wantlist: ${error instanceof Error ? error.message : 'Unknown error'}`)
+		}
+	}
+
+	/**
+	 * Add a release to the wantlist (PUT)
+	 */
+	async addToWantlist(
+		username: string,
+		releaseId: number,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<DiscogsWant> {
+		const url = `${this.baseUrl}/users/${username}/wants/${releaseId}`
+		const authHeader = await this.createOAuthHeader(url, 'PUT', accessToken, accessTokenSecret, consumerKey, consumerSecret)
+
+		try {
+			const response = await this.discogsApiFetch(url, {
+				method: 'PUT',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
+				},
+			})
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+			}
+			return response.json()
+		} catch (error) {
+			throw new Error(`Failed to add to wantlist: ${error instanceof Error ? error.message : 'Unknown error'}`)
+		}
+	}
+
+	/**
+	 * Remove a release from the wantlist
+	 */
+	async removeFromWantlist(
+		username: string,
+		releaseId: number,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+	): Promise<void> {
+		const url = `${this.baseUrl}/users/${username}/wants/${releaseId}`
+		const authHeader = await this.createOAuthHeader(url, 'DELETE', accessToken, accessTokenSecret, consumerKey, consumerSecret)
+
+		try {
+			const response = await this.discogsApiFetch(url, {
+				method: 'DELETE',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
+				},
+			})
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+			}
+		} catch (error) {
+			throw new Error(`Failed to remove from wantlist: ${error instanceof Error ? error.message : 'Unknown error'}`)
 		}
 	}
 }

@@ -182,6 +182,14 @@ This server uses **MCP OAuth 2.1** with Discogs as the identity provider. When y
 | `move_release`           | Move a release instance between folders                                     |
 | `rate_release`           | Rate a release from 0 (no rating) to 5 stars                                |
 
+**Wantlist**
+
+| Tool                   | Description                                                     |
+| ---------------------- | -------------------------------------------------------------- |
+| `get_wantlist`         | List releases on your wantlist (paginated)                     |
+| `add_to_wantlist`      | Add a release to your wantlist                                 |
+| `remove_from_wantlist` | Remove a release from your wantlist                            |
+
 **Folders**
 
 | Tool             | Description                                                         |

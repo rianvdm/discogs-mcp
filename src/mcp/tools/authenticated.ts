@@ -2326,4 +2326,125 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			}
 		},
 	)
+
+	/**
+	 * Tool: get_wantlist
+	 * List the authenticated user's Discogs wantlist (paginated)
+	 */
+	server.tool(
+		'get_wantlist',
+		"List releases on your Discogs wantlist (releases you want but don't own). Paginated.",
+		{
+			page: z.number().min(1).optional().default(1).describe('Page number (default: 1)'),
+			per_page: z.number().min(1).max(100).optional().default(50).describe('Items per page, max 100 (default: 50)'),
+		},
+		async ({ page, per_page }) => {
+			const { session, connectionId } = await getSessionContext()
+			if (!session) {
+				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId) }] }
+			}
+			try {
+				const userProfile = await getProfileAndSetThrottle(session)
+				const result = await client.getWantlist(
+					userProfile.username,
+					session.accessToken,
+					session.accessTokenSecret,
+					{ page, per_page },
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				const lines = result.wants.map(w => {
+					const info = w.basic_information
+					const artists = info?.artists?.map(a => a.name).join(', ') || 'Unknown'
+					return `- ${artists} — ${info?.title ?? 'Unknown'} (${info?.year || 'n/a'}) [release ${w.id}]`
+				})
+				const header = `Wantlist — ${result.pagination.items} item(s), page ${result.pagination.page}/${result.pagination.pages}`
+				const nextSteps = buildNextSteps([
+					{ tool: 'add_to_collection', args: 'release_id=<id>', hint: 'move a want into your collection once you acquire it' },
+					{ tool: 'get_release', args: 'release_id=<id>', hint: 'pull tracklist and full metadata for a want' },
+				])
+				return {
+					content: [{ type: 'text', text: `${header}\n${lines.join('\n') || '(empty)'}${nextSteps}` }],
+				}
+			} catch (error) {
+				throw error instanceof Error ? error : new Error('Failed to get wantlist: Unknown error')
+			}
+		},
+	)
+
+	/**
+	 * Tool: add_to_wantlist
+	 * Add a release to the wantlist (PUT)
+	 */
+	server.tool(
+		'add_to_wantlist',
+		"Add a release to your Discogs wantlist (releases you want but don't own).",
+		{
+			release_id: z.number().describe('The Discogs release ID to want'),
+		},
+		async ({ release_id }) => {
+			const { session, connectionId } = await getSessionContext()
+			if (!session) {
+				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId) }] }
+			}
+			try {
+				const userProfile = await getProfileAndSetThrottle(session)
+				const result = await client.addToWantlist(
+					userProfile.username,
+					release_id,
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+
+				const title = result?.basic_information?.title ?? `release ${release_id}`
+				const nextSteps = buildNextSteps([
+					{ tool: 'get_wantlist', args: '', hint: 'confirm the release is on your wantlist' },
+					{ tool: 'get_release', args: `release_id=${release_id}`, hint: 'pull tracklist and full metadata' },
+				])
+				return {
+					content: [{ type: 'text', text: `Added ${title} to your wantlist${nextSteps}` }],
+				}
+			} catch (error) {
+				throw error instanceof Error ? error : new Error('Failed to add to wantlist: Unknown error')
+			}
+		},
+	)
+
+	/**
+	 * Tool: remove_from_wantlist
+	 * Remove a release from the wantlist
+	 */
+	server.tool(
+		'remove_from_wantlist',
+		'Remove a release from your Discogs wantlist.',
+		{
+			release_id: z.number().describe('The Discogs release ID to remove from the wantlist'),
+		},
+		async ({ release_id }) => {
+			const { session, connectionId } = await getSessionContext()
+			if (!session) {
+				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId) }] }
+			}
+			try {
+				const userProfile = await getProfileAndSetThrottle(session)
+				await client.removeFromWantlist(
+					userProfile.username,
+					release_id,
+					session.accessToken,
+					session.accessTokenSecret,
+					env.DISCOGS_CONSUMER_KEY,
+					env.DISCOGS_CONSUMER_SECRET,
+				)
+				const nextSteps = buildNextSteps([{ tool: 'get_wantlist', args: '', hint: 'confirm the release is gone' }])
+				return {
+					content: [{ type: 'text', text: `Removed release ${release_id} from your wantlist${nextSteps}` }],
+				}
+			} catch (error) {
+				throw error instanceof Error ? error : new Error('Failed to remove from wantlist: Unknown error')
+			}
+		},
+	)
 }
