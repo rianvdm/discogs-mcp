@@ -2355,8 +2355,13 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				)
 
 				const lines = result.wants.map(w => {
-					const artists = w.basic_information.artists?.map(a => a.name).join(', ') || 'Unknown'
-					return `- ${artists} — ${w.basic_information.title} (${w.basic_information.year || 'n/a'}) [release ${w.id}]`
+					const info = w.basic_information
+					const artists = info?.artists?.map(a => a.name).join(', ') || 'Unknown'
+					const meta = []
+					if (w.rating) meta.push(`★${w.rating}`)
+					if (w.notes) meta.push(`note: ${w.notes}`)
+					const suffix = meta.length ? ` ${meta.join(' · ')}` : ''
+					return `- ${artists} — ${info?.title ?? 'Unknown'} (${info?.year || 'n/a'}) [release ${w.id}]${suffix}`
 				})
 				const header = `Wantlist — ${result.pagination.items} item(s), page ${result.pagination.page}/${result.pagination.pages}`
 				const nextSteps = buildNextSteps([
@@ -2367,7 +2372,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					content: [{ type: 'text', text: `${header}\n${lines.join('\n') || '(empty)'}${nextSteps}` }],
 				}
 			} catch (error) {
-				throw new Error(`Failed to get wantlist: ${error instanceof Error ? error.message : 'Unknown error'}`)
+				throw error instanceof Error ? error : new Error('Failed to get wantlist: Unknown error')
 			}
 		},
 	)
@@ -2417,7 +2422,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					content: [{ type: 'text', text: `Added ${title} to your wantlist${extras ? ` (${extras})` : ''}${nextSteps}` }],
 				}
 			} catch (error) {
-				throw new Error(`Failed to add to wantlist: ${error instanceof Error ? error.message : 'Unknown error'}`)
+				throw error instanceof Error ? error : new Error('Failed to add to wantlist: Unknown error')
 			}
 		},
 	)
@@ -2452,7 +2457,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					content: [{ type: 'text', text: `Removed release ${release_id} from your wantlist${nextSteps}` }],
 				}
 			} catch (error) {
-				throw new Error(`Failed to remove from wantlist: ${error instanceof Error ? error.message : 'Unknown error'}`)
+				throw error instanceof Error ? error : new Error('Failed to remove from wantlist: Unknown error')
 			}
 		},
 	)
