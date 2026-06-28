@@ -319,13 +319,12 @@ describe('Wantlist operations', () => {
 		expect(calledUrl).toContain('per_page=50')
 	})
 
-	it('addToWantlist PUTs the changes body and returns the want', async () => {
-		mockOk({ id: 333, rating: 5, notes: 'grail', date_added: '2026-03-01', resource_url: '', basic_information: basicInfo(333, 'Album C', 2003) })
+	it('addToWantlist PUTs (no body) and returns the want', async () => {
+		mockOk({ id: 333, rating: 0, date_added: '2026-03-01', resource_url: '', basic_information: basicInfo(333, 'Album C', 2003) })
 
 		const result = await discogsClient.addToWantlist(
 			auth.username,
 			333,
-			{ notes: 'grail', rating: 5 },
 			auth.accessToken,
 			auth.accessTokenSecret,
 			auth.consumerKey,
@@ -336,7 +335,7 @@ describe('Wantlist operations', () => {
 		const [calledUrl, init] = mockFetch.mock.calls[0]
 		expect(calledUrl).toBe('https://api.discogs.com/users/testuser/wants/333')
 		expect(init.method).toBe('PUT')
-		expect(JSON.parse(init.body as string)).toEqual({ notes: 'grail', rating: 5 })
+		expect(init.body).toBeUndefined()
 	})
 
 	it('removeFromWantlist DELETEs and resolves on 204', async () => {
@@ -355,7 +354,7 @@ describe('Wantlist operations', () => {
 		mockFetch.mockRejectedValueOnce(new Error('Forbidden'))
 
 		await expect(
-			discogsClient.addToWantlist(auth.username, 333, {}, auth.accessToken, auth.accessTokenSecret, auth.consumerKey, auth.consumerSecret),
+			discogsClient.addToWantlist(auth.username, 333, auth.accessToken, auth.accessTokenSecret, auth.consumerKey, auth.consumerSecret),
 		).rejects.toThrow('Failed to add to wantlist')
 	})
 })

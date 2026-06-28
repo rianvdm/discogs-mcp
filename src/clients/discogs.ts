@@ -1075,12 +1075,11 @@ export class DiscogsClient {
 	}
 
 	/**
-	 * Add a release to the wantlist, or update its notes/rating (PUT upsert)
+	 * Add a release to the wantlist (PUT)
 	 */
 	async addToWantlist(
 		username: string,
 		releaseId: number,
-		changes: { notes?: string; rating?: number },
 		accessToken: string,
 		accessTokenSecret: string,
 		consumerKey: string,
@@ -1095,9 +1094,7 @@ export class DiscogsClient {
 				headers: {
 					Authorization: authHeader,
 					'User-Agent': this.userAgent,
-					'Content-Type': 'application/json',
 				},
-				body: JSON.stringify(changes),
 			})
 			if (!response.ok) {
 				throw new Error(`HTTP ${response.status}: ${await response.text()}`)

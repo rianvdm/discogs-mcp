@@ -2357,11 +2357,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				const lines = result.wants.map(w => {
 					const info = w.basic_information
 					const artists = info?.artists?.map(a => a.name).join(', ') || 'Unknown'
-					const meta = []
-					if (w.rating) meta.push(`★${w.rating}`)
-					if (w.notes) meta.push(`note: ${w.notes}`)
-					const suffix = meta.length ? ` ${meta.join(' · ')}` : ''
-					return `- ${artists} — ${info?.title ?? 'Unknown'} (${info?.year || 'n/a'}) [release ${w.id}]${suffix}`
+					return `- ${artists} — ${info?.title ?? 'Unknown'} (${info?.year || 'n/a'}) [release ${w.id}]`
 				})
 				const header = `Wantlist — ${result.pagination.items} item(s), page ${result.pagination.page}/${result.pagination.pages}`
 				const nextSteps = buildNextSteps([
@@ -2379,31 +2375,24 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 
 	/**
 	 * Tool: add_to_wantlist
-	 * Add a release to the wantlist, or update its notes/rating (PUT upsert)
+	 * Add a release to the wantlist (PUT)
 	 */
 	server.tool(
 		'add_to_wantlist',
-		'Add a release to your Discogs wantlist. If it is already on the wantlist, updates its notes/rating. Rating is 0–5.',
+		"Add a release to your Discogs wantlist (releases you want but don't own).",
 		{
 			release_id: z.number().describe('The Discogs release ID to want'),
-			notes: z.string().optional().describe('Optional private note about this want'),
-			rating: z.number().min(0).max(5).optional().describe('Optional rating, 0 (none) to 5 stars'),
 		},
-		async ({ release_id, notes, rating }) => {
+		async ({ release_id }) => {
 			const { session, connectionId } = await getSessionContext()
 			if (!session) {
 				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId) }] }
 			}
 			try {
 				const userProfile = await getProfileAndSetThrottle(session)
-				const changes: { notes?: string; rating?: number } = {}
-				if (notes !== undefined) changes.notes = notes
-				if (rating !== undefined) changes.rating = rating
-
 				const result = await client.addToWantlist(
 					userProfile.username,
 					release_id,
-					changes,
 					session.accessToken,
 					session.accessTokenSecret,
 					env.DISCOGS_CONSUMER_KEY,
@@ -2411,15 +2400,12 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				)
 
 				const title = result?.basic_information?.title ?? `release ${release_id}`
-				const extras = [notes !== undefined ? 'notes set' : null, rating !== undefined ? `rating ${rating}` : null]
-					.filter(Boolean)
-					.join(', ')
 				const nextSteps = buildNextSteps([
 					{ tool: 'get_wantlist', args: '', hint: 'confirm the release is on your wantlist' },
 					{ tool: 'get_release', args: `release_id=${release_id}`, hint: 'pull tracklist and full metadata' },
 				])
 				return {
-					content: [{ type: 'text', text: `Added ${title} to your wantlist${extras ? ` (${extras})` : ''}${nextSteps}` }],
+					content: [{ type: 'text', text: `Added ${title} to your wantlist${nextSteps}` }],
 				}
 			} catch (error) {
 				throw error instanceof Error ? error : new Error('Failed to add to wantlist: Unknown error')

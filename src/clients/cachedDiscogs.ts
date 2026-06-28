@@ -231,18 +231,17 @@ export class CachedDiscogsClient {
 	}
 
 	/**
-	 * Add or update a wantlist item, then invalidate the wantlist cache
+	 * Add a release to the wantlist, then invalidate the wantlist cache
 	 */
 	async addToWantlist(
 		username: string,
 		releaseId: number,
-		changes: { notes?: string; rating?: number },
 		accessToken: string,
 		accessTokenSecret: string,
 		consumerKey: string,
 		consumerSecret: string,
 	): Promise<DiscogsWant> {
-		const result = await this.client.addToWantlist(username, releaseId, changes, accessToken, accessTokenSecret, consumerKey, consumerSecret)
+		const result = await this.client.addToWantlist(username, releaseId, accessToken, accessTokenSecret, consumerKey, consumerSecret)
 		await this.invalidateWantlistCache(username)
 		return result
 	}

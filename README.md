@@ -187,7 +187,7 @@ This server uses **MCP OAuth 2.1** with Discogs as the identity provider. When y
 | Tool                   | Description                                                     |
 | ---------------------- | -------------------------------------------------------------- |
 | `get_wantlist`         | List releases on your wantlist (paginated)                     |
-| `add_to_wantlist`      | Add a release to your wantlist, or update its notes/rating     |
+| `add_to_wantlist`      | Add a release to your wantlist                                 |
 | `remove_from_wantlist` | Remove a release from your wantlist                            |
 
 **Folders**

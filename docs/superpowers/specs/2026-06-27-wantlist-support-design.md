@@ -5,6 +5,8 @@
 **Author:** Rian van der Merwe
 **Issue:** [#36](https://github.com/rianvdm/discogs-mcp/issues/36)
 
+> **Update (2026-06-27, post-live-test):** `rating` and `notes` on `add_to_wantlist` were **removed**. Live testing showed the `PUT` accepts them but neither field round-trips in `GET /wants`, and rating a release you don't own is a niche need (YAGNI). The tool is now a clean `release_id`-only add. The `DiscogsWant` type retains `rating`/`notes` since Discogs' response shape includes them; we simply don't set or display them. Sections below describing rating/notes reflect the original design.
+
 ## Problem
 
 The server reads and mutates the **collection** but has no concept of the **wantlist** — Discogs' separate list of releases a user wants but doesn't own. An assistant can add a release to the collection, rate it, and move it between folders, but cannot answer "what's on my wantlist?" or "add this to my wantlist."

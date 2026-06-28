@@ -135,7 +135,7 @@ describe('CachedDiscogsClient — write operations & cache invalidation', () => 
 		it('addToWantlist invalidates the wantlist cache', async () => {
 			const wlSpy = vi.spyOn(cached, 'invalidateWantlistCache').mockResolvedValue(undefined)
 
-			const result = await cached.addToWantlist('user', 333, { rating: 5 }, ...a)
+			const result = await cached.addToWantlist('user', 333, ...a)
 
 			expect(result.id).toBe(333)
 			expect(wlSpy).toHaveBeenCalledWith('user')
