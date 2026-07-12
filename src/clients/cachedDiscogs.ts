@@ -224,7 +224,7 @@ export class CachedDiscogsClient {
 		consumerKey: string,
 		consumerSecret: string,
 	): Promise<DiscogsWantlistResponse> {
-		const cacheKey = CacheKeys.wantlist(username, options.page)
+		const cacheKey = CacheKeys.wantlist(username, options.page, options.per_page)
 		return this.cache.getOrFetch('wantlists', cacheKey, () =>
 			this.client.getWantlist(username, accessToken, accessTokenSecret, options, consumerKey, consumerSecret),
 		)

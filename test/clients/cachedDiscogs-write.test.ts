@@ -117,9 +117,11 @@ describe('CachedDiscogsClient — write operations & cache invalidation', () => 
 	})
 
 	describe('wantlist operations', () => {
-		it('CacheKeys.wantlist formats username + page', () => {
-			expect(CacheKeys.wantlist('user', 2)).toBe('user:2')
-			expect(CacheKeys.wantlist('user')).toBe('user:all')
+		it('CacheKeys.wantlist formats username + page + per_page', () => {
+			expect(CacheKeys.wantlist('user', 2, 100)).toBe('user:2:100')
+			// per_page defaults to 50, so an omitted per_page shares a key with an explicit 50
+			expect(CacheKeys.wantlist('user', 2)).toBe('user:2:50')
+			expect(CacheKeys.wantlist('user')).toBe('user:all:50')
 		})
 
 		it('getWantlist passes through and does NOT invalidate', async () => {

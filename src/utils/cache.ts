@@ -300,7 +300,7 @@ export const CacheKeys = {
 
 	stats: (username: string) => username,
 
-	wantlist: (username: string, page?: number) => `${username}:${page || 'all'}`,
+	wantlist: (username: string, page?: number, perPage?: number) => `${username}:${page || 'all'}:${perPage || 50}`,
 
 	userProfile: (userId: string) => userId,
 }

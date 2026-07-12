@@ -185,3 +185,48 @@ describe('CachedDiscogsClient.getCompleteCollection — time budget', () => {
     expect(mockSearchCollection.mock.calls.length).toBe(callsAfterFirst)
   })
 })
+
+describe('CachedDiscogsClient.getWantlist — cache keyed by per_page', () => {
+  // The wantlist cache must key on per_page as well as page. Keyed on page alone,
+  // the first per_page to populate a page is served for every later per_page until
+  // the TTL expires — silently truncating a full-wantlist read. Regression test for
+  // https://github.com/rianvdm/discogs-mcp/issues/38.
+  let client: CachedDiscogsClient
+  let innerGetWantlist: ReturnType<typeof vi.fn>
+
+  // Inner client honors per_page the way the real Discogs API does: it returns
+  // min(per_page, total) items and echoes the requested per_page in pagination.
+  function wantlistPage(perPage: number, totalItems: number) {
+    const count = Math.min(perPage, totalItems)
+    return {
+      pagination: { page: 1, pages: Math.max(1, Math.ceil(totalItems / perPage)), per_page: perPage, items: totalItems, urls: {} },
+      wants: Array.from({ length: count }, (_, i) => ({ id: i + 1 })),
+    }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    innerGetWantlist = vi.fn(async (_u: string, _t: string, _s: string, opts: { page?: number; per_page?: number } = {}) =>
+      wantlistPage(opts.per_page ?? 50, 31)
+    )
+    client = new CachedDiscogsClient({ getWantlist: innerGetWantlist } as unknown as DiscogsClient, makeKV())
+  })
+
+  it('does not serve a per_page=1 cache entry to a per_page=100 request for the same page', async () => {
+    // Populate page 1 at per_page=1 — a single, truncated item.
+    const small = await client.getWantlist('user', 'token', 'secret', { page: 1, per_page: 1 }, 'key', 'csecret')
+    expect(small.wants).toHaveLength(1)
+
+    // The same page at per_page=100 must fetch fresh, not reuse the 1-item entry.
+    const full = await client.getWantlist('user', 'token', 'secret', { page: 1, per_page: 100 }, 'key', 'csecret')
+    expect(full.wants).toHaveLength(31)
+    expect(full.pagination.per_page).toBe(100)
+    expect(innerGetWantlist).toHaveBeenCalledTimes(2)
+  })
+
+  it('reuses the cache for an identical (page, per_page) request', async () => {
+    await client.getWantlist('user', 'token', 'secret', { page: 1, per_page: 100 }, 'key', 'csecret')
+    await client.getWantlist('user', 'token', 'secret', { page: 1, per_page: 100 }, 'key', 'csecret')
+    expect(innerGetWantlist).toHaveBeenCalledTimes(1)
+  })
+})
