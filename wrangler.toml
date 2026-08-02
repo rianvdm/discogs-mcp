@@ -6,11 +6,14 @@ compatibility_flags = ["nodejs_compat"]
 [observability]
 enabled = true
 
-# Hourly cron — drives the collection-sync background refresh.
-# See src/index-oauth.ts scheduled() handler. Every 6 hours (00/06/12/18 UTC)
-# is plenty for collection-add cadence and reduces 429 surface area vs hourly.
+# Drives the collection-sync background refresh; see src/index-oauth.ts
+# scheduled() handler. Every 6 hours is plenty for collection-add cadence.
+# The odd minute/hours (01:23, 07:23, 13:23, 19:23 UTC) are deliberate:
+# Discogs throttles Cloudflare's shared egress IPs, and congestion peaks at
+# the top of the hour when everyone's `0 */6` crons fire — a first request
+# at :00 reliably 429s and trips the rate-limiter circuit breaker.
 [triggers]
-crons = ["0 */6 * * *"]
+crons = ["23 1,7,13,19 * * *"]
 
 # Optional allowlist: numeric Discogs user ID(s) permitted to authenticate.
 # Accepts a single ID or a comma-separated list (e.g. "123,456,789").
@@ -60,7 +63,7 @@ bindings = [
 ]
 
 [env.production.triggers]
-crons = ["0 */6 * * *"]
+crons = ["23 1,7,13,19 * * *"]
 
 [[env.production.kv_namespaces]]
 binding = "MCP_SESSIONS"
