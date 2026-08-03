@@ -16,6 +16,7 @@ import { applySearchPipeline, type DedupedCollectionItem } from '../../utils/sea
 import { buildIndex, searchIndex } from '../../utils/searchIndex.js'
 import type { DiscogsCollectionItem } from '../../clients/discogs.js'
 import type { SessionContext } from '../server.js'
+import { sessionProfile } from '../session-profile.js'
 import { buildNextSteps } from '../../utils/breadcrumb.js'
 
 /**
@@ -294,19 +295,6 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	}
 	const cachedClient = env.MCP_SESSIONS ? new CachedDiscogsClient(discogsClient, env.MCP_SESSIONS) : null
 	const client = cachedClient || discogsClient
-
-	/**
-	 * Helper: get user profile for authenticated operations.
-	 */
-	async function getProfileAndSetThrottle(session: { accessToken: string; accessTokenSecret: string }) {
-		const userProfile = await client.getUserProfile(
-			session.accessToken,
-			session.accessTokenSecret,
-			env.DISCOGS_CONSUMER_KEY,
-			env.DISCOGS_CONSUMER_SECRET,
-		)
-		return userProfile
-	}
 
 	/**
 	 * Tool: search_collection
@@ -619,7 +607,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 
 			try {
 				// Get user profile
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 
 				// Parse the query once. Disambiguation against the user's collection
 				// happens after we fetch it, in the cached branch below.
@@ -1036,7 +1024,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				let ownedReleaseIds = new Set<number>()
 				if (cachedClient) {
 					try {
-						const userProfile = await getProfileAndSetThrottle(session)
+						const userProfile = sessionProfile(session)
 						const toolStart = Date.now()
 						const TOOL_BUDGET_MS = 105000
 						let collection = await cachedClient.getCompleteCollection(
@@ -1113,7 +1101,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			}
 
 			try {
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 
 				// Compute stats from cached complete collection when available.
 				// This reuses the same cached dataset as search_collection and
@@ -1283,7 +1271,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				moodGenres = [...new Set(moodGenres)]
 				moodStyles = [...new Set(moodStyles)]
 
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 
 				// Get full collection for context-aware recommendations.
 				// Uses getCompleteCollectionReleases() when cached client is available
@@ -1768,7 +1756,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			}
 
 			try {
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 
 				const folders = await client.listFolders(
 					userProfile.username,
@@ -1826,7 +1814,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			}
 
 			try {
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 
 				const folder = await client.createFolder(
 					userProfile.username,
@@ -1881,7 +1869,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			}
 
 			try {
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 
 				const folder = await client.editFolder(
 					userProfile.username,
@@ -1935,7 +1923,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			}
 
 			try {
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 
 				await client.deleteFolder(
 					userProfile.username,
@@ -1989,7 +1977,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			}
 
 			try {
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 
 				const result = await client.addToFolder(
 					userProfile.username,
@@ -2047,7 +2035,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			}
 
 			try {
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 
 				await client.removeFromFolder(
 					userProfile.username,
@@ -2106,7 +2094,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			}
 
 			try {
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 
 				await client.editInstance(
 					userProfile.username,
@@ -2166,7 +2154,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			}
 
 			try {
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 
 				await client.editInstance(
 					userProfile.username,
@@ -2222,7 +2210,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			}
 
 			try {
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 
 				const fields = await client.listCustomFields(
 					userProfile.username,
@@ -2294,7 +2282,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			}
 
 			try {
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 
 				await client.editCustomFieldValue(
 					userProfile.username,
@@ -2344,7 +2332,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId) }] }
 			}
 			try {
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 				const result = await client.getWantlist(
 					userProfile.username,
 					session.accessToken,
@@ -2389,7 +2377,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId) }] }
 			}
 			try {
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 				const result = await client.addToWantlist(
 					userProfile.username,
 					release_id,
@@ -2429,7 +2417,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId) }] }
 			}
 			try {
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 				await client.removeFromWantlist(
 					userProfile.username,
 					release_id,

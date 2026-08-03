@@ -4,6 +4,7 @@ import { DiscogsClient } from '../../clients/discogs.js'
 import { CachedDiscogsClient } from '../../clients/cachedDiscogs.js'
 import type { DiscogsCollectionItem, DiscogsCollectionResponse } from '../../clients/discogs.js'
 import type { SessionContext } from '../server.js'
+import { sessionProfile } from '../session-profile.js'
 
 /**
  * Register Discogs resources with the MCP server
@@ -19,17 +20,6 @@ export function registerResources(server: McpServer, env: Env, getSessionContext
 	}
 	const cachedClient = env.MCP_SESSIONS ? new CachedDiscogsClient(discogsClient, env.MCP_SESSIONS) : null
 	const client = cachedClient || discogsClient
-
-	/** Helper: get profile for authenticated operations */
-	async function getProfileAndSetThrottle(session: { accessToken: string; accessTokenSecret: string }) {
-		const userProfile = await client.getUserProfile(
-			session.accessToken,
-			session.accessTokenSecret,
-			env.DISCOGS_CONSUMER_KEY,
-			env.DISCOGS_CONSUMER_SECRET,
-		)
-		return userProfile
-	}
 
 	// List available resources
 	server.registerResource(
@@ -47,7 +37,7 @@ export function registerResources(server: McpServer, env: Env, getSessionContext
 			}
 
 			try {
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 
 				// Use getCompleteCollection() when cached client is available
 				// to return the full collection (not just page 1) and benefit
@@ -173,7 +163,7 @@ export function registerResources(server: McpServer, env: Env, getSessionContext
 					throw new Error('Invalid search URI - query parameter is required')
 				}
 
-				const userProfile = await getProfileAndSetThrottle(session)
+				const userProfile = sessionProfile(session)
 
 				// When cached client is available, search against the cached
 				// complete collection instead of triggering a full pagination.
