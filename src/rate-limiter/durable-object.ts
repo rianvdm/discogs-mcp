@@ -3,8 +3,37 @@ import type { RateLimiterRequest, RateLimiterResponse, BudgetState } from './typ
 
 const MAX_QUEUE_DEPTH = 20
 const QUEUE_TIMEOUT_MS = 90_000
-const DEFAULT_PAUSE_MS = 60_000
 const WINDOW_RESET_MS = 60_000
+
+/**
+ * Budget to assume when we have positive evidence Discogs is throttling us —
+ * i.e. a 429 in the recent past. `getDelay(PROBE_BUDGET)` throttles the next
+ * request instead of firing it immediately, so we test the water rather than
+ * jumping back in.
+ *
+ * Why not use this for every reset: we can't know the real budget until Discogs
+ * tells us, but assuming the worst on every idle start would add 10s to the
+ * first call of every session. The optimistic reset is only wrong when we
+ * already have evidence it's wrong, so that's the only case we change.
+ */
+export const PROBE_BUDGET = 1
+
+/** First backoff step after a 429 that carries no Retry-After. */
+export const BASE_PAUSE_MS = 60_000
+
+/** Ceiling for the exponential backoff. */
+export const MAX_PAUSE_MS = 240_000
+
+/**
+ * A 429 streak older than this says nothing about whether the egress IP is hot
+ * *now*, so it decays to zero on restore rather than being carried forward.
+ *
+ * Without this, `consecutive429s` persists in DO storage across restarts and
+ * deploys and only ever resets on a successful response — so after a bad
+ * episode the limiter sits primed indefinitely, tripping the breaker on the
+ * next single 429 instead of the nominal three. Observed in prod 2026-08-03.
+ */
+export const STREAK_DECAY_MS = 10 * 60_000
 
 /**
  * Per-entry retry cap for 429s. Each queued request is sent to Discogs at most
@@ -60,9 +89,67 @@ export function shouldRejectQueue(queueLength: number): boolean {
   return queueLength >= MAX_QUEUE_DEPTH
 }
 
-/** Whether an entry has hit its retry cap and should be failed instead of re-queued. */
-export function shouldGiveUpEntry(attempts: number): boolean {
-  return attempts >= MAX_ATTEMPTS_PER_ENTRY
+/**
+ * Total time an entry may spend in 429 backoff before we surface the 429 to the
+ * caller instead of retrying again.
+ *
+ * Retries are only worth making while someone is still waiting for the answer.
+ * Callers here are MCP tool calls, and the DO's own queue timeout is 90s — past
+ * that a retry spends a request on a hot IP with nobody listening. Exponential
+ * backoff without this bound would have made the 2026-08-03 request wait 200s
+ * for a 429 it could have had at 70s.
+ */
+export const MAX_ENTRY_BACKOFF_MS = 90_000
+
+/**
+ * Whether an entry should be failed instead of re-queued — either because it's
+ * out of attempts, or because the next backoff would outlast the caller.
+ */
+export function shouldGiveUpEntry(attempts: number, plannedBackoffMs = 0): boolean {
+  return attempts >= MAX_ATTEMPTS_PER_ENTRY || plannedBackoffMs >= MAX_ENTRY_BACKOFF_MS
+}
+
+/**
+ * How long to pause after a 429. Honours Discogs's `Retry-After` when it sends
+ * one; otherwise doubles per attempt (60s, 120s, 240s) up to MAX_PAUSE_MS.
+ *
+ * Discogs rarely sends Retry-After, so the exponential path is the common one.
+ * Retrying at a flat 60s into an IP tarpit just harvests another 429 at a fixed
+ * rate, which is how a single throttled request used to escalate into a tripped
+ * circuit in two minutes flat.
+ */
+export function getPauseMs(attempts: number, retryAfterHeader?: string): number {
+  if (retryAfterHeader) {
+    const secs = parseInt(retryAfterHeader, 10)
+    if (Number.isFinite(secs) && secs > 0) return secs * 1000
+  }
+  return Math.min(BASE_PAUSE_MS * 2 ** Math.max(0, attempts - 1), MAX_PAUSE_MS)
+}
+
+/**
+ * Whether a 429 should count toward the circuit-breaker streak.
+ *
+ * Only an entry's *first* 429 counts. The breaker exists to detect a tarpit
+ * affecting traffic broadly; one unlucky request retrying itself is not
+ * evidence of that, and counting each attempt meant a single request could trip
+ * a global 10-minute breaker entirely on its own.
+ */
+export function countsTowardStreak(attempts: number): boolean {
+  return attempts <= 1
+}
+
+/** Streak value to restore, discarding one that's too old to mean anything. */
+export function decayStreak(streak: number, updatedAt: number, now: number): number {
+  return now - updatedAt > STREAK_DECAY_MS ? 0 : streak
+}
+
+/**
+ * Budget to assume when a window-reset alarm fires or the DO cold-starts with
+ * stale state. A recent 429 means assume a single throttled probe; otherwise
+ * the window genuinely has reset and full speed is correct.
+ */
+export function budgetAfterReset(limit: number, consecutive429s: number): number {
+  return consecutive429s > 0 ? PROBE_BUDGET : limit
 }
 
 /** Whether sustained-429 streak has tripped the circuit. */
@@ -87,6 +174,8 @@ interface QueuedRequest {
   enqueuedAt: number
   /** How many times this entry has been sent to Discogs. */
   attempts: number
+  /** Cumulative time this entry has spent waiting out 429 backoff. */
+  backoffMs: number
   timeoutId?: ReturnType<typeof setTimeout>
 }
 
@@ -104,12 +193,26 @@ export class DiscogsRateLimiter implements DurableObject {
   constructor(state: DurableObjectState) {
     this.state = state
     state.blockConcurrencyWhile(async () => {
+      // Restore the streak first: it decides whether a stale budget should be
+      // restored optimistically or as a single throttled probe.
+      const storedStreak = await state.storage.get<number>('consecutive429s')
+      if (typeof storedStreak === 'number') {
+        const streakUpdatedAt = (await state.storage.get<number>('streakUpdatedAt')) ?? 0
+        this.consecutive429s = decayStreak(storedStreak, streakUpdatedAt, Date.now())
+        if (this.consecutive429s !== storedStreak) {
+          console.log(`[RL] Discarded stale 429 streak of ${storedStreak} (${Math.round((Date.now() - streakUpdatedAt) / 1000)}s old)`)
+          await state.storage.put('consecutive429s', this.consecutive429s)
+          await state.storage.put('streakUpdatedAt', Date.now())
+        }
+      }
+
       const stored = await state.storage.get<BudgetState>('budget')
       if (stored) {
         const age = Date.now() - stored.lastUpdated
         if (age > WINDOW_RESET_MS) {
-          this.budget = { remaining: stored.limit, limit: stored.limit, lastUpdated: Date.now() }
-          console.log(`[RL] Restored budget but stale (${Math.round(age / 1000)}s old), reset to ${stored.limit}`)
+          const remaining = budgetAfterReset(stored.limit, this.consecutive429s)
+          this.budget = { remaining, limit: stored.limit, lastUpdated: Date.now() }
+          console.log(`[RL] Restored budget but stale (${Math.round(age / 1000)}s old), reset to ${remaining}`)
         } else {
           this.budget = stored
           console.log('[RL] Restored budget from storage:', stored)
@@ -118,9 +221,6 @@ export class DiscogsRateLimiter implements DurableObject {
         console.log('[RL] Cold start, assuming remaining=60')
       }
 
-      const storedStreak = await state.storage.get<number>('consecutive429s')
-      if (typeof storedStreak === 'number') this.consecutive429s = storedStreak
-
       const storedTripped = await state.storage.get<number>('trippedUntil')
       if (typeof storedTripped === 'number') {
         if (Date.now() < storedTripped) {
@@ -128,13 +228,24 @@ export class DiscogsRateLimiter implements DurableObject {
           console.warn(`[RL] Restored circuit-breaker cooldown, ${Math.round((storedTripped - Date.now()) / 1000)}s remaining`)
         } else {
           // Stale — clear it. Half-open: keep streak at TRIP_THRESHOLD - 1 so
-          // the next 429 trips again immediately.
+          // the next 429 trips again immediately. The probe that tests it is
+          // throttled via PROBE_BUDGET, so this is a considered retry rather
+          // than an instant re-trip.
           await state.storage.delete('trippedUntil')
-          this.consecutive429s = Math.min(this.consecutive429s, TRIP_THRESHOLD - 1)
-          await state.storage.put('consecutive429s', this.consecutive429s)
+          await this.setStreak(Math.min(this.consecutive429s, TRIP_THRESHOLD - 1))
         }
       }
     })
+  }
+
+  /**
+   * Set and persist the 429 streak alongside the timestamp that lets a later
+   * cold start decide whether it's still meaningful (see decayStreak).
+   */
+  private async setStreak(value: number): Promise<void> {
+    this.consecutive429s = value
+    await this.state.storage.put('consecutive429s', value)
+    await this.state.storage.put('streakUpdatedAt', Date.now())
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -156,6 +267,7 @@ export class DiscogsRateLimiter implements DurableObject {
           },
           circuit: {
             consecutive429s: this.consecutive429s,
+            streakUpdatedAt: (await this.state.storage.get<number>('streakUpdatedAt')) ?? null,
             trippedUntil: this.trippedUntil,
             inCooldown: isInCooldown(this.trippedUntil, now),
             cooldownRemainingSecs: this.trippedUntil !== null
@@ -189,11 +301,12 @@ export class DiscogsRateLimiter implements DurableObject {
       console.warn('[RL] Circuit cooldown elapsed, entering half-open state')
       this.trippedUntil = null
       await this.state.storage.delete('trippedUntil')
-      this.consecutive429s = TRIP_THRESHOLD - 1
-      await this.state.storage.put('consecutive429s', this.consecutive429s)
+      await this.setStreak(TRIP_THRESHOLD - 1)
       this.paused = false
-      // Fresh window — let one probe through.
-      this.budget.remaining = this.budget.limit
+      // Let exactly one *throttled* probe through. Resetting to `limit` here
+      // would fire it instantly (getDelay(limit) === 0) straight back into the
+      // tarpit we just spent 10 minutes waiting out.
+      this.budget.remaining = PROBE_BUDGET
       this.budget.lastUpdated = Date.now()
       await this.state.storage.put('budget', this.budget)
       // No queued requests to drain (they were failed when we tripped); next
@@ -201,8 +314,9 @@ export class DiscogsRateLimiter implements DurableObject {
       return
     }
 
-    console.log(`[RL] Alarm fired — resetting budget to ${this.budget.limit}, queued: ${this.queue.length}`)
-    this.budget.remaining = this.budget.limit
+    const reset = budgetAfterReset(this.budget.limit, this.consecutive429s)
+    console.log(`[RL] Alarm fired — resetting budget to ${reset}, queued: ${this.queue.length}`)
+    this.budget.remaining = reset
     this.budget.lastUpdated = Date.now()
     await this.state.storage.put('budget', this.budget)
 
@@ -260,6 +374,7 @@ export class DiscogsRateLimiter implements DurableObject {
         request,
         enqueuedAt: Date.now(),
         attempts: 0,
+        backoffMs: 0,
       }
 
       this.queue.push(entry)
@@ -317,11 +432,13 @@ export class DiscogsRateLimiter implements DurableObject {
       const response = await this.executeRequest(entry.request)
 
       if (response.status === 429) {
-        this.consecutive429s += 1
-        await this.state.storage.put('consecutive429s', this.consecutive429s)
+        // Only the entry's first 429 counts toward the breaker — see
+        // countsTowardStreak. Its own retries are not independent evidence.
+        if (countsTowardStreak(entry.attempts)) {
+          await this.setStreak(this.consecutive429s + 1)
+        }
 
-        const retryAfter = response.headers['retry-after']
-        const pauseMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : DEFAULT_PAUSE_MS
+        const pauseMs = getPauseMs(entry.attempts, response.headers['retry-after'])
         this.budget.remaining = 0
         await this.state.storage.put('budget', this.budget)
 
@@ -346,9 +463,10 @@ export class DiscogsRateLimiter implements DurableObject {
           return
         }
 
-        if (shouldGiveUpEntry(entry.attempts)) {
+        if (shouldGiveUpEntry(entry.attempts, entry.backoffMs + pauseMs)) {
           console.warn(
-            `[RL] Entry hit retry cap (${entry.attempts}/${MAX_ATTEMPTS_PER_ENTRY}), surfacing 429 to caller`,
+            `[RL] Giving up on entry (attempt ${entry.attempts}/${MAX_ATTEMPTS_PER_ENTRY}, ` +
+              `${entry.backoffMs + pauseMs}ms of backoff would outlast the caller), surfacing 429`,
           )
           if (entry.timeoutId) clearTimeout(entry.timeoutId)
           entry.resolve(response)
@@ -366,6 +484,7 @@ export class DiscogsRateLimiter implements DurableObject {
 
         // Cancel the original timeout and give it a fresh window after the pause
         if (entry.timeoutId) clearTimeout(entry.timeoutId)
+        entry.backoffMs += pauseMs
         entry.enqueuedAt = Date.now() + pauseMs // reset so drainQueue doesn't expire it
         entry.timeoutId = setTimeout(() => {
           const idx = this.queue.indexOf(entry)
@@ -390,8 +509,7 @@ export class DiscogsRateLimiter implements DurableObject {
       // Non-429 response: reset the consecutive-429 streak if we'd been in one.
       if (response.status < 400 && this.consecutive429s > 0) {
         console.log(`[RL] Discogs healthy again, resetting 429 streak (was ${this.consecutive429s})`)
-        this.consecutive429s = 0
-        await this.state.storage.put('consecutive429s', this.consecutive429s)
+        await this.setStreak(0)
       }
 
       const prevRemaining = this.budget.remaining
