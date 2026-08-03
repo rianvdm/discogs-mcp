@@ -9,8 +9,17 @@ import {
   shouldTripCircuit,
   isInCooldown,
   cooldownRetryAfterSecs,
+  getPauseMs,
+  countsTowardStreak,
+  decayStreak,
+  budgetAfterReset,
   MAX_ATTEMPTS_PER_ENTRY,
+  MAX_ENTRY_BACKOFF_MS,
   TRIP_THRESHOLD,
+  PROBE_BUDGET,
+  BASE_PAUSE_MS,
+  MAX_PAUSE_MS,
+  STREAK_DECAY_MS,
 } from '../../src/rate-limiter/durable-object'
 import type { BudgetState } from '../../src/rate-limiter/types'
 
@@ -82,6 +91,28 @@ describe('shouldGiveUpEntry', () => {
     expect(shouldGiveUpEntry(MAX_ATTEMPTS_PER_ENTRY)).toBe(true)
     expect(shouldGiveUpEntry(MAX_ATTEMPTS_PER_ENTRY + 5)).toBe(true)
   })
+
+  it('gives up once the planned backoff would outlast the caller', () => {
+    expect(shouldGiveUpEntry(1, MAX_ENTRY_BACKOFF_MS - 1)).toBe(false)
+    expect(shouldGiveUpEntry(1, MAX_ENTRY_BACKOFF_MS)).toBe(true)
+  })
+
+  it('surfaces the 429 within the caller’s window on the real backoff schedule', () => {
+    // Replay of the 2026-08-03 incident. Without the backoff bound, attempt 3
+    // fired at t=200s — long after the MCP tool call had been abandoned.
+    let backoff = 0
+    let gaveUpAt: number | null = null
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_ENTRY; attempt++) {
+      const pause = getPauseMs(attempt)
+      if (shouldGiveUpEntry(attempt, backoff + pause)) {
+        gaveUpAt = backoff
+        break
+      }
+      backoff += pause
+    }
+    expect(gaveUpAt).not.toBeNull()
+    expect(gaveUpAt!).toBeLessThanOrEqual(MAX_ENTRY_BACKOFF_MS)
+  })
 })
 
 describe('shouldTripCircuit', () => {
@@ -120,5 +151,95 @@ describe('cooldownRetryAfterSecs', () => {
 
   it('returns 0 when cooldown has elapsed', () => {
     expect(cooldownRetryAfterSecs(10_000, 11_000)).toBe(0)
+  })
+})
+
+describe('getPauseMs', () => {
+  it('honours Retry-After when Discogs sends one', () => {
+    expect(getPauseMs(1, '30')).toBe(30_000)
+    expect(getPauseMs(3, '5')).toBe(5_000)
+  })
+
+  it('ignores an absent, unparseable, or non-positive Retry-After', () => {
+    expect(getPauseMs(1)).toBe(BASE_PAUSE_MS)
+    expect(getPauseMs(1, 'soon')).toBe(BASE_PAUSE_MS)
+    expect(getPauseMs(1, '0')).toBe(BASE_PAUSE_MS)
+    expect(getPauseMs(1, '-5')).toBe(BASE_PAUSE_MS)
+  })
+
+  it('doubles per attempt when there is no Retry-After', () => {
+    expect(getPauseMs(1)).toBe(60_000)
+    expect(getPauseMs(2)).toBe(120_000)
+    expect(getPauseMs(3)).toBe(240_000)
+  })
+
+  it('caps the backoff', () => {
+    expect(getPauseMs(10)).toBe(MAX_PAUSE_MS)
+  })
+
+  it('treats attempt 0 as the first attempt rather than halving the base', () => {
+    expect(getPauseMs(0)).toBe(BASE_PAUSE_MS)
+  })
+})
+
+describe('countsTowardStreak', () => {
+  it("counts an entry's first 429", () => {
+    expect(countsTowardStreak(1)).toBe(true)
+  })
+
+  it('ignores that same entry retrying itself', () => {
+    // Regression guard for #46: counting every attempt let a single request
+    // trip a global 10-minute breaker on its own.
+    expect(countsTowardStreak(2)).toBe(false)
+    expect(countsTowardStreak(3)).toBe(false)
+  })
+
+  it('needs TRIP_THRESHOLD distinct entries to trip the circuit', () => {
+    let streak = 0
+    // One entry exhausting all its attempts.
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_ENTRY; attempt++) {
+      if (countsTowardStreak(attempt)) streak++
+    }
+    expect(streak).toBe(1)
+    expect(shouldTripCircuit(streak)).toBe(false)
+
+    // TRIP_THRESHOLD different entries each failing once.
+    streak = 0
+    for (let entry = 0; entry < TRIP_THRESHOLD; entry++) {
+      if (countsTowardStreak(1)) streak++
+    }
+    expect(shouldTripCircuit(streak)).toBe(true)
+  })
+})
+
+describe('decayStreak', () => {
+  const now = 1_000_000_000
+
+  it('keeps a recent streak', () => {
+    expect(decayStreak(2, now - 1000, now)).toBe(2)
+    expect(decayStreak(2, now - STREAK_DECAY_MS, now)).toBe(2)
+  })
+
+  it('discards a streak too old to describe the current state', () => {
+    // Regression guard for #47: the streak persists in DO storage across
+    // restarts and deploys, leaving the limiter primed to trip on one 429.
+    expect(decayStreak(2, now - STREAK_DECAY_MS - 1, now)).toBe(0)
+    expect(decayStreak(2, 0, now)).toBe(0)
+  })
+})
+
+describe('budgetAfterReset', () => {
+  it('resets to the full limit when there is no recent 429', () => {
+    expect(budgetAfterReset(60, 0)).toBe(60)
+  })
+
+  it('assumes a single throttled probe when a 429 is in the recent past', () => {
+    expect(budgetAfterReset(60, 1)).toBe(PROBE_BUDGET)
+    expect(budgetAfterReset(60, TRIP_THRESHOLD - 1)).toBe(PROBE_BUDGET)
+  })
+
+  it('throttles that probe rather than firing it immediately', () => {
+    expect(getDelay(budgetAfterReset(60, 1))).toBeGreaterThan(0)
+    expect(getDelay(budgetAfterReset(60, 0))).toBe(0)
   })
 })
