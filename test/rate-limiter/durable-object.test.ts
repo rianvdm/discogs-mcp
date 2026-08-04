@@ -13,8 +13,12 @@ import {
   countsTowardStreak,
   decayStreak,
   budgetAfterReset,
+  maxBackoffFor,
+  priorityOf,
+  queueInsertIndex,
   MAX_ATTEMPTS_PER_ENTRY,
-  MAX_ENTRY_BACKOFF_MS,
+  INTERACTIVE_MAX_BACKOFF_MS,
+  BACKGROUND_MAX_BACKOFF_MS,
   TRIP_THRESHOLD,
   PROBE_BUDGET,
   BASE_PAUSE_MS,
@@ -92,9 +96,9 @@ describe('shouldGiveUpEntry', () => {
     expect(shouldGiveUpEntry(MAX_ATTEMPTS_PER_ENTRY + 5)).toBe(true)
   })
 
-  it('gives up once the planned backoff would outlast the caller', () => {
-    expect(shouldGiveUpEntry(1, MAX_ENTRY_BACKOFF_MS - 1)).toBe(false)
-    expect(shouldGiveUpEntry(1, MAX_ENTRY_BACKOFF_MS)).toBe(true)
+  it('gives up once the planned backoff would outlast the lane’s bound', () => {
+    expect(shouldGiveUpEntry(1, BACKGROUND_MAX_BACKOFF_MS - 1, 'background')).toBe(false)
+    expect(shouldGiveUpEntry(1, BACKGROUND_MAX_BACKOFF_MS, 'background')).toBe(true)
   })
 
   it('surfaces the 429 within the caller’s window on the real backoff schedule', () => {
@@ -104,14 +108,87 @@ describe('shouldGiveUpEntry', () => {
     let gaveUpAt: number | null = null
     for (let attempt = 1; attempt <= MAX_ATTEMPTS_PER_ENTRY; attempt++) {
       const pause = getPauseMs(attempt)
-      if (shouldGiveUpEntry(attempt, backoff + pause)) {
+      if (shouldGiveUpEntry(attempt, backoff + pause, 'background')) {
         gaveUpAt = backoff
         break
       }
       backoff += pause
     }
     expect(gaveUpAt).not.toBeNull()
-    expect(gaveUpAt!).toBeLessThanOrEqual(MAX_ENTRY_BACKOFF_MS)
+    expect(gaveUpAt!).toBeLessThanOrEqual(BACKGROUND_MAX_BACKOFF_MS)
+  })
+
+  it('spends no pause on a retry an interactive caller cannot afford', () => {
+    // Replay of the 2026-08-04 starvation. The old single bound (90s) let
+    // attempt 1 start a 60s pause, then failed the entry on attempt 2 because
+    // 60s + 120s exceeded it — so the caller waited ~80s for a 429 that was
+    // already decided. Fail on the first 429 instead.
+    expect(shouldGiveUpEntry(1, getPauseMs(1), 'interactive')).toBe(true)
+  })
+
+  it('still retries an interactive call when Discogs asks for a short wait', () => {
+    // Retry-After is rare from Discogs, but when it arrives and it is short the
+    // retry fits comfortably inside the caller's window and is worth making.
+    expect(shouldGiveUpEntry(1, getPauseMs(1, '5'), 'interactive')).toBe(false)
+  })
+
+  it('lets a background entry use its full attempt budget where interactive would not', () => {
+    const plannedBackoff = getPauseMs(1)
+    expect(shouldGiveUpEntry(1, plannedBackoff, 'background')).toBe(false)
+    expect(shouldGiveUpEntry(1, plannedBackoff, 'interactive')).toBe(true)
+  })
+
+  it('defaults to the interactive lane when no priority is given', () => {
+    expect(shouldGiveUpEntry(1, getPauseMs(1))).toBe(true)
+  })
+})
+
+describe('maxBackoffFor', () => {
+  it('gives an interactive caller a shorter bound than a background job', () => {
+    expect(maxBackoffFor('interactive')).toBe(INTERACTIVE_MAX_BACKOFF_MS)
+    expect(maxBackoffFor('background')).toBe(BACKGROUND_MAX_BACKOFF_MS)
+    expect(INTERACTIVE_MAX_BACKOFF_MS).toBeLessThan(BACKGROUND_MAX_BACKOFF_MS)
+  })
+
+  it('keeps the interactive bound under the base pause so a doomed retry never starts', () => {
+    expect(INTERACTIVE_MAX_BACKOFF_MS).toBeLessThan(BASE_PAUSE_MS)
+  })
+})
+
+describe('priorityOf', () => {
+  it('treats an unlabelled request as interactive', () => {
+    // Every call site that predates the lane split is a user-facing tool call,
+    // so the safe default is the lane that fails fast rather than the one that
+    // waits minutes on nobody's behalf.
+    expect(priorityOf({ url: 'https://api.discogs.com/x', method: 'GET', headers: {} })).toBe('interactive')
+  })
+
+  it('honours an explicit priority', () => {
+    expect(priorityOf({ url: 'https://api.discogs.com/x', method: 'GET', headers: {}, priority: 'background' })).toBe('background')
+    expect(priorityOf({ url: 'https://api.discogs.com/x', method: 'GET', headers: {}, priority: 'interactive' })).toBe('interactive')
+  })
+})
+
+describe('queueInsertIndex', () => {
+  it('appends a background entry to the tail', () => {
+    expect(queueInsertIndex([], 'background')).toBe(0)
+    expect(queueInsertIndex(['interactive', 'background'], 'background')).toBe(2)
+  })
+
+  it('puts an interactive entry ahead of the first background entry', () => {
+    // The 2026-08-04 case: the sync had re-queued itself at the head and was
+    // consuming every probe token, so a user's tool call sat behind a
+    // page-by-page collection walk.
+    expect(queueInsertIndex(['background', 'background'], 'interactive')).toBe(0)
+    expect(queueInsertIndex(['interactive', 'background'], 'interactive')).toBe(1)
+  })
+
+  it('keeps interactive entries in arrival order among themselves', () => {
+    expect(queueInsertIndex(['interactive', 'interactive'], 'interactive')).toBe(2)
+  })
+
+  it('appends an interactive entry when nothing is queued behind it', () => {
+    expect(queueInsertIndex([], 'interactive')).toBe(0)
   })
 })
 

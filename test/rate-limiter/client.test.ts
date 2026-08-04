@@ -76,6 +76,32 @@ describe('rateLimitedFetch', () => {
     expect(response.body).toBeNull()
   })
 
+  it('labels a request with the caller’s lane', async () => {
+    const stub = createMockStub({ status: 200, headers: {}, body: '{}' })
+
+    await rateLimitedFetch(stub, 'https://api.discogs.com/users/x/collection/folders/0/releases', {
+      method: 'GET',
+      headers: {},
+      priority: 'background',
+    })
+
+    const callArgs = (stub.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    const sentBody = JSON.parse(await (callArgs[0] as Request).text())
+    expect(sentBody.priority).toBe('background')
+  })
+
+  it('leaves the lane unset when the caller does not name one', async () => {
+    // The DO defaults an unlabelled request to the interactive lane, so tool
+    // call sites that never opt in keep failing fast rather than waiting.
+    const stub = createMockStub({ status: 200, headers: {}, body: '{}' })
+
+    await rateLimitedFetch(stub, 'https://api.discogs.com/releases/123', { method: 'GET', headers: {} })
+
+    const callArgs = (stub.fetch as ReturnType<typeof vi.fn>).mock.calls[0]
+    const sentBody = JSON.parse(await (callArgs[0] as Request).text())
+    expect(sentBody.priority).toBeUndefined()
+  })
+
   it('passes POST body through to the DO', async () => {
     const stub = createMockStub({
       status: 200,

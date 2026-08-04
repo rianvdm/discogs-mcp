@@ -1,5 +1,5 @@
 // src/rate-limiter/durable-object.ts
-import type { RateLimiterRequest, RateLimiterResponse, BudgetState } from './types'
+import type { RateLimiterRequest, RateLimiterResponse, BudgetState, RequestPriority } from './types'
 
 const MAX_QUEUE_DEPTH = 20
 const QUEUE_TIMEOUT_MS = 90_000
@@ -90,23 +90,60 @@ export function shouldRejectQueue(queueLength: number): boolean {
 }
 
 /**
- * Total time an entry may spend in 429 backoff before we surface the 429 to the
- * caller instead of retrying again.
+ * Total time an interactive entry may spend in 429 backoff before we surface the
+ * 429 instead of retrying again.
  *
- * Retries are only worth making while someone is still waiting for the answer.
- * Callers here are MCP tool calls, and the DO's own queue timeout is 90s — past
- * that a retry spends a request on a hot IP with nobody listening. Exponential
- * backoff without this bound would have made the 2026-08-03 request wait 200s
- * for a 429 it could have had at 70s.
+ * Deliberately below BASE_PAUSE_MS. Discogs almost never sends Retry-After, so
+ * the first pause is normally the full 60s — and the attempt that follows it is
+ * already doomed, because 60s + the next 120s step exceeds any bound a waiting
+ * caller can afford. Starting that pause buys nothing and costs the caller a
+ * minute, so an entry whose only available retry is the exponential one fails
+ * now rather than later. A short Retry-After still fits, and still retries.
  */
-export const MAX_ENTRY_BACKOFF_MS = 90_000
+export const INTERACTIVE_MAX_BACKOFF_MS = 30_000
+
+/**
+ * The same bound for the scheduled sync, which has no caller to disappoint and
+ * can afford to wait out a hot IP across its full attempt budget.
+ */
+export const BACKGROUND_MAX_BACKOFF_MS = 90_000
+
+/** Backoff a lane may spend before an entry is failed instead of re-queued. */
+export function maxBackoffFor(priority: RequestPriority): number {
+  return priority === 'background' ? BACKGROUND_MAX_BACKOFF_MS : INTERACTIVE_MAX_BACKOFF_MS
+}
+
+/**
+ * Lane of a request. Absent means interactive: every call site predating the
+ * lane split is a user-facing tool call, so the safe default is the lane that
+ * fails fast rather than the one that waits on nobody's behalf.
+ */
+export function priorityOf(request: RateLimiterRequest): RequestPriority {
+  return request.priority ?? 'interactive'
+}
+
+/**
+ * Where an incoming entry belongs in the queue. Interactive entries go ahead of
+ * every background one and behind their own lane's earlier arrivals, so a user's
+ * tool call doesn't wait out a page-by-page collection walk. Background entries
+ * take the tail.
+ */
+export function queueInsertIndex(queued: RequestPriority[], incoming: RequestPriority): number {
+  if (incoming === 'background') return queued.length
+  const firstBackground = queued.indexOf('background')
+  return firstBackground === -1 ? queued.length : firstBackground
+}
 
 /**
  * Whether an entry should be failed instead of re-queued — either because it's
- * out of attempts, or because the next backoff would outlast the caller.
+ * out of attempts, or because the next backoff would outlast its lane's bound.
  */
-export function shouldGiveUpEntry(attempts: number, plannedBackoffMs = 0): boolean {
-  return attempts >= MAX_ATTEMPTS_PER_ENTRY || plannedBackoffMs >= MAX_ENTRY_BACKOFF_MS
+export function shouldGiveUpEntry(
+  attempts: number,
+  plannedBackoffMs = 0,
+  priority: RequestPriority = 'interactive',
+): boolean {
+  return attempts >= MAX_ATTEMPTS_PER_ENTRY || plannedBackoffMs >= maxBackoffFor(priority)
 }
 
 /**
@@ -172,6 +209,8 @@ interface QueuedRequest {
   reject: (error: Error) => void
   request: RateLimiterRequest
   enqueuedAt: number
+  /** Lane this entry queues and backs off in. */
+  priority: RequestPriority
   /** How many times this entry has been sent to Discogs. */
   attempts: number
   /** Cumulative time this entry has spent waiting out 429 backoff. */
@@ -282,7 +321,9 @@ export class DiscogsRateLimiter implements DurableObject {
 
     const limiterReq: RateLimiterRequest = await request.json()
     const path = new URL(limiterReq.url).pathname
-    console.log(`[RL] Request: ${limiterReq.method} ${path} | budget: ${this.budget.remaining}/${this.budget.limit} | queue: ${this.queue.length}`)
+    console.log(
+      `[RL] Request: ${limiterReq.method} ${path} | lane: ${priorityOf(limiterReq)} | budget: ${this.budget.remaining}/${this.budget.limit} | queue: ${this.queue.length}`,
+    )
     const response = await this.enqueue(limiterReq)
     // Always 200 on the outer DO response — the upstream Discogs status is
     // carried inside the JSON payload. If we used response.status here, a
@@ -344,6 +385,15 @@ export class DiscogsRateLimiter implements DurableObject {
     }
   }
 
+  /** Place an entry in its lane's position — see queueInsertIndex. */
+  private insertIntoQueue(entry: QueuedRequest): void {
+    const index = queueInsertIndex(
+      this.queue.map((queued) => queued.priority),
+      entry.priority,
+    )
+    this.queue.splice(index, 0, entry)
+  }
+
   private enqueue(request: RateLimiterRequest): Promise<RateLimiterResponse> {
     if (isInCooldown(this.trippedUntil, Date.now())) {
       const retryAfter = cooldownRetryAfterSecs(this.trippedUntil!, Date.now())
@@ -373,11 +423,12 @@ export class DiscogsRateLimiter implements DurableObject {
         reject,
         request,
         enqueuedAt: Date.now(),
+        priority: priorityOf(request),
         attempts: 0,
         backoffMs: 0,
       }
 
-      this.queue.push(entry)
+      this.insertIntoQueue(entry)
 
       entry.timeoutId = setTimeout(() => {
         const idx = this.queue.indexOf(entry)
@@ -463,10 +514,10 @@ export class DiscogsRateLimiter implements DurableObject {
           return
         }
 
-        if (shouldGiveUpEntry(entry.attempts, entry.backoffMs + pauseMs)) {
+        if (shouldGiveUpEntry(entry.attempts, entry.backoffMs + pauseMs, entry.priority)) {
           console.warn(
-            `[RL] Giving up on entry (attempt ${entry.attempts}/${MAX_ATTEMPTS_PER_ENTRY}, ` +
-              `${entry.backoffMs + pauseMs}ms of backoff would outlast the caller), surfacing 429`,
+            `[RL] Giving up on ${entry.priority} entry (attempt ${entry.attempts}/${MAX_ATTEMPTS_PER_ENTRY}, ` +
+              `${entry.backoffMs + pauseMs}ms of backoff exceeds the ${maxBackoffFor(entry.priority)}ms lane bound), surfacing 429`,
           )
           if (entry.timeoutId) clearTimeout(entry.timeoutId)
           entry.resolve(response)
@@ -498,7 +549,9 @@ export class DiscogsRateLimiter implements DurableObject {
           }
         }, pauseMs + QUEUE_TIMEOUT_MS)
 
-        this.queue.unshift(entry)
+        // Back into its lane's position rather than the head: a re-queued sync
+        // page must not jump ahead of a tool call that arrived during its pause.
+        this.insertIntoQueue(entry)
 
         await this.state.storage.setAlarm(Date.now() + pauseMs)
         this.paused = true

@@ -1,14 +1,22 @@
 // src/rate-limiter/client.ts
-import type { RateLimiterRequest, RateLimiterResponse, RateLimiterStub } from './types'
+import type { RateLimiterRequest, RateLimiterResponse, RateLimiterStub, RequestPriority } from './types'
 
 /**
  * Send a fetch request through the rate limiter Durable Object.
  * Returns a standard Response object so callers don't need to change.
+ *
+ * `priority` names the caller's lane; omitting it means interactive, which is
+ * what every user-facing tool call wants.
  */
 export async function rateLimitedFetch(
   stub: RateLimiterStub,
   url: string,
-  init: { method?: string; headers?: Record<string, string> | HeadersInit; body?: string },
+  init: {
+    method?: string
+    headers?: Record<string, string> | HeadersInit
+    body?: string
+    priority?: RequestPriority
+  },
 ): Promise<Response> {
   // Normalize headers to a plain object
   const headers: Record<string, string> = {}
@@ -31,6 +39,7 @@ export async function rateLimitedFetch(
     method: init.method ?? 'GET',
     headers,
     body: init.body,
+    ...(init.priority ? { priority: init.priority } : {}),
   }
 
   const doResponse = await stub.fetch(

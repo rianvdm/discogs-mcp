@@ -3,7 +3,7 @@
 import { DiscogsAuth } from '../auth/discogs'
 import { hasMoodContent, analyzeMoodQuery } from '../utils/moodMapping'
 import { rateLimitedFetch } from '../rate-limiter/client'
-import type { RateLimiterStub } from '../rate-limiter/types'
+import type { RateLimiterStub, RequestPriority } from '../rate-limiter/types'
 
 export interface DiscogsRelease {
 	id: number
@@ -167,9 +167,19 @@ export class DiscogsClient {
 	private baseUrl = 'https://api.discogs.com'
 	private userAgent = 'discogs-mcp/1.0.0'
 	private rateLimiterStub: RateLimiterStub | null = null
+	private rateLimiterPriority: RequestPriority | undefined
 
-	setRateLimiter(stub: RateLimiterStub): void {
+	/**
+	 * Route this client's Discogs calls through the rate limiter.
+	 *
+	 * `priority` names the lane every request from this client belongs to. A
+	 * client serves one caller for its whole life — a tool call or the scheduled
+	 * sync — so the lane is a property of the client, not of each call. Omitting
+	 * it leaves the limiter's interactive default in place.
+	 */
+	setRateLimiter(stub: RateLimiterStub, priority?: RequestPriority): void {
 		this.rateLimiterStub = stub
+		this.rateLimiterPriority = priority
 	}
 
 	private async discogsApiFetch(url: string, init: RequestInit): Promise<Response> {
@@ -178,6 +188,7 @@ export class DiscogsClient {
 				method: init.method ?? 'GET',
 				headers: init.headers as Record<string, string>,
 				body: init.body as string | undefined,
+				priority: this.rateLimiterPriority,
 			})
 		}
 		return fetch(url, init)

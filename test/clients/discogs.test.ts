@@ -1109,3 +1109,55 @@ describe('Discogs Client', () => {
 		})
 	})
 })
+
+describe('Discogs Client rate limiter lane', () => {
+	const auth = {
+		username: 'testuser',
+		accessToken: 'test-token',
+		accessTokenSecret: 'test-secret',
+		consumerKey: 'test-key',
+		consumerSecret: 'test-secret-key',
+	}
+
+	function stubReturningEmptyCollection() {
+		return {
+			fetch: vi.fn().mockResolvedValue(
+				new Response(
+					JSON.stringify({
+						status: 200,
+						headers: { 'content-type': 'application/json' },
+						body: JSON.stringify({ pagination: { pages: 1, page: 1, per_page: 50, items: 0, urls: {} }, releases: [] }),
+					}),
+					{ status: 200, headers: { 'Content-Type': 'application/json' } },
+				),
+			),
+		}
+	}
+
+	async function sentPayload(stub: { fetch: ReturnType<typeof vi.fn> }) {
+		const request = stub.fetch.mock.calls[0][0] as Request
+		return JSON.parse(await request.text())
+	}
+
+	it('labels every request from a background client as background', async () => {
+		// The scheduled sync builds its own client, so the lane belongs to the
+		// client rather than to each call site.
+		const stub = stubReturningEmptyCollection()
+		const client = new DiscogsClient()
+		client.setRateLimiter(stub, 'background')
+
+		await client.searchCollection(auth.username, auth.accessToken, auth.accessTokenSecret, { page: 1, per_page: 50 }, auth.consumerKey, auth.consumerSecret)
+
+		expect((await sentPayload(stub)).priority).toBe('background')
+	})
+
+	it('leaves the lane unset for a client that does not name one', async () => {
+		const stub = stubReturningEmptyCollection()
+		const client = new DiscogsClient()
+		client.setRateLimiter(stub)
+
+		await client.searchCollection(auth.username, auth.accessToken, auth.accessTokenSecret, { page: 1, per_page: 50 }, auth.consumerKey, auth.consumerSecret)
+
+		expect((await sentPayload(stub)).priority).toBeUndefined()
+	})
+})

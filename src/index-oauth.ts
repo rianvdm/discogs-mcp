@@ -329,7 +329,9 @@ export default {
         const discogsClient = new DiscogsClient()
         if (env.RATE_LIMITER) {
           const rlId = env.RATE_LIMITER.idFromName('discogs-rate-limiter')
-          discogsClient.setRateLimiter(env.RATE_LIMITER.get(rlId))
+          // Background lane: nobody is waiting on the sync, so it queues behind
+          // tool calls and can spend its full attempt budget waiting out a 429.
+          discogsClient.setRateLimiter(env.RATE_LIMITER.get(rlId), 'background')
         }
 
         // Inline SyncClient: closes over username + creds, calls the existing
