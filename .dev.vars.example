@@ -14,3 +14,12 @@
 DISCOGS_CONSUMER_KEY=
 DISCOGS_CONSUMER_SECRET=
 JWT_SECRET=
+
+# Optional — egress relay for Discogs API calls. Not needed to run the server.
+# Discogs throttles per source IP and Workers share Cloudflare's egress IPs; the
+# hosted instance routes its calls through a Cloudflare Tunnel to a machine with
+# an IP of its own, guarded by a Cloudflare Access service token. To use one,
+# set DISCOGS_RELAY_ORIGIN in wrangler.toml and these two as secrets:
+#   RELAY_ACCESS_CLIENT_ID     — Access service token client id (ends in ".access")
+#   RELAY_ACCESS_CLIENT_SECRET — Access service token client secret
+# See src/rate-limiter/relay.ts.
