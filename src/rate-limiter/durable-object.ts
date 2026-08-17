@@ -1,6 +1,6 @@
 // src/rate-limiter/durable-object.ts
 import type { RateLimiterRequest, RateLimiterResponse, BudgetState, RequestPriority } from './types'
-import { relayConfigFrom, relayTarget, relayHeaders, isRelayLayerError, type RelayConfig, type RelayEnv } from './relay'
+import { relayConfigFrom, relayTarget, relayHeaders, isRelayLayerError, type RelayConfig, type RelayEnv, type RelayStatus } from './relay'
 
 const MAX_QUEUE_DEPTH = 20
 const QUEUE_TIMEOUT_MS = 90_000
@@ -231,12 +231,19 @@ export class DiscogsRateLimiter implements DurableObject {
   private trippedUntil: number | null = null
   /** Egress relay to send Discogs calls through; null = straight to api.discogs.com. */
   private relay: RelayConfig | null
+  /** Times a request fell back from the relay to a direct call. Persisted. */
+  private relayFallbacks = 0
+  /** Wall-clock ms of the most recent such fallback; null = none. Persisted. */
+  private lastRelayFallbackAt: number | null = null
 
   constructor(state: DurableObjectState, env: RelayEnv) {
     this.state = state
     this.relay = relayConfigFrom(env)
     console.log(this.relay ? `[RL] Egress relay enabled: ${this.relay.origin}` : '[RL] Egress relay off, calling api.discogs.com directly')
     state.blockConcurrencyWhile(async () => {
+      this.relayFallbacks = (await state.storage.get<number>('relayFallbacks')) ?? 0
+      this.lastRelayFallbackAt = (await state.storage.get<number>('lastRelayFallbackAt')) ?? null
+
       // Restore the streak first: it decides whether a stale budget should be
       // restored optimistically or as a single throttled probe.
       const storedStreak = await state.storage.get<number>('consecutive429s')
@@ -318,6 +325,7 @@ export class DiscogsRateLimiter implements DurableObject {
               ? cooldownRetryAfterSecs(this.trippedUntil, now)
               : 0,
           },
+          relay: this.relayStatus(),
           serverTime: now,
         }),
         { status: 200, headers: { 'Content-Type': 'application/json' } },
@@ -594,6 +602,7 @@ export class DiscogsRateLimiter implements DurableObject {
       // us) rather than Discogs answering. Go direct for this one request so a
       // dead relay degrades to the shared-IP behaviour instead of an outage.
       console.warn(`[RL] Relay unavailable (HTTP ${viaRelay.status}), falling back to direct for ${new URL(req.url).pathname}`)
+      await this.recordRelayFallback()
       return await this.send(req, null)
     } catch (error) {
       console.error(`[RL] Fetch error for ${req.url}:`, error instanceof Error ? error.message : error)
@@ -605,6 +614,24 @@ export class DiscogsRateLimiter implements DurableObject {
         }),
       }
     }
+  }
+
+  /** What `ping` / `server_info` / `/debug/budget` report about the relay. */
+  private relayStatus(): RelayStatus {
+    return {
+      enabled: this.relay !== null,
+      origin: this.relay?.origin ?? null,
+      lastFallbackAt: this.lastRelayFallbackAt,
+      fallbacks: this.relayFallbacks,
+    }
+  }
+
+  /** Count a fallback and persist it, so a restart doesn't erase the evidence. */
+  private async recordRelayFallback(): Promise<void> {
+    this.relayFallbacks += 1
+    this.lastRelayFallbackAt = Date.now()
+    await this.state.storage.put('relayFallbacks', this.relayFallbacks)
+    await this.state.storage.put('lastRelayFallbackAt', this.lastRelayFallbackAt)
   }
 
   /** One HTTP round trip to Discogs, through `relay` when given, direct otherwise. */

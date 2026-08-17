@@ -88,3 +88,40 @@ export function isRelayLayerError(status: number, headers: Record<string, string
 	const contentType = headers['content-type'] ?? headers['Content-Type'] ?? ''
 	return !contentType.toLowerCase().includes('application/json')
 }
+
+/** What the rate limiter reports about the relay through its `/state` endpoint. */
+export interface RelayStatus {
+	enabled: boolean
+	/** Relay origin when enabled, else null. */
+	origin: string | null
+	/** Wall-clock ms of the most recent fallback to a direct call; null = none recorded. */
+	lastFallbackAt: number | null
+	/** Fallbacks recorded so far. Persisted by the DO, so it survives restarts. */
+	fallbacks: number
+}
+
+/** "just now", "4 min ago", "3 h ago", "2 d ago" — coarse on purpose, this is a status line. */
+export function describeAge(sinceMs: number, now: number): string {
+	const s = Math.max(0, Math.round((now - sinceMs) / 1000))
+	if (s < 60) return 'just now'
+	const m = Math.round(s / 60)
+	if (m < 60) return `${m} min ago`
+	const h = Math.round(m / 60)
+	if (h < 24) return `${h} h ago`
+	return `${Math.round(h / 24)} d ago`
+}
+
+/**
+ * One human-readable line for `ping` / `server_info` saying how Discogs traffic
+ * is leaving and whether the relay has failed lately. The relay falls back to
+ * direct calls silently as far as tool results go, so this is where a user
+ * finds out that the relay host is down.
+ */
+export function describeRelayStatus(status: RelayStatus | null, now: number): string {
+	if (!status) return 'Discogs egress: status unavailable (rate limiter did not answer)'
+	if (!status.enabled) return 'Discogs egress: direct from Cloudflare (no relay configured)'
+	const host = status.origin ? new URL(status.origin).host : 'relay'
+	if (status.fallbacks === 0 || status.lastFallbackAt === null) return `Discogs egress: via relay ${host}, no fallbacks recorded`
+	const times = status.fallbacks === 1 ? 'once' : `${status.fallbacks} times`
+	return `Discogs egress: via relay ${host}; fell back to direct ${times}, last ${describeAge(status.lastFallbackAt, now)} — the relay host may be down`
+}
