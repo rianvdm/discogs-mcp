@@ -2,7 +2,15 @@
 // ABOUTME: Discogs calls through a self-hosted tunnel and to detect relay-layer failures.
 import { describe, it, expect } from 'vitest'
 
-import { relayConfigFrom, relayTarget, relayHeaders, isRelayLayerError, DISCOGS_ORIGIN } from '../../src/rate-limiter/relay'
+import {
+	relayConfigFrom,
+	relayTarget,
+	relayHeaders,
+	isRelayLayerError,
+	describeAge,
+	describeRelayStatus,
+	DISCOGS_ORIGIN,
+} from '../../src/rate-limiter/relay'
 
 const relay = { origin: 'https://relay.example.com', clientId: 'id.access', clientSecret: 'shh' }
 
@@ -98,5 +106,51 @@ describe('isRelayLayerError', () => {
 	it('never flags a success', () => {
 		expect(isRelayLayerError(200, {})).toBe(false)
 		expect(isRelayLayerError(204, {})).toBe(false)
+	})
+})
+
+describe('describeAge', () => {
+	it('rounds to the coarsest sensible unit', () => {
+		const now = 1_000_000_000
+		expect(describeAge(now - 20_000, now)).toBe('just now')
+		expect(describeAge(now - 4 * 60_000, now)).toBe('4 min ago')
+		expect(describeAge(now - 3 * 3_600_000, now)).toBe('3 h ago')
+		expect(describeAge(now - 2 * 86_400_000, now)).toBe('2 d ago')
+	})
+})
+
+describe('describeRelayStatus', () => {
+	const now = 1_000_000_000
+
+	it('says so when the limiter could not be asked', () => {
+		expect(describeRelayStatus(null, now)).toContain('status unavailable')
+	})
+
+	it('reports direct egress when no relay is configured', () => {
+		expect(describeRelayStatus({ enabled: false, origin: null, lastFallbackAt: null, fallbacks: 0 }, now)).toBe(
+			'Discogs egress: direct from Cloudflare (no relay configured)',
+		)
+	})
+
+	it('names the relay host and a clean record', () => {
+		expect(describeRelayStatus({ enabled: true, origin: 'https://relay.example.com', lastFallbackAt: null, fallbacks: 0 }, now)).toBe(
+			'Discogs egress: via relay relay.example.com, no fallbacks recorded',
+		)
+	})
+
+	it('surfaces fallbacks with a count and an age, and points at the relay host', () => {
+		const line = describeRelayStatus(
+			{ enabled: true, origin: 'https://relay.example.com', lastFallbackAt: now - 4 * 60_000, fallbacks: 3 },
+			now,
+		)
+		expect(line).toBe(
+			'Discogs egress: via relay relay.example.com; fell back to direct 3 times, last 4 min ago — the relay host may be down',
+		)
+	})
+
+	it('says "once" for a single fallback', () => {
+		expect(
+			describeRelayStatus({ enabled: true, origin: 'https://relay.example.com', lastFallbackAt: now - 1000, fallbacks: 1 }, now),
+		).toContain('fell back to direct once, last just now')
 	})
 })

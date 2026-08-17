@@ -7,6 +7,7 @@ import { z } from 'zod'
 import type { Env } from '../../types/env.js'
 import type { SessionContext } from '../server.js'
 import { buildNextSteps } from '../../utils/breadcrumb.js'
+import { describeRelayStatus, type RelayStatus } from '../../rate-limiter/relay.js'
 
 /**
  * Generate authentication URL with connection ID if available
@@ -14,6 +15,23 @@ import { buildNextSteps } from '../../utils/breadcrumb.js'
 function getAuthUrl(connectionId?: string): string {
 	const baseUrl = 'https://discogs-mcp.com'
 	return connectionId ? `${baseUrl}/login?connection_id=${connectionId}` : `${baseUrl}/login`
+}
+
+/**
+ * Ask the rate limiter how Discogs traffic is leaving right now. The relay
+ * falls back to direct calls without any change to tool results, so this line
+ * in ping / server_info is how a user learns the relay host is down. Never
+ * throws: a limiter that can't be reached is reported as such.
+ */
+async function relayStatusLine(env: Env): Promise<string> {
+	try {
+		const stub = env.RATE_LIMITER.get(env.RATE_LIMITER.idFromName('discogs-rate-limiter'))
+		const res = await stub.fetch(new Request('http://do/state'))
+		const state = (await res.json()) as { relay?: RelayStatus }
+		return describeRelayStatus(state.relay ?? null, Date.now())
+	} catch {
+		return describeRelayStatus(null, Date.now())
+	}
 }
 
 /**
@@ -28,6 +46,7 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 			message: z.string().optional().default('Hello from Discogs MCP!').describe('Message to echo back'),
 		},
 		async ({ message }) => {
+			const egress = await relayStatusLine(env)
 			const nextSteps = buildNextSteps([
 				{ tool: 'server_info', args: '', hint: 'see server version and feature list' },
 				{ tool: 'auth_status', args: '', hint: 'check whether you are authenticated' },
@@ -36,7 +55,7 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 				content: [
 					{
 						type: 'text',
-						text: `Pong! You said: ${message}${nextSteps}`,
+						text: `Pong! You said: ${message}\n${egress}${nextSteps}`,
 					},
 				],
 			}
@@ -47,6 +66,7 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 	server.tool('server_info', 'Get information about the Discogs MCP server', {}, async () => {
 		const { connectionId } = await getSessionContext()
 		const authUrl = getAuthUrl(connectionId)
+		const egress = await relayStatusLine(env)
 
 		const nextSteps = buildNextSteps([
 			{ tool: 'auth_status', args: '', hint: 'check whether the current session is authenticated' },
@@ -57,7 +77,7 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 			content: [
 				{
 					type: 'text',
-					text: `Discogs MCP Server v3.1.0\n\nStatus: Running\nProtocol: MCP 2024-11-05\nFeatures:\n- Resources: Collection, Releases, Search\n- Authentication: OAuth 1.0a\n- Rate Limiting: Enabled\n\nTo get started, authenticate at ${authUrl}${nextSteps}`,
+					text: `Discogs MCP Server v3.1.0\n\nStatus: Running\nProtocol: MCP 2024-11-05\nFeatures:\n- Resources: Collection, Releases, Search\n- Authentication: OAuth 1.0a\n- Rate Limiting: Enabled\n- ${egress}\n\nTo get started, authenticate at ${authUrl}${nextSteps}`,
 				},
 			],
 		}
