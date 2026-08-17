@@ -1,5 +1,6 @@
 // src/rate-limiter/durable-object.ts
 import type { RateLimiterRequest, RateLimiterResponse, BudgetState, RequestPriority } from './types'
+import { relayConfigFrom, relayTarget, relayHeaders, isRelayLayerError, type RelayConfig, type RelayEnv } from './relay'
 
 const MAX_QUEUE_DEPTH = 20
 const QUEUE_TIMEOUT_MS = 90_000
@@ -228,9 +229,13 @@ export class DiscogsRateLimiter implements DurableObject {
   private consecutive429s = 0
   /** Wall-clock ms when cooldown ends; null = not tripped. Persisted. */
   private trippedUntil: number | null = null
+  /** Egress relay to send Discogs calls through; null = straight to api.discogs.com. */
+  private relay: RelayConfig | null
 
-  constructor(state: DurableObjectState) {
+  constructor(state: DurableObjectState, env: RelayEnv) {
     this.state = state
+    this.relay = relayConfigFrom(env)
+    console.log(this.relay ? `[RL] Egress relay enabled: ${this.relay.origin}` : '[RL] Egress relay off, calling api.discogs.com directly')
     state.blockConcurrencyWhile(async () => {
       // Restore the streak first: it decides whether a stale budget should be
       // restored optimistically or as a single throttled probe.
@@ -582,20 +587,14 @@ export class DiscogsRateLimiter implements DurableObject {
 
   private async executeRequest(req: RateLimiterRequest): Promise<RateLimiterResponse> {
     try {
-      const response = await fetch(req.url, {
-        method: req.method,
-        headers: req.headers,
-        body: req.body ?? undefined,
-      })
+      const viaRelay = await this.send(req, this.relay)
+      if (!this.relay || !isRelayLayerError(viaRelay.status, viaRelay.headers)) return viaRelay
 
-      const headers: Record<string, string> = {}
-      response.headers.forEach((value, key) => {
-        headers[key.toLowerCase()] = value
-      })
-
-      const body = await response.text()
-
-      return { status: response.status, headers, body }
+      // The relay itself failed (tunnel down, local proxy down, Access rejected
+      // us) rather than Discogs answering. Go direct for this one request so a
+      // dead relay degrades to the shared-IP behaviour instead of an outage.
+      console.warn(`[RL] Relay unavailable (HTTP ${viaRelay.status}), falling back to direct for ${new URL(req.url).pathname}`)
+      return await this.send(req, null)
     } catch (error) {
       console.error(`[RL] Fetch error for ${req.url}:`, error instanceof Error ? error.message : error)
       return {
@@ -606,6 +605,24 @@ export class DiscogsRateLimiter implements DurableObject {
         }),
       }
     }
+  }
+
+  /** One HTTP round trip to Discogs, through `relay` when given, direct otherwise. */
+  private async send(req: RateLimiterRequest, relay: RelayConfig | null): Promise<RateLimiterResponse> {
+    const response = await fetch(relayTarget(req.url, relay), {
+      method: req.method,
+      headers: relayHeaders(req.headers, relay),
+      body: req.body ?? undefined,
+    })
+
+    const headers: Record<string, string> = {}
+    response.headers.forEach((value, key) => {
+      headers[key.toLowerCase()] = value
+    })
+
+    const body = await response.text()
+
+    return { status: response.status, headers, body }
   }
 
   private async scheduleWindowReset(): Promise<void> {

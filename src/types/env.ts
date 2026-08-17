@@ -18,6 +18,17 @@ export interface Env {
   // Set via `wrangler secret put DEBUG_TOKEN --env production` with any random string.
   DEBUG_TOKEN?: string
 
+  // Optional egress relay for Discogs API calls (see src/rate-limiter/relay.ts).
+  // Discogs throttles per source IP and Workers share Cloudflare's egress IPs, so
+  // the hosted instance sends its calls through a Cloudflare Tunnel to a machine
+  // with an IP of its own. DISCOGS_RELAY_ORIGIN is a plain var (e.g.
+  // "https://relay.discogs-mcp.com"); the two RELAY_ACCESS_* values are the
+  // Cloudflare Access service token that guards it, set via `wrangler secret put`.
+  // Leave all three unset to call api.discogs.com directly (self-hosters, local dev).
+  DISCOGS_RELAY_ORIGIN?: string
+  RELAY_ACCESS_CLIENT_ID?: string
+  RELAY_ACCESS_CLIENT_SECRET?: string
+
   // JWT secret for legacy session-based handler (src/index.ts)
   JWT_SECRET: string
 

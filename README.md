@@ -142,6 +142,18 @@ npm run deploy
 
 Then follow steps 3–5 above (callback URL, optional allowlist, connect your MCP client).
 
+### Optional: route Discogs calls through your own IP
+
+Discogs throttles by source IP, and a Worker's outbound requests leave from Cloudflare's shared egress IPs, so other Workers talking to Discogs from the same location eat into your 60 requests a minute. You can see this when a first request after hours of idle already reports a low `X-Discogs-Ratelimit-Remaining`. If it bites, point the Worker at a relay you run: a Cloudflare Tunnel to any always-on machine (a home Mac, a small VPS) with a local reverse proxy that forwards to `https://api.discogs.com` and sets both `Host` and `X-Forwarded-Host` to `api.discogs.com` (cloudflared alone can't, it overwrites `X-Forwarded-Host`). Put a Cloudflare Access application with a service-token policy in front of the tunnel hostname, then:
+
+```bash
+# wrangler.toml: DISCOGS_RELAY_ORIGIN = "https://relay.example.com"
+wrangler secret put RELAY_ACCESS_CLIENT_ID
+wrangler secret put RELAY_ACCESS_CLIENT_SECRET
+```
+
+Leave `DISCOGS_RELAY_ORIGIN` empty to call Discogs directly (the default). If the relay is unreachable the Worker falls back to direct calls for that request and logs it, so a machine that is switched off degrades to the shared-IP behaviour rather than an outage. Implementation and rationale: `src/rate-limiter/relay.ts`.
+
 ## 🔐 Authentication
 
 This server uses **MCP OAuth 2.1** with Discogs as the identity provider. When you connect for the first time:

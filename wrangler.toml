@@ -20,6 +20,14 @@ crons = ["23 1,7,13,19 * * *"]
 # Empty = no allowlist (open; default for local dev and self-hosters).
 [vars]
 ALLOWED_DISCOGS_USER_ID = ""
+# Optional egress relay for Discogs API calls. Discogs throttles per source IP
+# and Workers share Cloudflare's egress IPs, so the hosted instance routes its
+# calls through a Cloudflare Tunnel to a machine with an IP of its own (see
+# src/rate-limiter/relay.ts). Empty = call api.discogs.com directly, which is
+# the right default for self-hosters and local dev. When set, the two Access
+# service-token secrets RELAY_ACCESS_CLIENT_ID / RELAY_ACCESS_CLIENT_SECRET
+# must be set too, or the relay is treated as off.
+DISCOGS_RELAY_ORIGIN = ""
 
 # Durable Object for coordinated Discogs API rate limiting
 [durable_objects]
@@ -56,6 +64,9 @@ name = "discogs-mcp-prod"
 # Discogs API rate limits are too tight to share, so anyone else must self-host.
 [env.production.vars]
 ALLOWED_DISCOGS_USER_ID = "2579319,2316828"
+# Discogs traffic leaves via the maintainer's Mac mini (Cloudflare Tunnel +
+# local Caddy), guarded by Cloudflare Access; secrets carry the service token.
+DISCOGS_RELAY_ORIGIN = "https://relay.discogs-mcp.com"
 
 [env.production.durable_objects]
 bindings = [
@@ -78,3 +89,4 @@ id = "35c396a7d0924dd8a5527334cd4538d3"
 # - DISCOGS_CONSUMER_KEY
 # - DISCOGS_CONSUMER_SECRET
 # - JWT_SECRET
+# - RELAY_ACCESS_CLIENT_ID / RELAY_ACCESS_CLIENT_SECRET (only with DISCOGS_RELAY_ORIGIN)
