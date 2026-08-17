@@ -8,6 +8,7 @@ import type { Env } from '../../types/env.js'
 import type { SessionContext } from '../server.js'
 import { buildNextSteps } from '../../utils/breadcrumb.js'
 import { describeRelayStatus, type RelayStatus } from '../../rate-limiter/relay.js'
+import { SERVER_VERSION } from '../../version.js'
 
 /**
  * Generate authentication URL with connection ID if available
@@ -77,7 +78,7 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 			content: [
 				{
 					type: 'text',
-					text: `Discogs MCP Server v3.1.0\n\nStatus: Running\nProtocol: MCP 2024-11-05\nFeatures:\n- Resources: Collection, Releases, Search\n- Authentication: OAuth 1.0a\n- Rate Limiting: Enabled\n- ${egress}\n\nTo get started, authenticate at ${authUrl}${nextSteps}`,
+					text: `Discogs MCP Server v${SERVER_VERSION}\n\nStatus: Running\nProtocol: MCP 2024-11-05\nFeatures:\n- Resources: Collection, Releases, Search\n- Authentication: OAuth 1.0a\n- Rate Limiting: Enabled\n- ${egress}\n\nTo get started, authenticate at ${authUrl}${nextSteps}`,
 				},
 			],
 		}

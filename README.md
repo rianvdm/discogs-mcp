@@ -1,6 +1,6 @@
 # 🎵 Discogs MCP Server
 
-[![Version](https://img.shields.io/badge/version-3.3.0-blue.svg)](https://github.com/rianvdm/discogs-mcp/releases)
+[![Version](https://img.shields.io/badge/version-3.5.0-blue.svg)](https://github.com/rianvdm/discogs-mcp/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
@@ -20,12 +20,13 @@ A powerful **Model Context Protocol (MCP) server** that enables AI assistants to
 - 🎯 **Context-Aware Recommendations**: Smart suggestions based on mood, genre, and similarity
 - ⚡ **Edge Computing**: Global low-latency responses via Cloudflare Workers
 - 🗂️ **Smart Caching**: Intelligent KV-based caching for optimal performance
+- 🔄 **Background Collection Sync**: A 6-hourly job keeps a snapshot of your collection in KV, so searches answer from the snapshot instead of paging through Discogs on every call
 
 ## ⚠️ This Is Not a Shared Service
 
 **`discogs-mcp.com` is the maintainer's private instance.** It's locked to a single Discogs account and will return a 403 for anyone else.
 
-Why? The Discogs API rate limit (60 requests per minute, per registered app) is too tight to share across users. One active collection query from a single user can saturate it. Rather than run a broken multi-tenant service, **each user deploys their own Worker with their own Discogs API credentials**.
+Why? The Discogs API rate limit (60 requests per minute, counted per source IP) is too tight to share across users. One active collection query from a single user can saturate it. Rather than run a broken multi-tenant service, **each user deploys their own Worker with their own Discogs API credentials**.
 
 The good news: deploying your own copy is straightforward, runs on the Cloudflare Workers free tier, and takes about 10 minutes. See [Self-Hosting](#-self-hosting) below.
 
@@ -220,9 +221,10 @@ This server uses **MCP OAuth 2.1** with Discogs as the identity provider. When y
 
 **Diagnostics**
 
-| Tool              | Description                                                         |
-| ----------------- | ------------------------------------------------------------------- |
-| `get_cache_stats` | View cache performance (total entries, pending requests, breakdown) |
+| Tool                 | Description                                                                              |
+| -------------------- | ---------------------------------------------------------------------------------------- |
+| `get_cache_stats`    | View cache performance (total entries, pending requests, breakdown)                      |
+| `refresh_collection` | Force a full refresh of the collection snapshot now, instead of waiting for the 6-hourly sync |
 
 ## 📚 MCP Resources
 
@@ -234,13 +236,19 @@ discogs://release/{id}           # Specific release details
 discogs://search?q={query}       # Search results
 ```
 
+## 💬 MCP Prompts
+
+| Prompt                | Description                                          | Arguments |
+| --------------------- | ---------------------------------------------------- | --------- |
+| `browse_collection`   | Browse and explore your collection                   |           |
+| `find_music`          | Find specific music in your collection               | `query`   |
+| `collection_insights` | Get insights and statistics about your collection    |           |
+
 ## 🏗️ Local Development
 
 ```bash
-# Set dev secrets (same Discogs app is fine for dev)
-wrangler secret put DISCOGS_CONSUMER_KEY
-wrangler secret put DISCOGS_CONSUMER_SECRET
-wrangler secret put JWT_SECRET
+# Dev secrets live in .dev.vars (gitignored); the same Discogs app is fine for dev
+cp .dev.vars.example .dev.vars   # then fill in DISCOGS_CONSUMER_KEY, DISCOGS_CONSUMER_SECRET, JWT_SECRET
 
 # Run the Worker locally
 npm run dev
@@ -254,9 +262,14 @@ The default `[vars]` block in `wrangler.toml` leaves `ALLOWED_DISCOGS_USER_ID` e
 ## 🧪 Testing
 
 ```bash
-npm test              # Run all tests
-npm test -- --watch  # Run tests in watch mode
+npm test              # vitest in watch mode (runs in workerd via @cloudflare/vitest-pool-workers)
+npx vitest run        # one pass, then exit
+npm run lint          # ESLint; CI runs lint, test, and a dry-run build
 ```
+
+### Diagnostics
+
+`ping` and `server_info` report how Discogs traffic is leaving (direct, or via the relay described above) and whether the relay has fallen back to direct calls. For the rate limiter's live state — remaining budget, queue depth, circuit-breaker status, relay fallbacks — set a `DEBUG_TOKEN` secret and call `GET /debug/budget?token=<DEBUG_TOKEN>`; without the secret the endpoint returns 404.
 
 ## 🤝 Contributing
 

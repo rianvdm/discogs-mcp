@@ -505,7 +505,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 
 	server.tool(
 		'refresh_collection',
-		'Force an immediate full refresh of the cached collection snapshot. Use after adding or removing items in Discogs if you need them visible to search before the next hourly sync.',
+		'Force an immediate full refresh of the cached collection snapshot. Use after adding or removing items in Discogs if you need them visible to search before the next scheduled sync (every 6 hours).',
 		{},
 		async () => {
 			const { session, connectionId } = await getSessionContext()

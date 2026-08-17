@@ -12,11 +12,11 @@ import { syncCollection, type SyncClient } from './sync/collectionSync'
 import { tokenMirrorKey } from './sync/keys'
 import type { SyncResult, TokenMirror } from './sync/types'
 import type { Env } from './types/env'
+import { SERVER_VERSION } from './version'
 
 // Re-export Durable Object class for Wrangler binding
 export { DiscogsRateLimiter } from './rate-limiter/durable-object'
 
-const SERVER_VERSION = '1.0.0'
 
 // PKCE + standard MCP session TTL (7 days)
 const ACCESS_TOKEN_TTL = 7 * 24 * 60 * 60
