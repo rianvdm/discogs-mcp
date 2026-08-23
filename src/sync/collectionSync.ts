@@ -1,9 +1,17 @@
 // ABOUTME: Background-syncs a user's Discogs collection into a KV snapshot.
-// ABOUTME: Resumable via a progress key; readers always see a complete snapshot.
+// ABOUTME: Resumable via per-page keys; readers always see a complete snapshot.
 
-import type { DiscogsCollectionItem, DiscogsCollectionResponse } from '../clients/discogs'
-import { lastForcedFullSyncKey, progressKey, snapshotKey } from './keys'
-import { toSnapshotItem, type ProgressBlob, type SnapshotBlob, type SyncOptions, type SyncOutcome, type SyncResult } from './types'
+import type { DiscogsCollectionResponse } from '../clients/discogs'
+import { lastForcedFullSyncKey, pageKey, progressKey, snapshotKey } from './keys'
+import {
+	toSnapshotItem,
+	type ProgressBlob,
+	type SnapshotBlob,
+	type SnapshotItem,
+	type SyncOptions,
+	type SyncOutcome,
+	type SyncResult,
+} from './types'
 
 export interface SyncClient {
 	fetchCollectionPage(opts: { page: number; per_page: number; sort: string; sort_order: string }): Promise<DiscogsCollectionResponse>
@@ -11,6 +19,8 @@ export interface SyncClient {
 
 const PER_PAGE = 100
 const RETRY_DELAYS_MS = [1000, 2000, 4000]
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
+const SEVEN_DAYS_S = 7 * 24 * 60 * 60
 
 async function fetchPageWithRetry(
 	client: SyncClient,
@@ -29,35 +39,56 @@ async function fetchPageWithRetry(
 	throw lastErr
 }
 
+async function readStoredPage(kv: KVNamespace, numericId: string, page: number): Promise<SnapshotItem[]> {
+	const items = (await kv.get(pageKey(numericId, page), 'json')) as SnapshotItem[] | null
+	if (!items) throw new Error(`sync ${numericId}: stored page ${page} missing`)
+	return items
+}
+
+/**
+ * Why pages are stored individually: the per-invocation CPU budget on Workers
+ * Free is 10 ms, and JSON work is the only CPU this sync does. Persisting the
+ * whole collection-so-far on every page would make each step cost O(items),
+ * which for a few thousand items exceeds the budget on its own and the sync
+ * can never advance past that page. With one key per page each step costs
+ * O(page); the single O(collection) stringify happens once, at commit.
+ *
+ * Page keys are left to expire (same TTL as progress) rather than deleted:
+ * KV deletes count as writes against the free-plan daily write cap, and a
+ * later sync overwrites pages 1..N before it ever reads them.
+ */
 export async function syncCollection(client: SyncClient, kv: KVNamespace, numericId: string, opts: SyncOptions): Promise<SyncResult> {
 	const nowDate = (opts.now ?? (() => new Date()))()
 	const now = nowDate.toISOString()
 	const nowMs = nowDate.getTime()
 	const sleep = opts.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)))
 
-	const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
-	const existingProgressRaw = (await kv.get(progressKey(numericId), 'json')) as ProgressBlob | null
-	const progressIsFresh = existingProgressRaw && nowMs - new Date(existingProgressRaw.startedAt).getTime() < SEVEN_DAYS_MS
+	const existingProgressRaw = (await kv.get(progressKey(numericId), 'json')) as Partial<ProgressBlob> | null
+	const progressIsFresh =
+		existingProgressRaw?.schemaVersion === 2 &&
+		typeof existingProgressRaw.startedAt === 'string' &&
+		nowMs - new Date(existingProgressRaw.startedAt).getTime() < SEVEN_DAYS_MS
 
 	let resumed = false
-	let itemsSoFar: DiscogsCollectionItem[] = []
+	// Anchors both the 7-day freshness window and the page-key TTLs, so a
+	// resumed sync's pages and its progress record expire together.
+	let startedAt = now
 	let totalPages = 1
 	let totalCount = 0
-	let topPageInstanceIds: number[] = []
 	let lastPageFetched = 0
 	let startPage = 1
+	// Page 1 of the current run, kept in memory so the commit doesn't re-read it
+	// and so a probe-tripped sync can reuse the probe response as page 1.
+	let firstPage: SnapshotItem[] | null = null
 
 	if (progressIsFresh && existingProgressRaw) {
+		const progress = existingProgressRaw as ProgressBlob
 		resumed = true
-		itemsSoFar = [...existingProgressRaw.itemsSoFar]
-		totalPages = existingProgressRaw.totalPages
-		totalCount = existingProgressRaw.totalCount
-		lastPageFetched = existingProgressRaw.lastPageFetched
-		startPage = existingProgressRaw.lastPageFetched + 1
-		// On resume we don't refetch page 1, so topPageInstanceIds is reconstructed
-		// from the buffered items. itemsSoFar is in date_added desc order (the sort
-		// the page fetch uses), so the first 100 entries are the page-1 set.
-		topPageInstanceIds = itemsSoFar.slice(0, 100).map((i) => i.instance_id)
+		startedAt = progress.startedAt
+		totalPages = progress.totalPages
+		totalCount = progress.totalCount
+		lastPageFetched = progress.lastPageFetched
+		startPage = progress.lastPageFetched + 1
 	}
 
 	if (!resumed && !opts.force) {
@@ -66,7 +97,7 @@ export async function syncCollection(client: SyncClient, kv: KVNamespace, numeri
 		// so this block is skipped and we fall through to a full pagination
 		// (the bootstrap path). Don't "fix" the gate to run probe whenever a
 		// snapshot exists — that would skip the weekly forced full sweep.
-		const existingSnapshot = (await kv.get<SnapshotBlob>(snapshotKey(numericId), 'json')) as SnapshotBlob | null
+		const existingSnapshot = (await kv.get(snapshotKey(numericId), 'json')) as SnapshotBlob | null
 		const lastForced = await kv.get(lastForcedFullSyncKey(numericId))
 		const lastForcedFresh = lastForced && nowMs - new Date(lastForced).getTime() < SEVEN_DAYS_MS
 
@@ -91,10 +122,10 @@ export async function syncCollection(client: SyncClient, kv: KVNamespace, numeri
 			// Probe tripped — reuse the page-1 response as the first page of the full sync
 			totalPages = probe.pagination.pages
 			totalCount = probe.pagination.items
-			topPageInstanceIds = probeTopIds
-			itemsSoFar.push(...probe.releases)
+			firstPage = probe.releases.map(toSnapshotItem)
 			lastPageFetched = 1
 			startPage = 2
+			await persistPage(kv, numericId, 1, firstPage, totalPages, totalCount, startedAt)
 		}
 	}
 
@@ -104,7 +135,6 @@ export async function syncCollection(client: SyncClient, kv: KVNamespace, numeri
 			if (page === 1) {
 				totalPages = res.pagination.pages
 				totalCount = res.pagination.items
-				topPageInstanceIds = res.releases.map((r) => r.instance_id)
 			}
 			// Drift check: every page's pagination.items must match the totalCount
 			// recorded on page 1 (or carried forward from progress on resume). Discogs
@@ -115,25 +145,10 @@ export async function syncCollection(client: SyncClient, kv: KVNamespace, numeri
 				await kv.delete(progressKey(numericId))
 				return syncCollection(client, kv, numericId, { ...opts, force: true })
 			}
-			itemsSoFar.push(...res.releases)
+			const items = res.releases.map(toSnapshotItem)
+			if (page === 1) firstPage = items
 			lastPageFetched = page
-
-			// Persist progress after each successful page (except the last — the
-			// final snapshot commit + progress delete happen atomically below).
-			if (page < totalPages) {
-				const progress: ProgressBlob = {
-					schemaVersion: 1,
-					startedAt: now,
-					totalPages,
-					totalCount,
-					lastPageFetched,
-					itemsSoFar,
-				}
-				await kv.put(progressKey(numericId), JSON.stringify(progress), {
-					// 7-day TTL so abandoned syncs auto-cleanup. Spec §KV Schema.
-					expirationTtl: 7 * 24 * 60 * 60,
-				})
-			}
+			await persistPage(kv, numericId, page, items, totalPages, totalCount, startedAt)
 		}
 	} catch (err) {
 		return {
@@ -143,17 +158,34 @@ export async function syncCollection(client: SyncClient, kv: KVNamespace, numeri
 		}
 	}
 
+	// Assemble: pages are in date_added desc order, so page 1 is the newest
+	// items and doubles as the probe fingerprint.
+	const items: SnapshotItem[] = []
+	let topPageInstanceIds: number[] = []
+	for (let page = 1; page <= totalPages; page++) {
+		let stored: SnapshotItem[]
+		try {
+			stored = page === 1 && firstPage ? firstPage : await readStoredPage(kv, numericId, page)
+		} catch {
+			// A page key expired (or was never written) under a progress record
+			// that still claims it. Committing would leave a hole, so start over.
+			await kv.delete(progressKey(numericId))
+			return syncCollection(client, kv, numericId, { ...opts, force: true })
+		}
+		if (page === 1) topPageInstanceIds = stored.map((i) => i.instance_id)
+		items.push(...stored)
+	}
+
 	const snapshot: SnapshotBlob = {
 		schemaVersion: 1,
 		fetchedAt: now,
 		count: totalCount,
 		topPageInstanceIds,
-		items: itemsSoFar.map(toSnapshotItem),
+		items,
 	}
 	const snapshotJson = JSON.stringify(snapshot)
-	// KV value limit is 25MB. ~600B/item × 1,500 items ≈ 900KB is comfortable;
-	// a self-hoster with 5,000+ items will start pushing 3MB. Log the size so
-	// we can spot the problem before it hits the limit.
+	// KV value limit is 25MB. Slimmed items run ~450B each, so even a 10,000-item
+	// collection stays under 5MB. Logged so growth is visible before it matters.
 	console.log(`sync ${numericId}: snapshot size ${snapshotJson.length} bytes, ${totalCount} items`)
 	await kv.put(snapshotKey(numericId), snapshotJson)
 	await kv.put(lastForcedFullSyncKey(numericId), now)
@@ -161,4 +193,23 @@ export async function syncCollection(client: SyncClient, kv: KVNamespace, numeri
 
 	const outcome: SyncOutcome = resumed ? 'resumed' : 'completed'
 	return { outcome, pagesFetched: lastPageFetched, count: totalCount, fetchedAt: now }
+}
+
+/**
+ * Write one fetched page, then advance the progress record. Order matters: a
+ * CPU-limit kill between the two leaves a page key without a progress pointer
+ * to it, which the next run simply overwrites — never the reverse.
+ */
+async function persistPage(
+	kv: KVNamespace,
+	numericId: string,
+	page: number,
+	items: SnapshotItem[],
+	totalPages: number,
+	totalCount: number,
+	startedAt: string,
+): Promise<void> {
+	await kv.put(pageKey(numericId, page), JSON.stringify(items), { expirationTtl: SEVEN_DAYS_S })
+	const progress: ProgressBlob = { schemaVersion: 2, startedAt, totalPages, totalCount, lastPageFetched: page }
+	await kv.put(progressKey(numericId), JSON.stringify(progress), { expirationTtl: SEVEN_DAYS_S })
 }

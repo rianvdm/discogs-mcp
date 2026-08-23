@@ -2,8 +2,8 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { env } from 'cloudflare:test'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { registerAuthenticatedTools } from '../../src/mcp/tools/authenticated'
-import { snapshotKey, progressKey } from '../../src/sync/keys'
-import type { ProgressBlob } from '../../src/sync/types'
+import { snapshotKey, progressKey, pageKey } from '../../src/sync/keys'
+import { toSnapshotItem, type ProgressBlob } from '../../src/sync/types'
 import type { DiscogsCollectionItem } from '../../src/clients/discogs'
 
 // Mirror scheduled.spec.ts: vi.mock DiscogsClient so tool calls don't hit
@@ -127,14 +127,14 @@ describe('refresh_collection tool', () => {
 			},
 		}
 		const progress: ProgressBlob = {
-			schemaVersion: 1,
+			schemaVersion: 2,
 			startedAt: new Date().toISOString(),
 			totalPages: 1,
 			totalCount: 1,
 			lastPageFetched: 1,
-			itemsSoFar: [item],
 		}
 		await env.MCP_SESSIONS.put(progressKey('12345'), JSON.stringify(progress))
+		await env.MCP_SESSIONS.put(pageKey('12345', 1), JSON.stringify([toSnapshotItem(item)]))
 
 		const server = buildServer()
 		const result = await callRefresh(server)

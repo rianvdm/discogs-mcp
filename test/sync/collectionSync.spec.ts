@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { env } from 'cloudflare:test'
 import { syncCollection, type SyncClient } from '../../src/sync/collectionSync'
-import { snapshotKey, progressKey, lastForcedFullSyncKey } from '../../src/sync/keys'
-import type { SnapshotBlob, ProgressBlob } from '../../src/sync/types'
+import { snapshotKey, progressKey, pageKey, lastForcedFullSyncKey } from '../../src/sync/keys'
+import { toSnapshotItem, type SnapshotBlob, type SnapshotItem, type ProgressBlob } from '../../src/sync/types'
 import type { DiscogsCollectionItem, DiscogsCollectionResponse } from '../../src/clients/discogs'
 
 function makeItem(id: number, instanceId: number, dateAdded = '2026-01-01T00:00:00Z'): DiscogsCollectionItem {
@@ -188,16 +188,48 @@ describe('syncCollection — first-run bootstrap', () => {
 		const snap = await env.MCP_SESSIONS.get<SnapshotBlob>(snapshotKey('u'), 'json')
 		expect(snap?.count).toBe(1)
 
-		// Progress recorded
+		// Progress recorded as metadata only; fetched pages live under their own keys
 		const prog = await env.MCP_SESSIONS.get<ProgressBlob>(progressKey('u'), 'json')
 		expect(prog?.lastPageFetched).toBe(2)
 		expect(prog?.totalPages).toBe(3)
 		expect(prog?.totalCount).toBe(3)
-		expect(prog?.itemsSoFar).toHaveLength(2)
+		expect(prog).not.toHaveProperty('itemsSoFar')
+		const page1 = await env.MCP_SESSIONS.get<SnapshotItem[]>(pageKey('u', 1), 'json')
+		const page2 = await env.MCP_SESSIONS.get<SnapshotItem[]>(pageKey('u', 2), 'json')
+		expect(page1?.map((i) => i.instance_id)).toEqual([101])
+		expect(page2?.map((i) => i.instance_id)).toEqual([102])
+		expect(page1?.[0]).not.toHaveProperty('basic_information.thumb')
+		expect(await env.MCP_SESSIONS.get(pageKey('u', 3))).toBeNull()
 	})
 
-	it('resumes from progress.lastPageFetched + 1 when progress key exists', async () => {
-		const progress: ProgressBlob = {
+	it('keeps per-page progress writes bounded by page size, not collection size', async () => {
+		// Each page write must serialise only that page. The sync is observed
+		// through the KV namespace: no key other than the snapshot may ever hold
+		// more than one page's worth of items.
+		const client: SyncClient = {
+			async fetchCollectionPage(opts) {
+				return makePage([makeItem(opts.page, opts.page * 100)], opts.page, 3, 3)
+			},
+		}
+
+		await syncCollection(client, env.MCP_SESSIONS, 'u', {})
+
+		const list = await env.MCP_SESSIONS.list({ prefix: 'collection:sync:' })
+		for (const k of list.keys) {
+			const raw = (await env.MCP_SESSIONS.get(k.name)) ?? ''
+			let value: unknown
+			try {
+				value = JSON.parse(raw)
+			} catch {
+				continue // lastForcedFullSync holds a bare timestamp
+			}
+			const items = Array.isArray(value) ? value : []
+			expect(items.length, k.name).toBeLessThanOrEqual(1)
+		}
+	})
+
+	it('ignores a progress record with inline items left by an earlier schema and starts fresh', async () => {
+		const legacy = {
 			schemaVersion: 1,
 			startedAt: new Date().toISOString(),
 			totalPages: 3,
@@ -205,7 +237,32 @@ describe('syncCollection — first-run bootstrap', () => {
 			lastPageFetched: 2,
 			itemsSoFar: [makeItem(1, 101), makeItem(2, 102)],
 		}
+		await env.MCP_SESSIONS.put(progressKey('u'), JSON.stringify(legacy))
+
+		const calls: number[] = []
+		const client: SyncClient = {
+			async fetchCollectionPage(opts) {
+				calls.push(opts.page)
+				return makePage([makeItem(1, 101)], 1, 1, 1)
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
+		expect(result.outcome).toBe('completed')
+		expect(calls).toEqual([1])
+	})
+
+	it('resumes from progress.lastPageFetched + 1 when progress key exists', async () => {
+		const progress: ProgressBlob = {
+			schemaVersion: 2,
+			startedAt: new Date().toISOString(),
+			totalPages: 3,
+			totalCount: 3,
+			lastPageFetched: 2,
+		}
 		await env.MCP_SESSIONS.put(progressKey('u'), JSON.stringify(progress))
+		await env.MCP_SESSIONS.put(pageKey('u', 1), JSON.stringify([toSnapshotItem(makeItem(1, 101))]))
+		await env.MCP_SESSIONS.put(pageKey('u', 2), JSON.stringify([toSnapshotItem(makeItem(2, 102))]))
 
 		const calls: number[] = []
 		const client: SyncClient = {
@@ -223,20 +280,23 @@ describe('syncCollection — first-run bootstrap', () => {
 		const snap = await env.MCP_SESSIONS.get<SnapshotBlob>(snapshotKey('u'), 'json')
 		expect(snap?.items.map((i) => i.instance_id)).toEqual([101, 102, 103])
 		expect(snap?.count).toBe(3)
+		// Page 1 was not refetched, so the probe fingerprint comes from the stored page
+		expect(snap?.topPageInstanceIds).toEqual([101])
 		// Progress cleaned up
 		expect(await env.MCP_SESSIONS.get(progressKey('u'))).toBeNull()
 	})
 
 	it('discards progress and restarts when totalCount changes mid-resume', async () => {
 		const progress: ProgressBlob = {
-			schemaVersion: 1,
+			schemaVersion: 2,
 			startedAt: new Date().toISOString(), // fresh
 			totalPages: 3,
 			totalCount: 3,
 			lastPageFetched: 2,
-			itemsSoFar: [makeItem(1, 101), makeItem(2, 102)],
 		}
 		await env.MCP_SESSIONS.put(progressKey('u'), JSON.stringify(progress))
+		await env.MCP_SESSIONS.put(pageKey('u', 1), JSON.stringify([toSnapshotItem(makeItem(1, 101))]))
+		await env.MCP_SESSIONS.put(pageKey('u', 2), JSON.stringify([toSnapshotItem(makeItem(2, 102))]))
 
 		const calls: number[] = []
 		const client: SyncClient = {
@@ -261,15 +321,43 @@ describe('syncCollection — first-run bootstrap', () => {
 		expect(snap?.items).toHaveLength(4)
 	})
 
+	it('restarts from page 1 when a stored page is missing at commit time', async () => {
+		// Progress points past page 2, but page 2's key is gone (expired or never
+		// written). Resume must not commit a snapshot with a hole in it.
+		const progress: ProgressBlob = {
+			schemaVersion: 2,
+			startedAt: new Date().toISOString(),
+			totalPages: 3,
+			totalCount: 3,
+			lastPageFetched: 2,
+		}
+		await env.MCP_SESSIONS.put(progressKey('u'), JSON.stringify(progress))
+		await env.MCP_SESSIONS.put(pageKey('u', 1), JSON.stringify([toSnapshotItem(makeItem(1, 101))]))
+
+		const calls: number[] = []
+		const client: SyncClient = {
+			async fetchCollectionPage(opts) {
+				calls.push(opts.page)
+				return makePage([makeItem(opts.page, opts.page * 100)], opts.page, 3, 3)
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
+
+		expect(calls).toEqual([3, 1, 2, 3])
+		expect(result.outcome).toBe('completed')
+		const snap = await env.MCP_SESSIONS.get<SnapshotBlob>(snapshotKey('u'), 'json')
+		expect(snap?.items.map((i) => i.instance_id)).toEqual([100, 200, 300])
+	})
+
 	it('ignores progress older than 7 days and starts fresh', async () => {
 		// startedAt 30+ days ago — well outside the 7-day fresh window
 		const ancient: ProgressBlob = {
-			schemaVersion: 1,
+			schemaVersion: 2,
 			startedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
 			totalPages: 3,
 			totalCount: 3,
 			lastPageFetched: 2,
-			itemsSoFar: [makeItem(1, 101), makeItem(2, 102)],
 		}
 		await env.MCP_SESSIONS.put(progressKey('u'), JSON.stringify(ancient))
 

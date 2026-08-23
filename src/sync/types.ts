@@ -58,13 +58,18 @@ export interface SnapshotBlob {
 	items: SnapshotItem[]
 }
 
+/**
+ * Bookkeeping for an in-flight sync. Deliberately carries no items: pages
+ * 1..lastPageFetched live under their own keys (see pageKey) so the cost of
+ * persisting progress is one page, not the whole collection so far. Records
+ * with any other schemaVersion are ignored and the sync starts over.
+ */
 export interface ProgressBlob {
-	schemaVersion: 1
+	schemaVersion: 2
 	startedAt: string
 	totalPages: number
 	totalCount: number
 	lastPageFetched: number
-	itemsSoFar: DiscogsCollectionItem[]
 }
 
 export interface TokenMirror {
