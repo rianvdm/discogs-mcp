@@ -134,6 +134,7 @@ async function handleSessionBasedMcp(
       numericId: sessionData.numericId,
       accessToken: sessionData.accessToken,
       accessTokenSecret: sessionData.accessTokenSecret,
+      expiresAt: typeof sessionData.expiresAt === 'number' ? sessionData.expiresAt : undefined,
     },
     sessionId,
   })

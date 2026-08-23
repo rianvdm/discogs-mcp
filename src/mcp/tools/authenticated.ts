@@ -265,8 +265,7 @@ export function filterReleasesInMemory(
 /**
  * Get authentication instructions for unauthenticated requests
  */
-function generateAuthInstructions(connectionId?: string): string {
-	const baseUrl = 'https://discogs-mcp.com'
+function generateAuthInstructions(connectionId: string | undefined, baseUrl: string): string {
 	const loginUrl = connectionId ? `${baseUrl}/login?connection_id=${connectionId}` : `${baseUrl}/login`
 
 	return `🔐 **Authentication Required**
@@ -509,9 +508,9 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 		'Force an immediate full refresh of the cached collection snapshot. Use after adding or removing items in Discogs if you need them visible to search before the next scheduled sync (every 6 hours).',
 		{},
 		async () => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 			if (!session) {
-				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId) }] }
+				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId, baseUrl) }] }
 			}
 
 			// Build a dedicated DiscogsClient + rate-limiter stub the same way the
@@ -593,14 +592,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				),
 		},
 		async ({ query, per_page, page, group_pressings }) => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 
 			if (!session) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: generateAuthInstructions(connectionId),
+							text: generateAuthInstructions(connectionId, baseUrl),
 						},
 					],
 				}
@@ -901,14 +900,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			release_id: z.string().describe('The Discogs release ID (e.g., from search results)'),
 		},
 		async ({ release_id }) => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 
 			if (!session) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: generateAuthInstructions(connectionId),
+							text: generateAuthInstructions(connectionId, baseUrl),
 						},
 					],
 				}
@@ -994,14 +993,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 				.describe('Number of results to return (1-100). Default: 10.'),
 		},
 		async ({ query, type, per_page }) => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 
 			if (!session) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: generateAuthInstructions(connectionId),
+							text: generateAuthInstructions(connectionId, baseUrl),
 						},
 					],
 				}
@@ -1088,14 +1087,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 		'Get comprehensive statistics about your Discogs collection including genre breakdown, decade analysis, format distribution, and ratings.',
 		{},
 		async () => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 
 			if (!session) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: generateAuthInstructions(connectionId),
+							text: generateAuthInstructions(connectionId, baseUrl),
 						},
 					],
 				}
@@ -1227,14 +1226,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			format: z.string().optional().describe("Filter by format (e.g., 'Vinyl', 'CD', 'Cassette')"),
 		},
 		async ({ limit, genre, decade, similar_to, query, format }) => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 
 			if (!session) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: generateAuthInstructions(connectionId),
+							text: generateAuthInstructions(connectionId, baseUrl),
 						},
 					],
 				}
@@ -1665,14 +1664,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 		'Get cache performance statistics including total entries, pending requests, and data type breakdown.',
 		{},
 		async () => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 
 			if (!session) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: generateAuthInstructions(connectionId),
+							text: generateAuthInstructions(connectionId, baseUrl),
 						},
 					],
 				}
@@ -1751,14 +1750,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 		'List all folders in your Discogs collection. Shows folder ID, name, and release count for each folder. Folder 0 is "All" (virtual), folder 1 is "Uncategorized" (default).',
 		{},
 		async () => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 
 			if (!session) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: generateAuthInstructions(connectionId),
+							text: generateAuthInstructions(connectionId, baseUrl),
 						},
 					],
 				}
@@ -1809,14 +1808,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			name: z.string().min(1).max(100).describe('Name for the new folder'),
 		},
 		async ({ name }) => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 
 			if (!session) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: generateAuthInstructions(connectionId),
+							text: generateAuthInstructions(connectionId, baseUrl),
 						},
 					],
 				}
@@ -1864,14 +1863,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			name: z.string().min(1).max(100).describe('New name for the folder'),
 		},
 		async ({ folder_id, name }) => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 
 			if (!session) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: generateAuthInstructions(connectionId),
+							text: generateAuthInstructions(connectionId, baseUrl),
 						},
 					],
 				}
@@ -1918,14 +1917,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			folder_id: z.number().min(2).describe('ID of the folder to delete (must be 2 or higher — system folders cannot be deleted)'),
 		},
 		async ({ folder_id }) => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 
 			if (!session) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: generateAuthInstructions(connectionId),
+							text: generateAuthInstructions(connectionId, baseUrl),
 						},
 					],
 				}
@@ -1972,14 +1971,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			folder_id: z.number().optional().default(1).describe('Folder ID to add the release to (default: 1 = Uncategorized)'),
 		},
 		async ({ release_id, folder_id }) => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 
 			if (!session) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: generateAuthInstructions(connectionId),
+							text: generateAuthInstructions(connectionId, baseUrl),
 						},
 					],
 				}
@@ -2030,14 +2029,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			instance_id: z.number().describe('The specific instance ID to remove (from search_collection results)'),
 		},
 		async ({ folder_id, release_id, instance_id }) => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 
 			if (!session) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: generateAuthInstructions(connectionId),
+							text: generateAuthInstructions(connectionId, baseUrl),
 						},
 					],
 				}
@@ -2089,14 +2088,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			target_folder_id: z.number().describe('Destination folder ID'),
 		},
 		async ({ folder_id, release_id, instance_id, target_folder_id }) => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 
 			if (!session) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: generateAuthInstructions(connectionId),
+							text: generateAuthInstructions(connectionId, baseUrl),
 						},
 					],
 				}
@@ -2149,14 +2148,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			rating: z.number().min(0).max(5).describe('Rating from 0 (remove rating) to 5 stars'),
 		},
 		async ({ folder_id, release_id, instance_id, rating }) => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 
 			if (!session) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: generateAuthInstructions(connectionId),
+							text: generateAuthInstructions(connectionId, baseUrl),
 						},
 					],
 				}
@@ -2205,14 +2204,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 		'List all custom fields defined in your Discogs collection. Custom fields allow you to add metadata like notes, tags, or categories to releases.',
 		{},
 		async () => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 
 			if (!session) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: generateAuthInstructions(connectionId),
+							text: generateAuthInstructions(connectionId, baseUrl),
 						},
 					],
 				}
@@ -2277,14 +2276,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			value: z.string().describe('Value to set for the field'),
 		},
 		async ({ folder_id, release_id, instance_id, field_id, value }) => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 
 			if (!session) {
 				return {
 					content: [
 						{
 							type: 'text',
-							text: generateAuthInstructions(connectionId),
+							text: generateAuthInstructions(connectionId, baseUrl),
 						},
 					],
 				}
@@ -2336,9 +2335,9 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			per_page: z.number().min(1).max(100).optional().default(50).describe('Items per page, max 100 (default: 50)'),
 		},
 		async ({ page, per_page }) => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 			if (!session) {
-				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId) }] }
+				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId, baseUrl) }] }
 			}
 			try {
 				const userProfile = sessionProfile(session)
@@ -2381,9 +2380,9 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			release_id: z.number().describe('The Discogs release ID to want'),
 		},
 		async ({ release_id }) => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 			if (!session) {
-				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId) }] }
+				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId, baseUrl) }] }
 			}
 			try {
 				const userProfile = sessionProfile(session)
@@ -2421,9 +2420,9 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			release_id: z.number().describe('The Discogs release ID to remove from the wantlist'),
 		},
 		async ({ release_id }) => {
-			const { session, connectionId } = await getSessionContext()
+			const { session, connectionId, baseUrl } = await getSessionContext()
 			if (!session) {
-				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId) }] }
+				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId, baseUrl) }] }
 			}
 			try {
 				const userProfile = sessionProfile(session)
