@@ -155,6 +155,12 @@ wrangler secret put RELAY_ACCESS_CLIENT_SECRET
 
 Leave `DISCOGS_RELAY_ORIGIN` empty to call Discogs directly (the default). If the relay is unreachable the Worker falls back to direct calls for that request and logs it, so a machine that is switched off degrades to the shared-IP behaviour rather than an outage. Implementation and rationale: `src/rate-limiter/relay.ts`.
 
+### Collection size and the free plan
+
+The free plan's limit that matters here is CPU time: 10 ms per invocation, for tool calls and the background sync alike. The sync stores one page at a time to stay inside that, and the snapshot it builds keeps only the fields search needs (about 450 bytes per release). That comfortably covers collections up to roughly 2,000 releases. Past that, reading the snapshot on every search starts to crowd the budget, and a collection of 4,000+ can see `search_collection` or `refresh_collection` fail with a bare execution error and no message — that is the runtime terminating the invocation, not a Discogs error. The fix is [Workers Paid](https://developers.cloudflare.com/workers/platform/pricing/) ($5/month), which raises the budget to 30 seconds; nothing else about the deployment changes.
+
+Whatever the plan, `get_cache_stats` reports the snapshot's item count and fetch time and the page count of any sync in flight, so you can see whether the background sync is landing rather than inferring it from cache entry counts.
+
 ## 🔐 Authentication
 
 This server uses **MCP OAuth 2.1** with Discogs as the identity provider. When you connect for the first time:
