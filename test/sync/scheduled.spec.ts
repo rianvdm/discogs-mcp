@@ -117,4 +117,32 @@ describe('scheduled() handler', () => {
 
 		logSpy.mockRestore()
 	})
+
+	it('logs a sync_started event before running each user so a CPU-limit kill leaves a trace', async () => {
+		await env.MCP_SESSIONS.put(
+			tokenMirrorKey('alpha'),
+			JSON.stringify({ numericId: 'alpha', username: 'a', accessToken: 'tok', accessTokenSecret: 'sec' }),
+		)
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+		const ctrl = createScheduledController({ scheduledTime: Date.now(), cron: '0 * * * *' })
+		await worker.scheduled!(ctrl, { ...env, ALLOWED_DISCOGS_USER_ID: 'alpha' } as any, createExecutionContext())
+
+		const events = logSpy.mock.calls
+			.map((args) => args[0])
+			.filter((s): s is string => typeof s === 'string')
+			.map((s) => {
+				try {
+					return JSON.parse(s) as { event?: string; numericId?: string }
+				} catch {
+					return null
+				}
+			})
+			.filter((e): e is { event: string; numericId: string } => !!e?.event && e.numericId === 'alpha')
+			.map((e) => e.event)
+		expect(events.indexOf('sync_started')).toBeGreaterThanOrEqual(0)
+		expect(events.indexOf('sync_started')).toBeLessThan(events.indexOf('sync'))
+
+		logSpy.mockRestore()
+	})
 })

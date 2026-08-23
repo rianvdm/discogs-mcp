@@ -348,6 +348,10 @@ export default {
             ),
         }
 
+        // Logged before the sync, not after: an invocation killed for exceeding
+        // the CPU limit never reaches logSyncOutcome, so without this line a
+        // stalled sync leaves no trace at all in Workers Observability.
+        console.log(JSON.stringify({ event: 'sync_started', timestamp: new Date().toISOString(), numericId }))
         const result = await syncCollection(syncClient, env.MCP_SESSIONS, numericId, {})
         await logSyncOutcome(env, numericId, result)
       } catch (err) {

@@ -8,6 +8,7 @@ import type { Env } from '../../types/env.js'
 
 import { DiscogsClient } from '../../clients/discogs.js'
 import { syncCollection, type SyncClient } from '../../sync/collectionSync.js'
+import { describeSyncState } from '../../sync/status.js'
 import { CachedDiscogsClient } from '../../clients/cachedDiscogs.js'
 import { analyzeMoodQuery, hasMoodContent, generateMoodSearchTerms } from '../../utils/moodMapping.js'
 import { formatSearchDiscogsResults } from '../../utils/searchDiscogsFormatter.js'
@@ -1702,6 +1703,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					}
 				} else {
 					text += '**No cached data** - Cache is empty or recently cleared\n'
+				}
+
+				// The snapshot and sync progress live outside the cache:* keyspace,
+				// so they are reported separately — this is the only place a user
+				// can see whether the background sync is actually landing.
+				text += '\n**Collection Sync:**\n'
+				for (const line of await describeSyncState(env.MCP_SESSIONS, session.numericId)) {
+					text += `• ${line}\n`
 				}
 
 				text += '\n**Cache Benefits:**\n'
