@@ -3,7 +3,7 @@
 
 import type { DiscogsCollectionItem, DiscogsCollectionResponse } from '../clients/discogs'
 import { lastForcedFullSyncKey, progressKey, snapshotKey } from './keys'
-import type { ProgressBlob, SnapshotBlob, SyncOptions, SyncOutcome, SyncResult } from './types'
+import { toSnapshotItem, type ProgressBlob, type SnapshotBlob, type SyncOptions, type SyncOutcome, type SyncResult } from './types'
 
 export interface SyncClient {
 	fetchCollectionPage(opts: { page: number; per_page: number; sort: string; sort_order: string }): Promise<DiscogsCollectionResponse>
@@ -148,7 +148,7 @@ export async function syncCollection(client: SyncClient, kv: KVNamespace, numeri
 		fetchedAt: now,
 		count: totalCount,
 		topPageInstanceIds,
-		items: itemsSoFar,
+		items: itemsSoFar.map(toSnapshotItem),
 	}
 	const snapshotJson = JSON.stringify(snapshot)
 	// KV value limit is 25MB. ~600B/item × 1,500 items ≈ 900KB is comfortable;

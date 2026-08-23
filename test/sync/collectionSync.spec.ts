@@ -72,6 +72,43 @@ describe('syncCollection — first-run bootstrap', () => {
 		})
 	})
 
+	it('stores only the fields readers use, dropping image URLs and nested ids', async () => {
+		const raw = makeItem(1, 101)
+		raw.basic_information.thumb = 'https://i.discogs.com/thumb.jpg'
+		raw.basic_information.cover_image = 'https://i.discogs.com/cover.jpg'
+		raw.basic_information.resource_url = 'https://api.discogs.com/releases/1'
+		raw.basic_information.master_url = 'https://api.discogs.com/masters/1'
+		raw.basic_information.master_id = 77
+		const client: SyncClient = {
+			async fetchCollectionPage() {
+				return makePage([raw], 1, 1, 1)
+			},
+		}
+
+		await syncCollection(client, env.MCP_SESSIONS, 'u', {})
+
+		const snapshot = await env.MCP_SESSIONS.get<SnapshotBlob>(snapshotKey('u'), 'json')
+		expect(snapshot?.items).toHaveLength(1)
+		expect(snapshot?.items[0]).toEqual({
+			id: 1,
+			instance_id: 101,
+			folder_id: 0,
+			date_added: '2026-01-01T00:00:00Z',
+			rating: 0,
+			basic_information: {
+				id: 1,
+				master_id: 77,
+				title: 'Album 1',
+				year: 2020,
+				formats: [{ name: 'Vinyl', qty: '1' }],
+				labels: [{ name: 'Label', catno: 'CAT-1' }],
+				artists: [{ name: 'Artist' }],
+				genres: ['Rock'],
+				styles: ['Pop'],
+			},
+		})
+	})
+
 	it('does not write to snapshot key until all pages have been fetched', async () => {
 		// Pre-populate a previous good snapshot
 		const prev: SnapshotBlob = {

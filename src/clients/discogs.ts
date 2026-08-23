@@ -57,9 +57,11 @@ export interface DiscogsCollectionItem {
 		master_url?: string
 		title: string
 		year: number
-		resource_url: string
-		thumb: string
-		cover_image: string
+		// URL fields are present on live API responses but absent from items
+		// served out of the collection snapshot (see src/sync/types.ts).
+		resource_url?: string
+		thumb?: string
+		cover_image?: string
 		formats: Array<{
 			name: string
 			qty: string
@@ -71,7 +73,7 @@ export interface DiscogsCollectionItem {
 		}>
 		artists: Array<{
 			name: string
-			id: number
+			id?: number
 		}>
 		genres: string[]
 		styles: string[]
