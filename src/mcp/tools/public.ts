@@ -13,8 +13,7 @@ import { SERVER_VERSION } from '../../version.js'
 /**
  * Generate authentication URL with connection ID if available
  */
-function getAuthUrl(connectionId?: string): string {
-	const baseUrl = 'https://discogs-mcp.com'
+function getAuthUrl(baseUrl: string, connectionId?: string): string {
 	return connectionId ? `${baseUrl}/login?connection_id=${connectionId}` : `${baseUrl}/login`
 }
 
@@ -65,8 +64,8 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 
 	// Server info tool - get server details
 	server.tool('server_info', 'Get information about the Discogs MCP server', {}, async () => {
-		const { connectionId } = await getSessionContext()
-		const authUrl = getAuthUrl(connectionId)
+		const { connectionId, baseUrl } = await getSessionContext()
+		const authUrl = getAuthUrl(baseUrl, connectionId)
 		const egress = await relayStatusLine(env)
 
 		const nextSteps = buildNextSteps([
@@ -86,8 +85,8 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 
 	// Auth status tool - check authentication status
 	server.tool('auth_status', 'Check authentication status and get login instructions if needed', {}, async () => {
-		const { session, connectionId } = await getSessionContext()
-		const loginUrl = getAuthUrl(connectionId)
+		const { session, connectionId, baseUrl } = await getSessionContext()
+		const loginUrl = getAuthUrl(baseUrl, connectionId)
 
 		// Check if user is authenticated
 		if (session) {
@@ -105,8 +104,7 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 You are successfully authenticated with Discogs!
 
 **Your session:**
-- User ID: ${session.userId}
-- Session expires: ${new Date(session.exp * 1000).toISOString()}
+- User ID: ${session.userId}${session.exp ? `\n- Session expires: ${new Date(session.exp * 1000).toISOString()}` : ''}
 
 **Available tools:**
 

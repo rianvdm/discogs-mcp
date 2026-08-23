@@ -35,9 +35,14 @@ bindings = [
   { name = "RATE_LIMITER", class_name = "DiscogsRateLimiter" }
 ]
 
+# SQLite-backed: the Workers Free plan only supports SQLite Durable Objects,
+# and since July 2026 accounts without an existing key-value namespace can't
+# create one at all, so `new_classes` fails every fresh deploy. The
+# maintainer's deployments predate this and keep their key-value backend;
+# wrangler only submits migrations newer than the tag already applied.
 [[migrations]]
 tag = "v1"
-new_classes = ["DiscogsRateLimiter"]
+new_sqlite_classes = ["DiscogsRateLimiter"]
 
 # Top-level config doubles as (a) the maintainer's local `wrangler dev` /
 # preview deploy target, and (b) the template the "Deploy to Cloudflare" button

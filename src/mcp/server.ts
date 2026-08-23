@@ -31,6 +31,8 @@ export interface DiscogsSession {
   numericId: string
   accessToken: string
   accessTokenSecret: string
+  /** Unix ms. Known for KV sessions; absent on the OAuth-provider path, whose token TTL is managed elsewhere. */
+  expiresAt?: number
 }
 
 /**
@@ -49,6 +51,8 @@ export interface McpRequestContext {
 export interface SessionContext {
   session: SessionPayload | null
   connectionId?: string
+  /** Origin of this deployment, for building login URLs that point at itself. */
+  baseUrl: string
 }
 
 export interface McpServerWithContext {
@@ -97,9 +101,9 @@ export function createMcpServer(env: Env, baseUrl: string): McpServerWithContext
   // Adapt DiscogsSession -> SessionPayload for backward-compatible tool access
   const getSessionContext = async (): Promise<SessionContext> => {
     if (!context.session) {
-      return { session: null, connectionId: context.sessionId ?? undefined }
+      return { session: null, connectionId: context.sessionId ?? undefined, baseUrl: context.baseUrl }
     }
-    const { username, numericId, accessToken, accessTokenSecret } = context.session
+    const { username, numericId, accessToken, accessTokenSecret, expiresAt } = context.session
     const sessionPayload: SessionPayload = {
       userId: username,
       username,
@@ -107,9 +111,10 @@ export function createMcpServer(env: Env, baseUrl: string): McpServerWithContext
       accessToken,
       accessTokenSecret,
       iat: 0,
-      exp: 0,
+      // 0 means "not known", and tools must not render it as a date.
+      exp: expiresAt ? Math.floor(expiresAt / 1000) : 0,
     }
-    return { session: sessionPayload, connectionId: context.sessionId ?? undefined }
+    return { session: sessionPayload, connectionId: context.sessionId ?? undefined, baseUrl: context.baseUrl }
   }
 
   // Register all tools and resources

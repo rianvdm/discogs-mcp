@@ -92,6 +92,23 @@ describe('POST /mcp — session_id param path', () => {
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
   })
+
+  it('surfaces the KV session expiry through auth_status', async () => {
+    const sessionId = 'test-expiry-session'
+    const expiresAt = Date.parse('2026-08-30T12:00:00.000Z')
+    await env.MCP_SESSIONS.put(
+      `session:${sessionId}`,
+      JSON.stringify({ username: 'testuser', numericId: '12345', accessToken: 'tok', accessTokenSecret: 'sec', expiresAt, sessionId }),
+    )
+    const body = JSON.stringify({ jsonrpc: '2.0', method: 'tools/call', params: { name: 'auth_status', arguments: {} }, id: 2 })
+    const req = new Request(`https://example.com/mcp?session_id=${sessionId}`, { method: 'POST', body, headers: MCP_HEADERS })
+    const ctx = createExecutionContext()
+    const res = await worker.fetch(req, env, ctx)
+    await waitOnExecutionContext(ctx)
+    expect(res.status).toBe(200)
+    const text = await res.text()
+    expect(text).toContain('Session expires: 2026-08-30T12:00:00.000Z')
+  })
 })
 
 describe('POST /mcp — Mcp-Session-Id header', () => {
