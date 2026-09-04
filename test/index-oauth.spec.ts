@@ -95,7 +95,10 @@ describe('POST /mcp — session_id param path', () => {
 
   it('surfaces the KV session expiry through auth_status', async () => {
     const sessionId = 'test-expiry-session'
-    const expiresAt = Date.parse('2026-08-30T12:00:00.000Z')
+    // Relative, not a calendar date: a fixed date passes until the day it
+    // arrives, after which the session reads as expired and /mcp answers 401.
+    // Whole seconds, because the session carries exp in seconds.
+    const expiresAt = Math.floor(Date.now() / 1000) * 1000 + 24 * 60 * 60 * 1000
     await env.MCP_SESSIONS.put(
       `session:${sessionId}`,
       JSON.stringify({ username: 'testuser', numericId: '12345', accessToken: 'tok', accessTokenSecret: 'sec', expiresAt, sessionId }),
@@ -107,7 +110,7 @@ describe('POST /mcp — session_id param path', () => {
     await waitOnExecutionContext(ctx)
     expect(res.status).toBe(200)
     const text = await res.text()
-    expect(text).toContain('Session expires: 2026-08-30T12:00:00.000Z')
+    expect(text).toContain(`Session expires: ${new Date(expiresAt).toISOString()}`)
   })
 })
 
