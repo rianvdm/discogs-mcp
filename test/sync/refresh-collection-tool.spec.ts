@@ -7,38 +7,43 @@ import { toSnapshotItem, type ProgressBlob } from '../../src/sync/types'
 import type { DiscogsCollectionItem } from '../../src/clients/discogs'
 
 // Mirror scheduled.spec.ts: vi.mock DiscogsClient so tool calls don't hit
-// the real rate-limiter DO or the network. The mocked searchCollection
-// resolves a single canned page that satisfies syncCollection's pagination.
+// the real rate-limiter DO or the network. `searchCollection` is a hoisted
+// handle so each test can decide what the Discogs client returns; by default
+// it resolves a single canned page that satisfies syncCollection's pagination.
+const { searchCollection } = vi.hoisted(() => ({ searchCollection: vi.fn() }))
+
+const cannedPage = {
+	pagination: { pages: 1, page: 1, per_page: 100, items: 1, urls: {} },
+	releases: [
+		{
+			id: 1,
+			instance_id: 101,
+			folder_id: 0,
+			date_added: '2026-01-01T00:00:00Z',
+			rating: 0,
+			basic_information: {
+				id: 1,
+				title: 't',
+				year: 2020,
+				resource_url: '',
+				thumb: '',
+				cover_image: '',
+				formats: [],
+				labels: [],
+				artists: [],
+				genres: [],
+				styles: [],
+			},
+		},
+	],
+}
+
 vi.mock('../../src/clients/discogs', async (orig) => {
 	const actual = (await orig()) as object
 	return {
 		...actual,
 		DiscogsClient: vi.fn().mockImplementation(() => ({
-			searchCollection: vi.fn().mockResolvedValue({
-				pagination: { pages: 1, page: 1, per_page: 100, items: 1, urls: {} },
-				releases: [
-					{
-						id: 1,
-						instance_id: 101,
-						folder_id: 0,
-						date_added: '2026-01-01T00:00:00Z',
-						rating: 0,
-						basic_information: {
-							id: 1,
-							title: 't',
-							year: 2020,
-							resource_url: '',
-							thumb: '',
-							cover_image: '',
-							formats: [],
-							labels: [],
-							artists: [],
-							genres: [],
-							styles: [],
-						},
-					},
-				],
-			}),
+			searchCollection,
 			setRateLimiter: vi.fn(),
 			// Other DiscogsClient methods (unused by the refresh tool path) get
 			// stubbed lazily — register* may call setRateLimiter at construct time
@@ -66,7 +71,9 @@ function buildServer() {
 	return server
 }
 
-async function callRefresh(server: McpServer): Promise<{ status: string; count?: number; fetchedAt?: string; pagesFetched?: number }> {
+async function callRefresh(
+	server: McpServer,
+): Promise<{ status: string; count?: number; fetchedAt?: string; pagesFetched?: number; error?: string }> {
 	// The MCP SDK stores registrations on the server instance; reach in and call
 	// the callback directly. This mirrors how the MCP server eventually invokes
 	// it for a tools/call request, without standing up the full transport.
@@ -86,6 +93,8 @@ async function callRefresh(server: McpServer): Promise<{ status: string; count?:
 
 describe('refresh_collection tool', () => {
 	beforeEach(async () => {
+		searchCollection.mockReset()
+		searchCollection.mockResolvedValue(cannedPage)
 		const list = await env.MCP_SESSIONS.list({ prefix: 'collection:' })
 		for (const k of list.keys) await env.MCP_SESSIONS.delete(k.name)
 	})
@@ -146,5 +155,28 @@ describe('refresh_collection tool', () => {
 		// Progress key was deleted on commit
 		const remaining = await env.MCP_SESSIONS.get(progressKey('12345'))
 		expect(remaining).toBeNull()
+	})
+
+	it('surfaces the sync error when every page fetch fails', async () => {
+		// What the rate limiter's fast-fail looks like by the time it reaches the
+		// sync: DiscogsClient wraps the 429 body, which carries retryAfterSecs.
+		// Dropping it left a throttled sync indistinguishable from a dead one.
+		const tripped = 'Failed to search collection: HTTP 429: {"error":"Discogs rate-limit circuit tripped","retryAfterSecs":534}'
+		searchCollection.mockRejectedValue(new Error(tripped))
+
+		const server = buildServer()
+		const result = await callRefresh(server)
+
+		expect(result.status).toBe('failed')
+		expect(result.pagesFetched).toBe(0)
+		expect(result.error).toBe(tripped)
+	}, 15_000)
+
+	it('omits error on a successful sync', async () => {
+		const server = buildServer()
+		const result = await callRefresh(server)
+
+		expect(result.status).toBe('completed')
+		expect(result).not.toHaveProperty('error')
 	})
 })
