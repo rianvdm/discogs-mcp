@@ -542,6 +542,11 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 			// user knows partial work was salvaged. Concurrent calls race harmlessly:
 			// each one drives the same sync forward; the second arrival just sees a
 			// more advanced progress key.
+			//
+			// A failed sync carries the message of the page fetch that stopped it.
+			// When that is the rate limiter's circuit breaker, the message includes
+			// retryAfterSecs, and without it a throttled sync and a dead one both
+			// read as "failed" with the same page count.
 			const result = await syncCollection(syncClient, env.MCP_SESSIONS, session.numericId, { force: true })
 			const nextSteps = buildNextSteps([
 				{ tool: 'search_collection', args: 'query="..."', hint: 'newly cached items are now searchable' },
@@ -555,6 +560,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 						count: result.count,
 						fetchedAt: result.fetchedAt,
 						pagesFetched: result.pagesFetched,
+						...(result.error ? { error: result.error } : {}),
 					}),
 				},
 			]
