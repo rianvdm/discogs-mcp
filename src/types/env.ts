@@ -29,7 +29,7 @@ export interface Env {
   RELAY_ACCESS_CLIENT_ID?: string
   RELAY_ACCESS_CLIENT_SECRET?: string
 
-  // JWT secret for legacy session-based handler (src/index.ts)
+  // Secret kept from the retired session-token handler; nothing in the Worker reads it.
   JWT_SECRET: string
 
   // OAuth provider helpers (injected by @cloudflare/workers-oauth-provider at runtime)
