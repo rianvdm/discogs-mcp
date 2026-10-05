@@ -2,6 +2,7 @@
 import { env, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test'
 import { describe, it, expect, vi } from 'vitest'
 import { DiscogsOAuthHandler, checkAllowlist } from '../../src/auth/oauth-handler'
+import { DiscogsAuth } from '../../src/auth/discogs'
 import { tokenMirrorKey } from '../../src/sync/keys'
 
 // Mock DiscogsAuth at the top of the file (add after existing imports)
@@ -140,6 +141,84 @@ describe('/authorize', () => {
     expect(location).toContain('discogs.com/oauth/authorize')
     expect(location).toContain('oauth_token=mock-request-token')
   })
+
+  /**
+   * Call /authorize with the given query parameters and provider mock
+   */
+  async function authorize(params: Record<string, string>, parseAuthRequest = vi.fn()): Promise<Response> {
+    const url = new URL('https://example.com/authorize')
+    for (const [name, value] of Object.entries(params)) {
+      url.searchParams.set(name, value)
+    }
+    const envWithOAuth = { ...env, OAUTH_PROVIDER: { parseAuthRequest } }
+    const ctx = createExecutionContext()
+    const res = await DiscogsOAuthHandler.fetch(new Request(url.toString()), envWithOAuth as any, ctx)
+    await waitOnExecutionContext(ctx)
+    return res
+  }
+
+  const validParams = {
+    client_id: 'test-client',
+    redirect_uri: 'https://client/callback',
+    response_type: 'code',
+  }
+
+  it.each(['client_id', 'redirect_uri', 'response_type'])(
+    'returns 400 before any lookup or Discogs call when %s is missing',
+    async (missing) => {
+      vi.mocked(DiscogsAuth).mockClear()
+      const parseAuthRequest = vi.fn()
+      const params: Record<string, string> = { ...validParams }
+      delete params[missing]
+
+      const res = await authorize(params, parseAuthRequest)
+
+      expect(res.status).toBe(400)
+      expect(res.headers.get('Location')).toBeNull()
+      expect(await res.text()).toBe(`${missing} is required`)
+      expect(parseAuthRequest).not.toHaveBeenCalled()
+      expect(DiscogsAuth).not.toHaveBeenCalled()
+    },
+  )
+
+  it('returns 400 without calling Discogs when the provider rejects the request', async () => {
+    vi.mocked(DiscogsAuth).mockClear()
+    const parseAuthRequest = vi.fn().mockRejectedValue(new Error('Invalid client. The clientId provided does not match to this client.'))
+
+    const res = await authorize(validParams, parseAuthRequest)
+
+    expect(res.status).toBe(400)
+    expect(res.headers.get('Location')).toBeNull()
+    expect(await res.text()).toBe('Invalid client. The clientId provided does not match to this client.')
+    expect(DiscogsAuth).not.toHaveBeenCalled()
+  })
+
+  it('answers a rejected request in plain text, because the message can echo a request parameter', async () => {
+    const parseAuthRequest = vi
+      .fn()
+      .mockRejectedValue(new Error('The authorization server does not support response_type <script>alert(1)</script>'))
+
+    const res = await authorize({ ...validParams, response_type: '<script>alert(1)</script>' }, parseAuthRequest)
+
+    expect(res.status).toBe(400)
+    expect(res.headers.get('Content-Type')).toMatch(/^text\/plain/)
+  })
+
+  it('returns a fixed plain-text 500 when Discogs cannot issue a request token', async () => {
+    vi.mocked(DiscogsAuth).mockImplementationOnce(
+      () =>
+        ({
+          getRequestToken: vi.fn().mockRejectedValue(new Error('Failed to get request token: upstream <b>detail</b>')),
+        }) as unknown as DiscogsAuth,
+    )
+    const parseAuthRequest = vi.fn().mockResolvedValue({ clientId: 'test-client', redirectUri: 'https://client/callback' })
+
+    const res = await authorize(validParams, parseAuthRequest)
+
+    expect(res.status).toBe(500)
+    expect(res.headers.get('Content-Type')).toMatch(/^text\/plain/)
+    expect(await res.text()).toBe('Could not start Discogs sign-in. Please try again later.')
+  })
 })
 
 describe('/discogs-callback', () => {
@@ -231,6 +310,30 @@ describe('/discogs-callback', () => {
       accessToken: 'mock-access-token',
       accessTokenSecret: 'mock-access-secret',
     })
+  })
+
+  it('answers a failed token exchange in plain text, because the message can carry upstream detail', async () => {
+    await env.MCP_SESSIONS.put(
+      'oauth-pending:failing-request-token',
+      JSON.stringify({
+        oauthReqInfo: { clientId: 'test-client', redirectUri: 'https://client/callback' },
+        requestTokenSecret: 'mock-request-secret',
+      }),
+    )
+    vi.mocked(DiscogsAuth).mockImplementationOnce(
+      () =>
+        ({
+          getAccessToken: vi.fn().mockRejectedValue(new Error('Failed to get access token: upstream <b>detail</b>')),
+        }) as unknown as DiscogsAuth,
+    )
+
+    const req = new Request('https://example.com/discogs-callback?oauth_token=failing-request-token&oauth_verifier=x')
+    const ctx = createExecutionContext()
+    const res = await DiscogsOAuthHandler.fetch(req, env as any, ctx)
+    await waitOnExecutionContext(ctx)
+
+    expect(res.status).toBe(500)
+    expect(res.headers.get('Content-Type')).toMatch(/^text\/plain/)
   })
 
   it('returns 400 when oauth_token is missing', async () => {
