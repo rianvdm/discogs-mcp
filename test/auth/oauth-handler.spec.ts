@@ -7,18 +7,20 @@ import { tokenMirrorKey } from '../../src/sync/keys'
 
 // Mock DiscogsAuth at the top of the file (add after existing imports)
 vi.mock('../../src/auth/discogs', () => ({
-  DiscogsAuth: vi.fn().mockImplementation(() => ({
-    getRequestToken: vi.fn().mockResolvedValue({
-      oauth_token: 'mock-request-token',
-      oauth_token_secret: 'mock-request-secret',
-      oauth_callback_confirmed: 'true',
-    }),
-    getAccessToken: vi.fn().mockResolvedValue({
-      oauth_token: 'mock-access-token',
-      oauth_token_secret: 'mock-access-secret',
-    }),
-    getAuthHeaders: vi.fn().mockResolvedValue({ Authorization: 'OAuth mock-header' }),
-  })),
+  DiscogsAuth: vi.fn().mockImplementation(function () {
+    return {
+      getRequestToken: vi.fn().mockResolvedValue({
+        oauth_token: 'mock-request-token',
+        oauth_token_secret: 'mock-request-secret',
+        oauth_callback_confirmed: 'true',
+      }),
+      getAccessToken: vi.fn().mockResolvedValue({
+        oauth_token: 'mock-access-token',
+        oauth_token_secret: 'mock-access-secret',
+      }),
+      getAuthHeaders: vi.fn().mockResolvedValue({ Authorization: 'OAuth mock-header' }),
+    }
+  }),
 }))
 
 const mockFetch = vi.fn()
@@ -205,12 +207,11 @@ describe('/authorize', () => {
   })
 
   it('returns a fixed plain-text 500 when Discogs cannot issue a request token', async () => {
-    vi.mocked(DiscogsAuth).mockImplementationOnce(
-      () =>
-        ({
-          getRequestToken: vi.fn().mockRejectedValue(new Error('Failed to get request token: upstream <b>detail</b>')),
-        }) as unknown as DiscogsAuth,
-    )
+    vi.mocked(DiscogsAuth).mockImplementationOnce(function () {
+      return {
+        getRequestToken: vi.fn().mockRejectedValue(new Error('Failed to get request token: upstream <b>detail</b>')),
+      } as unknown as DiscogsAuth
+    })
     const parseAuthRequest = vi.fn().mockResolvedValue({ clientId: 'test-client', redirectUri: 'https://client/callback' })
 
     const res = await authorize(validParams, parseAuthRequest)
@@ -320,12 +321,11 @@ describe('/discogs-callback', () => {
         requestTokenSecret: 'mock-request-secret',
       }),
     )
-    vi.mocked(DiscogsAuth).mockImplementationOnce(
-      () =>
-        ({
-          getAccessToken: vi.fn().mockRejectedValue(new Error('Failed to get access token: upstream <b>detail</b>')),
-        }) as unknown as DiscogsAuth,
-    )
+    vi.mocked(DiscogsAuth).mockImplementationOnce(function () {
+      return {
+        getAccessToken: vi.fn().mockRejectedValue(new Error('Failed to get access token: upstream <b>detail</b>')),
+      } as unknown as DiscogsAuth
+    })
 
     const req = new Request('https://example.com/discogs-callback?oauth_token=failing-request-token&oauth_verifier=x')
     const ctx = createExecutionContext()

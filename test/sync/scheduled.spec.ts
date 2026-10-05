@@ -12,34 +12,36 @@ vi.mock('../../src/clients/discogs', async (orig) => {
 	const actual = (await orig()) as object
 	return {
 		...actual,
-		DiscogsClient: vi.fn().mockImplementation(() => ({
-			searchCollection: vi.fn().mockResolvedValue({
-				pagination: { pages: 1, page: 1, per_page: 100, items: 1, urls: {} },
-				releases: [
-					{
-						id: 1,
-						instance_id: 101,
-						folder_id: 0,
-						date_added: '2026-01-01T00:00:00Z',
-						rating: 0,
-						basic_information: {
+		DiscogsClient: vi.fn().mockImplementation(function () {
+			return {
+				searchCollection: vi.fn().mockResolvedValue({
+					pagination: { pages: 1, page: 1, per_page: 100, items: 1, urls: {} },
+					releases: [
+						{
 							id: 1,
-							title: 't',
-							year: 2020,
-							resource_url: '',
-							thumb: '',
-							cover_image: '',
-							formats: [],
-							labels: [],
-							artists: [],
-							genres: [],
-							styles: [],
+							instance_id: 101,
+							folder_id: 0,
+							date_added: '2026-01-01T00:00:00Z',
+							rating: 0,
+							basic_information: {
+								id: 1,
+								title: 't',
+								year: 2020,
+								resource_url: '',
+								thumb: '',
+								cover_image: '',
+								formats: [],
+								labels: [],
+								artists: [],
+								genres: [],
+								styles: [],
+							},
 						},
-					},
-				],
-			}),
-			setRateLimiter: vi.fn(),
-		})),
+					],
+				}),
+				setRateLimiter: vi.fn(),
+			}
+		}),
 	}
 })
 
@@ -73,10 +75,12 @@ describe('scheduled() handler', () => {
 	it('isolates per-user crashes and continues with the next user', async () => {
 		// Override the top-level DiscogsClient mock so alpha throws on its first searchCollection.
 		const { DiscogsClient } = await import('../../src/clients/discogs')
-		;(DiscogsClient as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(() => ({
-			searchCollection: vi.fn().mockRejectedValue(new Error('alpha boom')),
-			setRateLimiter: vi.fn(),
-		}))
+		;(DiscogsClient as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(function () {
+			return {
+				searchCollection: vi.fn().mockRejectedValue(new Error('alpha boom')),
+				setRateLimiter: vi.fn(),
+			}
+		})
 
 		await env.MCP_SESSIONS.put(
 			tokenMirrorKey('alpha'),

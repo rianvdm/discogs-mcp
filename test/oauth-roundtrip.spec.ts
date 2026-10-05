@@ -6,20 +6,22 @@ import worker from '../src/index-oauth'
 
 // Mock DiscogsAuth so we don't hit real Discogs APIs
 vi.mock('../src/auth/discogs', () => ({
-  DiscogsAuth: vi.fn().mockImplementation(() => ({
-    getRequestToken: vi.fn().mockResolvedValue({
-      oauth_token: 'mock-request-token',
-      oauth_token_secret: 'mock-request-secret',
-      oauth_callback_confirmed: 'true',
-    }),
-    getAccessToken: vi.fn().mockResolvedValue({
-      oauth_token: 'mock-access-token',
-      oauth_token_secret: 'mock-access-secret',
-    }),
-    getAuthHeaders: vi.fn().mockResolvedValue({
-      Authorization: 'OAuth mock-auth',
-    }),
-  })),
+  DiscogsAuth: vi.fn().mockImplementation(function () {
+    return {
+      getRequestToken: vi.fn().mockResolvedValue({
+        oauth_token: 'mock-request-token',
+        oauth_token_secret: 'mock-request-secret',
+        oauth_callback_confirmed: 'true',
+      }),
+      getAccessToken: vi.fn().mockResolvedValue({
+        oauth_token: 'mock-access-token',
+        oauth_token_secret: 'mock-access-secret',
+      }),
+      getAuthHeaders: vi.fn().mockResolvedValue({
+        Authorization: 'OAuth mock-auth',
+      }),
+    }
+  }),
 }))
 
 // Mock fetch for Discogs /oauth/identity

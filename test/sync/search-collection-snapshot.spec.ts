@@ -15,11 +15,13 @@ vi.mock('../../src/clients/discogs', async (orig) => {
 	const actual = (await orig()) as object
 	return {
 		...actual,
-		DiscogsClient: vi.fn().mockImplementation(() => ({
-			searchCollection: searchCollectionMock,
-			getUserProfile: getUserProfileMock,
-			setRateLimiter: vi.fn(),
-		})),
+		DiscogsClient: vi.fn().mockImplementation(function () {
+			return {
+				searchCollection: searchCollectionMock,
+				getUserProfile: getUserProfileMock,
+				setRateLimiter: vi.fn(),
+			}
+		}),
 	}
 })
 

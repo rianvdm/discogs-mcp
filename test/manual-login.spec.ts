@@ -4,18 +4,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import worker from '../src/index-oauth'
 
 vi.mock('../src/auth/discogs', () => ({
-  DiscogsAuth: vi.fn().mockImplementation(() => ({
-    getRequestToken: vi.fn().mockResolvedValue({
-      oauth_token: 'manual-request-token',
-      oauth_token_secret: 'manual-request-secret',
-      oauth_callback_confirmed: 'true',
-    }),
-    getAccessToken: vi.fn().mockResolvedValue({
-      oauth_token: 'manual-access-token',
-      oauth_token_secret: 'manual-access-secret',
-    }),
-    getAuthHeaders: vi.fn().mockResolvedValue({ Authorization: 'OAuth mock' }),
-  })),
+  DiscogsAuth: vi.fn().mockImplementation(function () {
+    return {
+      getRequestToken: vi.fn().mockResolvedValue({
+        oauth_token: 'manual-request-token',
+        oauth_token_secret: 'manual-request-secret',
+        oauth_callback_confirmed: 'true',
+      }),
+      getAccessToken: vi.fn().mockResolvedValue({
+        oauth_token: 'manual-access-token',
+        oauth_token_secret: 'manual-access-secret',
+      }),
+      getAuthHeaders: vi.fn().mockResolvedValue({ Authorization: 'OAuth mock' }),
+    }
+  }),
 }))
 
 const mockFetch = vi.fn()
