@@ -118,6 +118,66 @@ describe('Full OAuth round-trip', () => {
     expect(location).toContain('oauth_token=mock-request-token')
   })
 
+  it('Step 4: GET /authorize returns 400 and never reaches Discogs when client_id is absent', async () => {
+    const url = new URL(`${BASE_URL}/authorize`)
+    url.searchParams.set('redirect_uri', 'https://attacker.example.net/steal')
+    url.searchParams.set('response_type', 'code')
+
+    const ctx = createExecutionContext()
+    const res = await worker.fetch(new Request(url.toString()), env as any, ctx)
+    await waitOnExecutionContext(ctx)
+
+    expect(res.status).toBe(400)
+    expect(res.headers.get('Location')).toBeNull()
+  })
+
+  it('Step 4: GET /authorize returns 400 for a client_id that was never registered', async () => {
+    const url = new URL(`${BASE_URL}/authorize`)
+    url.searchParams.set('client_id', 'not-a-registered-client')
+    url.searchParams.set('redirect_uri', `${BASE_URL}/callback`)
+    url.searchParams.set('response_type', 'code')
+
+    const ctx = createExecutionContext()
+    const res = await worker.fetch(new Request(url.toString()), env as any, ctx)
+    await waitOnExecutionContext(ctx)
+
+    expect(res.status).toBe(400)
+    expect(res.headers.get('Location')).toBeNull()
+    expect(res.headers.get('Content-Type')).toMatch(/^text\/plain/)
+  })
+
+  it('Step 4: GET /authorize returns 400 for a redirect_uri the client did not register', async () => {
+    const registerCtx = createExecutionContext()
+    const registerRes = await worker.fetch(
+      new Request(`${BASE_URL}/oauth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          client_name: 'Round-trip Test Client',
+          redirect_uris: ['http://localhost:3000/callback'],
+          token_endpoint_auth_method: 'none',
+        }),
+      }),
+      env as any,
+      registerCtx,
+    )
+    await waitOnExecutionContext(registerCtx)
+    expect(registerRes.status).toBe(201)
+    const { client_id } = (await registerRes.json()) as { client_id: string }
+
+    const url = new URL(`${BASE_URL}/authorize`)
+    url.searchParams.set('client_id', client_id)
+    url.searchParams.set('redirect_uri', 'https://attacker.example.net/steal')
+    url.searchParams.set('response_type', 'code')
+
+    const ctx = createExecutionContext()
+    const res = await worker.fetch(new Request(url.toString()), env as any, ctx)
+    await waitOnExecutionContext(ctx)
+
+    expect(res.status).toBe(400)
+    expect(res.headers.get('Location')).toBeNull()
+  })
+
   it('Step 5–6: GET /discogs-callback completes authorization and redirects to client', async () => {
     // Pre-seed KV with pending OAuth state (as if /authorize ran)
     await env.MCP_SESSIONS.put(

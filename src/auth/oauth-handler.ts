@@ -98,11 +98,40 @@ export const DiscogsOAuthHandler = {
 
 // ── Stub implementations (filled in subsequent tasks) ──────────────────────────
 
-async function handleAuthorize(request: Request, env: OAuthEnv): Promise<Response> {
-  try {
-    const oauthReqInfo: AuthRequest = await env.OAUTH_PROVIDER.parseAuthRequest(request)
+// Parameters /authorize needs before any client lookup or Discogs call is made.
+const REQUIRED_AUTHORIZE_PARAMS = ['client_id', 'redirect_uri', 'response_type']
 
-    const url = new URL(request.url)
+/**
+ * Answer an invalid authorization request.
+ *
+ * The reply is plain text because the message can echo a request parameter. It is
+ * shown here and never redirected to the client's redirect_uri: client registration
+ * is open, so redirecting errors would make /authorize an open redirector.
+ */
+function invalidAuthorizationRequest(message: string): Response {
+  console.warn(`[OAUTH] Invalid authorization request: ${message}`)
+  return new Response(message, { status: 400 })
+}
+
+async function handleAuthorize(request: Request, env: OAuthEnv): Promise<Response> {
+  const url = new URL(request.url)
+
+  // The provider skips client and redirect validation when client_id is absent,
+  // so an incomplete request has to be rejected before it reaches Discogs.
+  for (const param of REQUIRED_AUTHORIZE_PARAMS) {
+    if (!url.searchParams.get(param)) {
+      return invalidAuthorizationRequest(`${param} is required`)
+    }
+  }
+
+  let oauthReqInfo: AuthRequest
+  try {
+    oauthReqInfo = await env.OAUTH_PROVIDER.parseAuthRequest(request)
+  } catch (error) {
+    return invalidAuthorizationRequest(error instanceof Error ? error.message : 'Invalid authorization request')
+  }
+
+  try {
     const callbackUrl = `${url.protocol}//${url.host}/discogs-callback`
 
     const discogsAuth = new DiscogsAuth(env.DISCOGS_CONSUMER_KEY, env.DISCOGS_CONSUMER_SECRET)
@@ -122,10 +151,7 @@ async function handleAuthorize(request: Request, env: OAuthEnv): Promise<Respons
     )
   } catch (error) {
     console.error('[OAUTH] /authorize error:', error)
-    return new Response(
-      `<html><body><h1>Authorization Error</h1><p>${error instanceof Error ? error.message : 'Unknown error'}</p><p><a href="/authorize">Try again</a></p></body></html>`,
-      { status: 500, headers: { 'Content-Type': 'text/html' } },
-    )
+    return new Response('Could not start Discogs sign-in. Please try again later.', { status: 500 })
   }
 }
 
@@ -221,9 +247,10 @@ async function handleDiscogsCallback(request: Request, env: OAuthEnv): Promise<R
     return Response.redirect(redirectTo, 302)
   } catch (error) {
     console.error('[OAUTH] /discogs-callback error:', error)
+    // Plain text: the message can carry text from Discogs or from the request.
     return new Response(
-      `<html><body><h1>Authentication Failed</h1><p>${error instanceof Error ? error.message : 'Unknown error'}</p><p>Please try again.</p></body></html>`,
-      { status: 500, headers: { 'Content-Type': 'text/html' } },
+      `Authentication failed: ${error instanceof Error ? error.message : 'Unknown error'}. Please try again.`,
+      { status: 500 },
     )
   }
 }
