@@ -78,7 +78,10 @@ src/
 
 ## Testing
 
-- Framework: Vitest with `@cloudflare/vitest-pool-workers` — tests run in Workers-compatible environment
+- Framework: Vitest 4 with `@cloudflare/vitest-pool-workers` 0.22 — tests run in a Workers-compatible environment. Requires Node 22 (see `.nvmrc`)
+- A mock that the source constructs with `new` must be implemented as a `function` or a class, not an arrow function: `vi.fn().mockImplementation(function () { return { ... } })`
+- `wrangler` is pinned to the exact version `@cloudflare/vitest-pool-workers` depends on, so tests, `npm run dev` and deploys share one wrangler and one workerd. When bumping vitest-pool-workers, move the pin to `npm view @cloudflare/vitest-pool-workers@<version> dependencies.wrangler` in the same change
+- Change dependencies with `npx npm@11 install`. npm 10 crashes on this dependency graph (`Cannot read properties of null (reading 'edgesOut')`); `npm ci` on npm 10 works from the resulting lockfile. `zod` is held at 4.1.13 at the top level while vitest-pool-workers nests its own copy
 - Mock Discogs API responses for unit tests; real protocol compliance checks for integration tests
 - Test output must be clean — no warnings, no unexpected errors in logs
 - Tests live in `test/` mirroring `src/` structure

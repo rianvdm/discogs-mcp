@@ -20,8 +20,9 @@
 		"postinstall": "node scripts/patch-ajv.js"
 	},
 	"devDependencies": {
-		"@cloudflare/vitest-pool-workers": "^0.8.19",
-		"@cloudflare/workers-types": "^4.20250607.0",
+		"@cloudflare/vitest-pool-workers": "^0.22.0",
+		"@cloudflare/workers-types": "^5.20260815.1",
+		"@types/node": "^22.20.1",
 		"@typescript-eslint/eslint-plugin": "^8.33.1",
 		"@typescript-eslint/parser": "^8.33.1",
 		"ajv": "^8.17.1",
@@ -29,8 +30,8 @@
 		"eslint-config-prettier": "^10.1.5",
 		"prettier": "^3.5.3",
 		"typescript": "^5.5.2",
-		"vitest": "~3.0.7",
-		"wrangler": "^4.19.1"
+		"vitest": "^4.1.11",
+		"wrangler": "4.124.0"
 	},
 	"dependencies": {
 		"@cloudflare/workers-oauth-provider": "^0.3.0",
@@ -44,8 +45,14 @@
 	},
 	"cloudflare": {
 		"label": "Discogs MCP Server",
-		"products": ["Workers", "KV", "Durable Objects"],
-		"categories": ["ai"],
+		"products": [
+			"Workers",
+			"KV",
+			"Durable Objects"
+		],
+		"categories": [
+			"ai"
+		],
 		"docs_url": "https://github.com/rianvdm/discogs-mcp#readme",
 		"bindings": {
 			"DISCOGS_CONSUMER_KEY": {

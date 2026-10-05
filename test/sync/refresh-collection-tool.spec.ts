@@ -42,13 +42,15 @@ vi.mock('../../src/clients/discogs', async (orig) => {
 	const actual = (await orig()) as object
 	return {
 		...actual,
-		DiscogsClient: vi.fn().mockImplementation(() => ({
-			searchCollection,
-			setRateLimiter: vi.fn(),
-			// Other DiscogsClient methods (unused by the refresh tool path) get
-			// stubbed lazily — register* may call setRateLimiter at construct time
-			// but does not invoke any other method.
-		})),
+		DiscogsClient: vi.fn().mockImplementation(function () {
+			return {
+				searchCollection,
+				setRateLimiter: vi.fn(),
+				// Other DiscogsClient methods (unused by the refresh tool path) get
+				// stubbed lazily — register* may call setRateLimiter at construct time
+				// but does not invoke any other method.
+			}
+		}),
 	}
 })
 
