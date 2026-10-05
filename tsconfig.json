@@ -37,6 +37,6 @@
 		/* Skip type checking all .d.ts files. */
 			"skipLibCheck": true
 	},
-	"exclude": ["test", "src/index.ts", "src/mcp/server.ts"],
+	"exclude": ["test", "src/mcp/server.ts"],
 	"include": ["src/**/*.ts"]
 }
