@@ -13,10 +13,12 @@ export function registerPrompts(server: McpServer): void {
 	 * Prompt: browse_collection
 	 * Browse and explore your Discogs music collection
 	 */
-	server.prompt(
+	server.registerPrompt(
 		"browse_collection",
-		"Browse and explore your Discogs music collection",
-		{},
+		{
+			description: "Browse and explore your Discogs music collection",
+			argsSchema: {},
+		},
 		async () => {
 			return {
 				messages: [
@@ -36,15 +38,17 @@ export function registerPrompts(server: McpServer): void {
 	 * Prompt: find_music
 	 * Find specific music in your collection
 	 */
-	server.prompt(
+	server.registerPrompt(
 		"find_music",
-		"Find specific music in your collection",
 		{
-			query: z
-				.string()
-				.describe(
-					"Search query for finding music (artist, album, track, genre, mood, etc.)"
-				),
+			description: "Find specific music in your collection",
+			argsSchema: {
+				query: z
+					.string()
+					.describe(
+						"Search query for finding music (artist, album, track, genre, mood, etc.)"
+					),
+			},
 		},
 		async ({ query }) => {
 			return {
@@ -65,10 +69,12 @@ export function registerPrompts(server: McpServer): void {
 	 * Prompt: collection_insights
 	 * Get insights and statistics about your music collection
 	 */
-	server.prompt(
+	server.registerPrompt(
 		"collection_insights",
-		"Get insights and statistics about your music collection",
-		{},
+		{
+			description: "Get insights and statistics about your music collection",
+			argsSchema: {},
+		},
 		async () => {
 			return {
 				messages: [
