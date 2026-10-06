@@ -1,11 +1,10 @@
 // ABOUTME: Tests the text get_collection_stats renders from a computed stats object.
-// ABOUTME: Runs the registered handler against a stubbed DiscogsClient, with no KV cache bound.
+// ABOUTME: Calls the tool through an MCP client against a stubbed DiscogsClient, with no KV cache bound.
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { registerAuthenticatedTools } from '../../../src/mcp/tools/authenticated'
+import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { createMcpServer } from '../../../src/mcp/server'
 import { DiscogsClient, type DiscogsCollectionStats } from '../../../src/clients/discogs'
-import type { SessionContext } from '../../../src/mcp/server'
-
-type Handler = (args: unknown, extra?: unknown) => Promise<{ content: Array<{ type: string; text: string }> }>
 
 const stats: DiscogsCollectionStats = {
 	totalReleases: 900,
@@ -18,35 +17,20 @@ const stats: DiscogsCollectionStats = {
 	ratedReleases: 10,
 }
 
-const sessionContext: SessionContext = {
-	session: {
-		userId: 'u1',
-		username: 'listener',
-		numericId: '1',
-		accessToken: 't',
-		accessTokenSecret: 's',
-		iat: 0,
-		exp: Number.MAX_SAFE_INTEGER,
-	},
-	connectionId: 'conn-1',
-	baseUrl: 'https://discogs.example.net',
-}
-
 async function callCollectionStats(): Promise<string> {
-	const handlers: Record<string, Handler> = {}
-	const server = {
-		tool: vi.fn((name: string, _description: string, _schema: unknown, handler: Handler) => {
-			handlers[name] = handler
-		}),
-		prompt: vi.fn(),
-		resource: vi.fn(),
-	} as any
 	// No MCP_SESSIONS binding, so the handler takes the uncached DiscogsClient path.
 	const env = { DISCOGS_CONSUMER_KEY: 'k', DISCOGS_CONSUMER_SECRET: 's' } as any
-	registerAuthenticatedTools(server, env, async () => sessionContext)
+	const { server, setContext } = createMcpServer(env, 'https://discogs.example.net')
+	setContext({
+		session: { username: 'listener', numericId: '1', accessToken: 't', accessTokenSecret: 's' },
+		sessionId: 'conn-1',
+	})
+	const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair()
+	const client = new Client({ name: 'collection-stats-test', version: '0.0.0' })
+	await Promise.all([server.connect(serverTransport), client.connect(clientTransport)])
 
-	const res = await handlers['get_collection_stats']({}, {})
-	return res.content.map((c) => c.text).join('\n')
+	const res = await client.callTool({ name: 'get_collection_stats', arguments: {} })
+	return (res.content as Array<{ type: string; text: string }>).map((c) => c.text).join('\n')
 }
 
 describe('get_collection_stats', () => {
