@@ -1,0 +1,674 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`createMcpServer registration > advertises the expected prompt catalogue 1`] = `
+[
+  {
+    "arguments": [],
+    "description": "Browse and explore your Discogs music collection",
+    "name": "browse_collection",
+  },
+  {
+    "arguments": [],
+    "description": "Get insights and statistics about your music collection",
+    "name": "collection_insights",
+  },
+  {
+    "arguments": [
+      {
+        "description": undefined,
+        "name": "query",
+        "required": true,
+      },
+    ],
+    "description": "Find specific music in your collection",
+    "name": "find_music",
+  },
+]
+`;
+
+exports[`createMcpServer registration > advertises the expected resources and templates 1`] = `
+{
+  "resources": [
+    {
+      "description": "Complete Discogs collection for the authenticated user",
+      "mimeType": "application/json",
+      "name": "collection",
+      "uri": "discogs://collection",
+    },
+  ],
+  "templates": [
+    {
+      "description": "Detailed information about a specific Discogs release. Replace {id} with the release ID.",
+      "mimeType": "application/json",
+      "name": "release",
+      "uriTemplate": "discogs://release/{id}",
+    },
+    {
+      "description": "Search results from user's collection. Replace {query} with search terms.",
+      "mimeType": "application/json",
+      "name": "search",
+      "uriTemplate": "discogs://search?q={query}",
+    },
+  ],
+}
+`;
+
+exports[`createMcpServer registration > advertises the expected tool catalogue 1`] = `
+[
+  {
+    "description": "Add a release to a folder in your Discogs collection. If no folder is specified, adds to the Uncategorized folder (ID 1).",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "folder_id": {
+          "default": 1,
+          "description": "Folder ID to add the release to (default: 1 = Uncategorized)",
+          "type": "number",
+        },
+        "release_id": {
+          "description": "The Discogs release ID to add",
+          "type": "number",
+        },
+      },
+      "required": [
+        "release_id",
+      ],
+      "type": "object",
+    },
+    "name": "add_to_collection",
+    "properties": [
+      "folder_id",
+      "release_id",
+    ],
+    "required": [
+      "release_id",
+    ],
+  },
+  {
+    "description": "Add a release to your Discogs wantlist (releases you want but don't own).",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "release_id": {
+          "description": "The Discogs release ID to want",
+          "type": "number",
+        },
+      },
+      "required": [
+        "release_id",
+      ],
+      "type": "object",
+    },
+    "name": "add_to_wantlist",
+    "properties": [
+      "release_id",
+    ],
+    "required": [
+      "release_id",
+    ],
+  },
+  {
+    "description": "Check authentication status and get login instructions if needed",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object",
+    },
+    "name": "auth_status",
+    "properties": [],
+    "required": [],
+  },
+  {
+    "description": "Create a new folder in your Discogs collection for organizing releases.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "name": {
+          "description": "Name for the new folder",
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string",
+        },
+      },
+      "required": [
+        "name",
+      ],
+      "type": "object",
+    },
+    "name": "create_folder",
+    "properties": [
+      "name",
+    ],
+    "required": [
+      "name",
+    ],
+  },
+  {
+    "description": "Delete a folder from your Discogs collection. The folder must be empty (no releases). Cannot delete system folders (All or Uncategorized).",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "folder_id": {
+          "description": "ID of the folder to delete (must be 2 or higher — system folders cannot be deleted)",
+          "minimum": 2,
+          "type": "number",
+        },
+      },
+      "required": [
+        "folder_id",
+      ],
+      "type": "object",
+    },
+    "name": "delete_folder",
+    "properties": [
+      "folder_id",
+    ],
+    "required": [
+      "folder_id",
+    ],
+  },
+  {
+    "description": "Set a custom field value on a release in your Discogs collection. Use list_custom_fields to see available fields and their IDs. For dropdown fields, the value must match one of the defined options.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "field_id": {
+          "description": "Custom field ID (from list_custom_fields)",
+          "type": "number",
+        },
+        "folder_id": {
+          "description": "Folder ID containing the release",
+          "type": "number",
+        },
+        "instance_id": {
+          "description": "The specific instance ID",
+          "type": "number",
+        },
+        "release_id": {
+          "description": "The Discogs release ID",
+          "type": "number",
+        },
+        "value": {
+          "description": "Value to set for the field",
+          "type": "string",
+        },
+      },
+      "required": [
+        "folder_id",
+        "release_id",
+        "instance_id",
+        "field_id",
+        "value",
+      ],
+      "type": "object",
+    },
+    "name": "edit_custom_field",
+    "properties": [
+      "field_id",
+      "folder_id",
+      "instance_id",
+      "release_id",
+      "value",
+    ],
+    "required": [
+      "field_id",
+      "folder_id",
+      "instance_id",
+      "release_id",
+      "value",
+    ],
+  },
+  {
+    "description": "Rename an existing folder in your Discogs collection. Cannot rename the system folders (All or Uncategorized).",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "folder_id": {
+          "description": "ID of the folder to rename (must be 2 or higher — system folders cannot be renamed)",
+          "minimum": 2,
+          "type": "number",
+        },
+        "name": {
+          "description": "New name for the folder",
+          "maxLength": 100,
+          "minLength": 1,
+          "type": "string",
+        },
+      },
+      "required": [
+        "folder_id",
+        "name",
+      ],
+      "type": "object",
+    },
+    "name": "edit_folder",
+    "properties": [
+      "folder_id",
+      "name",
+    ],
+    "required": [
+      "folder_id",
+      "name",
+    ],
+  },
+  {
+    "description": "Get cache performance statistics including total entries, pending requests, and data type breakdown.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object",
+    },
+    "name": "get_cache_stats",
+    "properties": [],
+    "required": [],
+  },
+  {
+    "description": "Get comprehensive statistics about your Discogs collection including genre breakdown, decade analysis, format distribution, and ratings.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object",
+    },
+    "name": "get_collection_stats",
+    "properties": [],
+    "required": [],
+  },
+  {
+    "description": "Get personalized music recommendations from your collection based on genre, decade, mood, or similarity to other releases. Supports mood-aware filtering with descriptors like 'mellow', 'energetic', 'melancholic'.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "decade": {
+          "description": "Filter by decade (e.g., '1970s', '1980')",
+          "type": "string",
+        },
+        "format": {
+          "description": "Filter by format (e.g., 'Vinyl', 'CD', 'Cassette')",
+          "type": "string",
+        },
+        "genre": {
+          "description": "Filter by genre or mood descriptor (e.g., 'jazz', 'mellow', 'energetic')",
+          "type": "string",
+        },
+        "limit": {
+          "default": 10,
+          "description": "Number of recommendations to return (1-50)",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "number",
+        },
+        "query": {
+          "description": "Additional search query or mood descriptor to refine recommendations",
+          "type": "string",
+        },
+        "similar_to": {
+          "description": "Find releases similar to this artist/album (searches by musical characteristics)",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "get_recommendations",
+    "properties": [
+      "decade",
+      "format",
+      "genre",
+      "limit",
+      "query",
+      "similar_to",
+    ],
+    "required": [],
+  },
+  {
+    "description": "Get detailed information about a specific release from Discogs, including tracklist, formats, labels, and more.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "release_id": {
+          "description": "The Discogs release ID (e.g., from search results)",
+          "type": "string",
+        },
+      },
+      "required": [
+        "release_id",
+      ],
+      "type": "object",
+    },
+    "name": "get_release",
+    "properties": [
+      "release_id",
+    ],
+    "required": [
+      "release_id",
+    ],
+  },
+  {
+    "description": "List releases on your Discogs wantlist (releases you want but don't own). Paginated.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "page": {
+          "default": 1,
+          "description": "Page number (default: 1)",
+          "minimum": 1,
+          "type": "number",
+        },
+        "per_page": {
+          "default": 50,
+          "description": "Items per page, max 100 (default: 50)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number",
+        },
+      },
+      "type": "object",
+    },
+    "name": "get_wantlist",
+    "properties": [
+      "page",
+      "per_page",
+    ],
+    "required": [],
+  },
+  {
+    "description": "List all custom fields defined in your Discogs collection. Custom fields allow you to add metadata like notes, tags, or categories to releases.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object",
+    },
+    "name": "list_custom_fields",
+    "properties": [],
+    "required": [],
+  },
+  {
+    "description": "List all folders in your Discogs collection. Shows folder ID, name, and release count for each folder. Folder 0 is "All" (virtual), folder 1 is "Uncategorized" (default).",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object",
+    },
+    "name": "list_folders",
+    "properties": [],
+    "required": [],
+  },
+  {
+    "description": "Move a release instance to a different folder in your Discogs collection. Use search_collection to find release and instance IDs, and list_folders to see available folders.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "folder_id": {
+          "description": "Current folder ID containing the release",
+          "type": "number",
+        },
+        "instance_id": {
+          "description": "The specific instance ID to move",
+          "type": "number",
+        },
+        "release_id": {
+          "description": "The Discogs release ID",
+          "type": "number",
+        },
+        "target_folder_id": {
+          "description": "Destination folder ID",
+          "type": "number",
+        },
+      },
+      "required": [
+        "folder_id",
+        "release_id",
+        "instance_id",
+        "target_folder_id",
+      ],
+      "type": "object",
+    },
+    "name": "move_release",
+    "properties": [
+      "folder_id",
+      "instance_id",
+      "release_id",
+      "target_folder_id",
+    ],
+    "required": [
+      "folder_id",
+      "instance_id",
+      "release_id",
+      "target_folder_id",
+    ],
+  },
+  {
+    "description": "Test connectivity to the Discogs MCP server",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "message": {
+          "default": "Hello from Discogs MCP!",
+          "description": "Message to echo back",
+          "type": "string",
+        },
+      },
+      "type": "object",
+    },
+    "name": "ping",
+    "properties": [
+      "message",
+    ],
+    "required": [],
+  },
+  {
+    "description": "Rate a release in your Discogs collection from 0 (no rating) to 5 stars. Use search_collection to find release and instance IDs.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "folder_id": {
+          "description": "Folder ID containing the release",
+          "type": "number",
+        },
+        "instance_id": {
+          "description": "The specific instance ID to rate",
+          "type": "number",
+        },
+        "rating": {
+          "description": "Rating from 0 (remove rating) to 5 stars",
+          "maximum": 5,
+          "minimum": 0,
+          "type": "number",
+        },
+        "release_id": {
+          "description": "The Discogs release ID",
+          "type": "number",
+        },
+      },
+      "required": [
+        "folder_id",
+        "release_id",
+        "instance_id",
+        "rating",
+      ],
+      "type": "object",
+    },
+    "name": "rate_release",
+    "properties": [
+      "folder_id",
+      "instance_id",
+      "rating",
+      "release_id",
+    ],
+    "required": [
+      "folder_id",
+      "instance_id",
+      "rating",
+      "release_id",
+    ],
+  },
+  {
+    "description": "Force an immediate full refresh of the cached collection snapshot. Use after adding or removing items in Discogs if you need them visible to search before the next scheduled sync (every 6 hours).",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object",
+    },
+    "name": "refresh_collection",
+    "properties": [],
+    "required": [],
+  },
+  {
+    "description": "Remove a specific release instance from a folder in your Discogs collection. Use search_collection to find the instance_id for a release.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "folder_id": {
+          "description": "Folder ID containing the release",
+          "type": "number",
+        },
+        "instance_id": {
+          "description": "The specific instance ID to remove (from search_collection results)",
+          "type": "number",
+        },
+        "release_id": {
+          "description": "The Discogs release ID",
+          "type": "number",
+        },
+      },
+      "required": [
+        "folder_id",
+        "release_id",
+        "instance_id",
+      ],
+      "type": "object",
+    },
+    "name": "remove_from_collection",
+    "properties": [
+      "folder_id",
+      "instance_id",
+      "release_id",
+    ],
+    "required": [
+      "folder_id",
+      "instance_id",
+      "release_id",
+    ],
+  },
+  {
+    "description": "Remove a release from your Discogs wantlist.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "release_id": {
+          "description": "The Discogs release ID to remove from the wantlist",
+          "type": "number",
+        },
+      },
+      "required": [
+        "release_id",
+      ],
+      "type": "object",
+    },
+    "name": "remove_from_wantlist",
+    "properties": [
+      "release_id",
+    ],
+    "required": [
+      "release_id",
+    ],
+  },
+  {
+    "description": "Search your Discogs collection with natural language queries. IMPORTANT: Pass the user's query as-is — do NOT rewrite, decompose, or make multiple searches. The tool handles semantic/conceptual queries internally (e.g., 'strong empowering female voice', 'perfect for a rainy Sunday') by first attempting a keyword match, then returning the collection for LLM-based selection if no matches are found. Also supports mood descriptors like 'mellow jazz', temporal terms like 'recent' or 'oldest', and specific searches by artist, album, genre, or year. One call is sufficient for any query.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "group_pressings": {
+          "default": false,
+          "description": "When true, collapses every owned pressing of the same master release into one row with aggregated formats. Default false: each pressing the user owns is returned as its own row so distinct release_ids and instance_ids are visible. Set to true when the user wants a compact one-row-per-album view and pressing identity does not matter.",
+          "type": "boolean",
+        },
+        "page": {
+          "default": 1,
+          "description": "1-indexed page number. Combine with per_page to walk through large result sets. The truncation warning emitted at the bottom of each response includes the next page number to request.",
+          "minimum": 1,
+          "type": "number",
+        },
+        "per_page": {
+          "default": 50,
+          "description": "Number of results to return per page (1-100)",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number",
+        },
+        "query": {
+          "description": "The user's search query passed verbatim. Do NOT rewrite or decompose the query — pass it exactly as the user said it. The tool handles semantic queries like 'empowering female vocals' or 'road trip music' by first trying keyword matching, then falling back to collection search if needed.",
+          "type": "string",
+        },
+      },
+      "required": [
+        "query",
+      ],
+      "type": "object",
+    },
+    "name": "search_collection",
+    "properties": [
+      "group_pressings",
+      "page",
+      "per_page",
+      "query",
+    ],
+    "required": [
+      "query",
+    ],
+  },
+  {
+    "description": "Search the Discogs-wide catalog for releases, masters, artists, or labels (not limited to your collection). Use this to look up albums, artists, or releases that you don't own. If you want to search only what you own, use search_collection instead.",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {
+        "per_page": {
+          "default": 10,
+          "description": "Number of results to return (1-100). Default: 10.",
+          "maximum": 100,
+          "minimum": 1,
+          "type": "number",
+        },
+        "query": {
+          "description": "Free-text search query — artist name, album title, catalog number, etc.",
+          "type": "string",
+        },
+        "type": {
+          "default": "master",
+          "description": "What kind of entity to search for. Default: master (the canonical album, independent of pressing). Use 'release' to find a specific pressing, 'artist' or 'label' for those entities.",
+          "enum": [
+            "release",
+            "master",
+            "artist",
+            "label",
+          ],
+          "type": "string",
+        },
+      },
+      "required": [
+        "query",
+      ],
+      "type": "object",
+    },
+    "name": "search_discogs",
+    "properties": [
+      "per_page",
+      "query",
+      "type",
+    ],
+    "required": [
+      "query",
+    ],
+  },
+  {
+    "description": "Get information about the Discogs MCP server",
+    "inputSchema": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "properties": {},
+      "type": "object",
+    },
+    "name": "server_info",
+    "properties": [],
+    "required": [],
+  },
+]
+`;
