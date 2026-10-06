@@ -134,6 +134,12 @@ class MockMCPClient {
 		}
 
 		const text = await response.text()
+
+		// An unauthenticated request gets the OAuth challenge with no body (RFC 6750 §3).
+		if (response.status === 401 && !text) {
+			return { httpStatus: 401, wwwAuthenticate: response.headers.get('WWW-Authenticate') }
+		}
+
 		console.log('Response status:', response.status, 'Text length:', text.length, 'Text:', text.substring(0, 200))
 
 		// Try SSE format first
@@ -325,17 +331,17 @@ describe('MCP Client Integration Tests', () => {
 
 		it('should handle unauthenticated access to protected resources', async () => {
 			// Without a session_id param and without a bearer token, the OAuth provider
-			// returns 401 invalid_token. Verify that behavior.
+			// answers 401 with a challenge that points the client at the resource metadata.
 			const result = await client.readResource('discogs://collection')
 
-			expect(result).toMatchObject({
-				error: 'invalid_token',
-			})
+			expect(result.httpStatus).toBe(401)
+			expect(result.wwwAuthenticate).toContain('Bearer')
+			expect(result.wwwAuthenticate).toContain('resource_metadata="http://localhost:8787/.well-known/oauth-protected-resource"')
 		})
 
 		it('should allow authenticated access to all features', async () => {
-			await client.initialize()
 			await client.authenticate()
+			await client.initialize()
 
 			// Test resources
 			const resourcesList = await client.listResources()

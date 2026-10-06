@@ -45,47 +45,70 @@ function accessDeniedResponse(): Response {
 }
 
 /**
- * OAuth provider instance — handles all OAuth 2.1 endpoints automatically:
+ * MCP handler for OAuth-authenticated /mcp requests.
+ */
+const mcpApiHandler = {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // This runs only for OAuth-authenticated requests (valid bearer token).
+    // workers-oauth-provider injects the user props from completeAuthorization() into ctx.props.
+    const url = new URL(request.url)
+    const baseUrl = `${url.protocol}//${url.host}`
+
+    const { server, setContext } = createMcpServer(env, baseUrl)
+
+    const props = (ctx as unknown as { props?: DiscogsUserProps }).props
+    if (props && !isAllowedUser(props.numericId, env)) {
+      return accessDeniedResponse()
+    }
+    if (props?.username && props?.accessToken) {
+      setContext({
+        session: {
+          username: props.username,
+          numericId: props.numericId,
+          accessToken: props.accessToken,
+          accessTokenSecret: props.accessTokenSecret,
+        },
+      })
+    }
+
+    return createMcpHandler(server)(request, env, ctx)
+  },
+}
+
+const oauthProviders = new Map<string, OAuthProvider>()
+
+/**
+ * OAuth provider for one origin — handles all OAuth 2.1 endpoints automatically:
  * - /.well-known/oauth-authorization-server (discovery)
+ * - /.well-known/oauth-protected-resource (resource metadata)
  * - /oauth/register (dynamic client registration)
  * - /oauth/token (token exchange)
  * - All routes not intercepted by the main fetch handler
+ *
+ * The protected resource is the bare origin, and every token's audience is bound
+ * to it. It must stay the bare origin: grants are compared against it exactly, and
+ * the grants issued before resourceMetadata was configured carry the origin
+ * (with or without a trailing slash, which compare equal), never `${origin}/mcp`.
+ * One provider per origin, because the Worker serves several hostnames and each
+ * self-hosted deployment has its own.
  */
-const oauthProvider = new OAuthProvider({
-  apiRoute: '/mcp',
-  apiHandler: {
-    async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-      // This runs only for OAuth-authenticated requests (valid bearer token).
-      // workers-oauth-provider injects the user props from completeAuthorization() into ctx.props.
-      const url = new URL(request.url)
-      const baseUrl = `${url.protocol}//${url.host}`
+function getOAuthProvider(origin: string): OAuthProvider {
+  const existing = oauthProviders.get(origin)
+  if (existing) return existing
 
-      const { server, setContext } = createMcpServer(env, baseUrl)
-
-      const props = (ctx as unknown as { props?: DiscogsUserProps }).props
-      if (props && !isAllowedUser(props.numericId, env)) {
-        return accessDeniedResponse()
-      }
-      if (props?.username && props?.accessToken) {
-        setContext({
-          session: {
-            username: props.username,
-            numericId: props.numericId,
-            accessToken: props.accessToken,
-            accessTokenSecret: props.accessTokenSecret,
-          },
-        })
-      }
-
-      return createMcpHandler(server)(request, env, ctx)
-    },
-  },
-  authorizeEndpoint: '/authorize',
-  tokenEndpoint: '/oauth/token',
-  clientRegistrationEndpoint: '/oauth/register',
-  defaultHandler: DiscogsOAuthHandler,
-  accessTokenTTL: ACCESS_TOKEN_TTL,
-})
+  const provider = new OAuthProvider({
+    resourceMetadata: { resource: origin },
+    apiRoute: '/mcp',
+    apiHandler: mcpApiHandler,
+    authorizeEndpoint: '/authorize',
+    tokenEndpoint: '/oauth/token',
+    clientRegistrationEndpoint: '/oauth/register',
+    defaultHandler: DiscogsOAuthHandler,
+    accessTokenTTL: ACCESS_TOKEN_TTL,
+  })
+  oauthProviders.set(origin, provider)
+  return provider
+}
 
 /**
  * Handle MCP request using a pre-existing KV session (session_id param or Mcp-Session-Id header).
@@ -155,9 +178,10 @@ async function handleSessionBasedMcp(
 
 /**
  * Strip the 'resource' parameter from OAuth token requests.
- * Claude.ai sends the full MCP endpoint URL as `resource`, but workers-oauth-provider
- * validates audience against ${protocol}//${host} only. Stripping prevents audience mismatch.
- * Only applied when Content-Type is application/x-www-form-urlencoded.
+ * Clients may send the full MCP endpoint URL as `resource`, but tokens are bound to the
+ * bare-origin resource and the provider compares it exactly, so a token request naming
+ * `${origin}/mcp` would fail with invalid_target. Without `resource`, the token takes the
+ * grant's resource. Only applied when Content-Type is application/x-www-form-urlencoded.
  */
 async function stripResourceParam(request: Request): Promise<Request> {
   if (request.method !== 'POST') return request
@@ -177,6 +201,20 @@ async function stripResourceParam(request: Request): Promise<Request> {
     headers: request.headers,
     body: params.toString(),
   })
+}
+
+/**
+ * Rewrite a `resource` of `${origin}/mcp` on /authorize to the bare origin.
+ * MCP clients may name the endpoint they connect to rather than the advertised
+ * resource; the provider would refuse it with invalid_target because the protected
+ * resource is the bare origin (see getOAuthProvider). Any other value, including a
+ * resource on another server, passes through for the provider to validate.
+ */
+function normalizeAuthorizeResource(request: Request, url: URL): Request {
+  if (url.searchParams.get('resource') !== `${url.origin}/mcp`) return request
+  const rewritten = new URL(url)
+  rewritten.searchParams.set('resource', url.origin)
+  return new Request(rewritten.toString(), request)
 }
 
 async function logSyncOutcome(_env: Env, numericId: string, result: SyncResult): Promise<void> {
@@ -279,7 +317,7 @@ export default {
       }
 
       // 3. Everything else → OAuth provider
-      const response = await oauthProvider.fetch(request, env, ctx)
+      const response = await getOAuthProvider(url.origin).fetch(request, env, ctx)
 
       // Inject WWW-Authenticate on 401 responses from /mcp
       if (response.status === 401) {
@@ -301,12 +339,16 @@ export default {
     // /oauth/token — strip resource param before forwarding
     if (url.pathname === '/oauth/token') {
       request = await stripResourceParam(request)
-      return oauthProvider.fetch(request, env, ctx)
+      return getOAuthProvider(url.origin).fetch(request, env, ctx)
     }
 
-    // All other routes → OAuth provider (handles /authorize, /discogs-callback, /login,
+    if (url.pathname === '/authorize') {
+      return getOAuthProvider(url.origin).fetch(normalizeAuthorizeResource(request, url), env, ctx)
+    }
+
+    // All other routes → OAuth provider (handles /discogs-callback, /login,
     // /callback, /.well-known/oauth-protected-resource, /.well-known/oauth-authorization-server)
-    return oauthProvider.fetch(request, env, ctx)
+    return getOAuthProvider(url.origin).fetch(request, env, ctx)
   },
 
   async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
