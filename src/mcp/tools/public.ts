@@ -39,11 +39,13 @@ async function relayStatusLine(env: Env): Promise<string> {
  */
 export function registerPublicTools(server: McpServer, env: Env, getSessionContext: () => Promise<SessionContext>): void {
 	// Ping tool - simple connectivity test
-	server.tool(
+	server.registerTool(
 		'ping',
-		'Test connectivity to the Discogs MCP server',
 		{
-			message: z.string().optional().default('Hello from Discogs MCP!').describe('Message to echo back'),
+			description: 'Test connectivity to the Discogs MCP server',
+			inputSchema: {
+				message: z.string().optional().default('Hello from Discogs MCP!').describe('Message to echo back'),
+			},
 		},
 		async ({ message }) => {
 			const egress = await relayStatusLine(env)
@@ -63,7 +65,7 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 	)
 
 	// Server info tool - get server details
-	server.tool('server_info', 'Get information about the Discogs MCP server', {}, async () => {
+	server.registerTool('server_info', { description: 'Get information about the Discogs MCP server', inputSchema: {} }, async () => {
 		const { connectionId, baseUrl } = await getSessionContext()
 		const authUrl = getAuthUrl(baseUrl, connectionId)
 		const egress = await relayStatusLine(env)
@@ -84,22 +86,25 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 	})
 
 	// Auth status tool - check authentication status
-	server.tool('auth_status', 'Check authentication status and get login instructions if needed', {}, async () => {
-		const { session, connectionId, baseUrl } = await getSessionContext()
-		const loginUrl = getAuthUrl(baseUrl, connectionId)
+	server.registerTool(
+		'auth_status',
+		{ description: 'Check authentication status and get login instructions if needed', inputSchema: {} },
+		async () => {
+			const { session, connectionId, baseUrl } = await getSessionContext()
+			const loginUrl = getAuthUrl(baseUrl, connectionId)
 
-		// Check if user is authenticated
-		if (session) {
-			const nextSteps = buildNextSteps([
-				{ tool: 'search_collection', args: 'query="..."', hint: 'free-text ranked search of your collection' },
-				{ tool: 'get_collection_stats', args: '', hint: 'see the shape of your collection' },
-				{ tool: 'get_recommendations', args: '', hint: 'personalized picks based on your collection' },
-			])
-			return {
-				content: [
-					{
-						type: 'text',
-						text: `✅ **Authentication Status: Authenticated**
+			// Check if user is authenticated
+			if (session) {
+				const nextSteps = buildNextSteps([
+					{ tool: 'search_collection', args: 'query="..."', hint: 'free-text ranked search of your collection' },
+					{ tool: 'get_collection_stats', args: '', hint: 'see the shape of your collection' },
+					{ tool: 'get_recommendations', args: '', hint: 'personalized picks based on your collection' },
+				])
+				return {
+					content: [
+						{
+							type: 'text',
+							text: `✅ **Authentication Status: Authenticated**
 
 You are successfully authenticated with Discogs!
 
@@ -113,17 +118,17 @@ You are successfully authenticated with Discogs!
 *Folders:* list_folders, create_folder, edit_folder, delete_folder
 *Custom fields:* list_custom_fields, edit_custom_field
 *Diagnostics:* get_cache_stats${nextSteps}`,
-					},
-				],
+						},
+					],
+				}
 			}
-		}
 
-		// Not authenticated
-		return {
-			content: [
-				{
-					type: 'text',
-					text: `🔐 **Authentication Status: Not Authenticated**
+			// Not authenticated
+			return {
+				content: [
+					{
+						type: 'text',
+						text: `🔐 **Authentication Status: Not Authenticated**
 
 You are not currently authenticated with Discogs. To access your personal music collection, you need to authenticate first.
 
@@ -143,8 +148,9 @@ You are not currently authenticated with Discogs. To access your personal music 
 - get_collection_stats: View collection statistics
 - get_recommendations: Get personalized recommendations
 - get_cache_stats: View cache performance`,
-				},
-			],
-		}
-	})
+					},
+				],
+			}
+		},
+	)
 }

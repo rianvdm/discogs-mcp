@@ -503,10 +503,12 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 		)
 	}
 
-	server.tool(
+	server.registerTool(
 		'refresh_collection',
-		'Force an immediate full refresh of the cached collection snapshot. Use after adding or removing items in Discogs if you need them visible to search before the next scheduled sync (every 6 hours).',
-		{},
+		{
+			description: 'Force an immediate full refresh of the cached collection snapshot. Use after adding or removing items in Discogs if you need them visible to search before the next scheduled sync (every 6 hours).',
+			inputSchema: {},
+		},
 		async () => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
 			if (!session) {
@@ -571,31 +573,33 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 		},
 	)
 
-	server.tool(
+	server.registerTool(
 		'search_collection',
-		"Search your Discogs collection with natural language queries. IMPORTANT: Pass the user's query as-is — do NOT rewrite, decompose, or make multiple searches. The tool handles semantic/conceptual queries internally (e.g., 'strong empowering female voice', 'perfect for a rainy Sunday') by first attempting a keyword match, then returning the collection for LLM-based selection if no matches are found. Also supports mood descriptors like 'mellow jazz', temporal terms like 'recent' or 'oldest', and specific searches by artist, album, genre, or year. One call is sufficient for any query.",
 		{
-			query: z
-				.string()
-				.describe(
-					"The user's search query passed verbatim. Do NOT rewrite or decompose the query — pass it exactly as the user said it. The tool handles semantic queries like 'empowering female vocals' or 'road trip music' by first trying keyword matching, then falling back to collection search if needed.",
-				),
-			per_page: z.number().min(1).max(100).optional().default(50).describe('Number of results to return per page (1-100)'),
-			page: z
-				.number()
-				.min(1)
-				.optional()
-				.default(1)
-				.describe(
-					'1-indexed page number. Combine with per_page to walk through large result sets. The truncation warning emitted at the bottom of each response includes the next page number to request.',
-				),
-			group_pressings: z
-				.boolean()
-				.optional()
-				.default(false)
-				.describe(
-					'When true, collapses every owned pressing of the same master release into one row with aggregated formats. Default false: each pressing the user owns is returned as its own row so distinct release_ids and instance_ids are visible. Set to true when the user wants a compact one-row-per-album view and pressing identity does not matter.',
-				),
+			description: "Search your Discogs collection with natural language queries. IMPORTANT: Pass the user's query as-is — do NOT rewrite, decompose, or make multiple searches. The tool handles semantic/conceptual queries internally (e.g., 'strong empowering female voice', 'perfect for a rainy Sunday') by first attempting a keyword match, then returning the collection for LLM-based selection if no matches are found. Also supports mood descriptors like 'mellow jazz', temporal terms like 'recent' or 'oldest', and specific searches by artist, album, genre, or year. One call is sufficient for any query.",
+			inputSchema: {
+				query: z
+					.string()
+					.describe(
+						"The user's search query passed verbatim. Do NOT rewrite or decompose the query — pass it exactly as the user said it. The tool handles semantic queries like 'empowering female vocals' or 'road trip music' by first trying keyword matching, then falling back to collection search if needed.",
+					),
+				per_page: z.number().min(1).max(100).optional().default(50).describe('Number of results to return per page (1-100)'),
+				page: z
+					.number()
+					.min(1)
+					.optional()
+					.default(1)
+					.describe(
+						'1-indexed page number. Combine with per_page to walk through large result sets. The truncation warning emitted at the bottom of each response includes the next page number to request.',
+					),
+				group_pressings: z
+					.boolean()
+					.optional()
+					.default(false)
+					.describe(
+						'When true, collapses every owned pressing of the same master release into one row with aggregated formats. Default false: each pressing the user owns is returned as its own row so distinct release_ids and instance_ids are visible. Set to true when the user wants a compact one-row-per-album view and pressing identity does not matter.',
+					),
+			},
 		},
 		async ({ query, per_page, page, group_pressings }) => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
@@ -899,11 +903,13 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: get_release
 	 * Get detailed information about a specific release
 	 */
-	server.tool(
+	server.registerTool(
 		'get_release',
-		'Get detailed information about a specific release from Discogs, including tracklist, formats, labels, and more.',
 		{
-			release_id: z.string().describe('The Discogs release ID (e.g., from search results)'),
+			description: 'Get detailed information about a specific release from Discogs, including tracklist, formats, labels, and more.',
+			inputSchema: {
+				release_id: z.string().describe('The Discogs release ID (e.g., from search results)'),
+			},
 		},
 		async ({ release_id }) => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
@@ -976,27 +982,29 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: search_discogs
 	 * Search the Discogs-wide catalog (not limited to the user's collection)
 	 */
-	server.tool(
+	server.registerTool(
 		'search_discogs',
-		"Search the Discogs-wide catalog for releases, masters, artists, or labels (not limited to your collection). Use this to look up albums, artists, or releases that you don't own. If you want to search only what you own, use search_collection instead.",
 		{
-			query: z
-				.string()
-				.describe('Free-text search query — artist name, album title, catalog number, etc.'),
-			type: z
-				.enum(['release', 'master', 'artist', 'label'])
-				.optional()
-				.default('master')
-				.describe(
-					"What kind of entity to search for. Default: master (the canonical album, independent of pressing). Use 'release' to find a specific pressing, 'artist' or 'label' for those entities.",
-				),
-			per_page: z
-				.number()
-				.min(1)
-				.max(100)
-				.optional()
-				.default(10)
-				.describe('Number of results to return (1-100). Default: 10.'),
+			description: "Search the Discogs-wide catalog for releases, masters, artists, or labels (not limited to your collection). Use this to look up albums, artists, or releases that you don't own. If you want to search only what you own, use search_collection instead.",
+			inputSchema: {
+				query: z
+					.string()
+					.describe('Free-text search query — artist name, album title, catalog number, etc.'),
+				type: z
+					.enum(['release', 'master', 'artist', 'label'])
+					.optional()
+					.default('master')
+					.describe(
+						"What kind of entity to search for. Default: master (the canonical album, independent of pressing). Use 'release' to find a specific pressing, 'artist' or 'label' for those entities.",
+					),
+				per_page: z
+					.number()
+					.min(1)
+					.max(100)
+					.optional()
+					.default(10)
+					.describe('Number of results to return (1-100). Default: 10.'),
+			},
 		},
 		async ({ query, type, per_page }) => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
@@ -1088,10 +1096,12 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: get_collection_stats
 	 * Get statistics about user's collection
 	 */
-	server.tool(
+	server.registerTool(
 		'get_collection_stats',
-		'Get comprehensive statistics about your Discogs collection including genre breakdown, decade analysis, format distribution, and ratings.',
-		{},
+		{
+			description: 'Get comprehensive statistics about your Discogs collection including genre breakdown, decade analysis, format distribution, and ratings.',
+			inputSchema: {},
+		},
 		async () => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
 
@@ -1220,16 +1230,18 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: get_recommendations
 	 * Get personalized music recommendations with mood support
 	 */
-	server.tool(
+	server.registerTool(
 		'get_recommendations',
-		"Get personalized music recommendations from your collection based on genre, decade, mood, or similarity to other releases. Supports mood-aware filtering with descriptors like 'mellow', 'energetic', 'melancholic'.",
 		{
-			limit: z.number().min(1).max(50).optional().default(10).describe('Number of recommendations to return (1-50)'),
-			genre: z.string().optional().describe("Filter by genre or mood descriptor (e.g., 'jazz', 'mellow', 'energetic')"),
-			decade: z.string().optional().describe("Filter by decade (e.g., '1970s', '1980')"),
-			similar_to: z.string().optional().describe('Find releases similar to this artist/album (searches by musical characteristics)'),
-			query: z.string().optional().describe('Additional search query or mood descriptor to refine recommendations'),
-			format: z.string().optional().describe("Filter by format (e.g., 'Vinyl', 'CD', 'Cassette')"),
+			description: "Get personalized music recommendations from your collection based on genre, decade, mood, or similarity to other releases. Supports mood-aware filtering with descriptors like 'mellow', 'energetic', 'melancholic'.",
+			inputSchema: {
+				limit: z.number().min(1).max(50).optional().default(10).describe('Number of recommendations to return (1-50)'),
+				genre: z.string().optional().describe("Filter by genre or mood descriptor (e.g., 'jazz', 'mellow', 'energetic')"),
+				decade: z.string().optional().describe("Filter by decade (e.g., '1970s', '1980')"),
+				similar_to: z.string().optional().describe('Find releases similar to this artist/album (searches by musical characteristics)'),
+				query: z.string().optional().describe('Additional search query or mood descriptor to refine recommendations'),
+				format: z.string().optional().describe("Filter by format (e.g., 'Vinyl', 'CD', 'Cassette')"),
+			},
 		},
 		async ({ limit, genre, decade, similar_to, query, format }) => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
@@ -1665,10 +1677,12 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: get_cache_stats
 	 * Get cache performance statistics
 	 */
-	server.tool(
+	server.registerTool(
 		'get_cache_stats',
-		'Get cache performance statistics including total entries, pending requests, and data type breakdown.',
-		{},
+		{
+			description: 'Get cache performance statistics including total entries, pending requests, and data type breakdown.',
+			inputSchema: {},
+		},
 		async () => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
 
@@ -1751,10 +1765,12 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: list_folders
 	 * List all collection folders
 	 */
-	server.tool(
+	server.registerTool(
 		'list_folders',
-		'List all folders in your Discogs collection. Shows folder ID, name, and release count for each folder. Folder 0 is "All" (virtual), folder 1 is "Uncategorized" (default).',
-		{},
+		{
+			description: 'List all folders in your Discogs collection. Shows folder ID, name, and release count for each folder. Folder 0 is "All" (virtual), folder 1 is "Uncategorized" (default).',
+			inputSchema: {},
+		},
 		async () => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
 
@@ -1807,11 +1823,13 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: create_folder
 	 * Create a new collection folder
 	 */
-	server.tool(
+	server.registerTool(
 		'create_folder',
-		'Create a new folder in your Discogs collection for organizing releases.',
 		{
-			name: z.string().min(1).max(100).describe('Name for the new folder'),
+			description: 'Create a new folder in your Discogs collection for organizing releases.',
+			inputSchema: {
+				name: z.string().min(1).max(100).describe('Name for the new folder'),
+			},
 		},
 		async ({ name }) => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
@@ -1861,12 +1879,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: edit_folder
 	 * Rename a collection folder
 	 */
-	server.tool(
+	server.registerTool(
 		'edit_folder',
-		'Rename an existing folder in your Discogs collection. Cannot rename the system folders (All or Uncategorized).',
 		{
-			folder_id: z.number().min(2).describe('ID of the folder to rename (must be 2 or higher — system folders cannot be renamed)'),
-			name: z.string().min(1).max(100).describe('New name for the folder'),
+			description: 'Rename an existing folder in your Discogs collection. Cannot rename the system folders (All or Uncategorized).',
+			inputSchema: {
+				folder_id: z.number().min(2).describe('ID of the folder to rename (must be 2 or higher — system folders cannot be renamed)'),
+				name: z.string().min(1).max(100).describe('New name for the folder'),
+			},
 		},
 		async ({ folder_id, name }) => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
@@ -1916,11 +1936,13 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: delete_folder
 	 * Delete a collection folder (must be empty)
 	 */
-	server.tool(
+	server.registerTool(
 		'delete_folder',
-		'Delete a folder from your Discogs collection. The folder must be empty (no releases). Cannot delete system folders (All or Uncategorized).',
 		{
-			folder_id: z.number().min(2).describe('ID of the folder to delete (must be 2 or higher — system folders cannot be deleted)'),
+			description: 'Delete a folder from your Discogs collection. The folder must be empty (no releases). Cannot delete system folders (All or Uncategorized).',
+			inputSchema: {
+				folder_id: z.number().min(2).describe('ID of the folder to delete (must be 2 or higher — system folders cannot be deleted)'),
+			},
 		},
 		async ({ folder_id }) => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
@@ -1969,12 +1991,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: add_to_collection
 	 * Add a release to a collection folder
 	 */
-	server.tool(
+	server.registerTool(
 		'add_to_collection',
-		'Add a release to a folder in your Discogs collection. If no folder is specified, adds to the Uncategorized folder (ID 1).',
 		{
-			release_id: z.number().describe('The Discogs release ID to add'),
-			folder_id: z.number().optional().default(1).describe('Folder ID to add the release to (default: 1 = Uncategorized)'),
+			description: 'Add a release to a folder in your Discogs collection. If no folder is specified, adds to the Uncategorized folder (ID 1).',
+			inputSchema: {
+				release_id: z.number().describe('The Discogs release ID to add'),
+				folder_id: z.number().optional().default(1).describe('Folder ID to add the release to (default: 1 = Uncategorized)'),
+			},
 		},
 		async ({ release_id, folder_id }) => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
@@ -2026,13 +2050,15 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: remove_from_collection
 	 * Remove a release instance from a collection folder
 	 */
-	server.tool(
+	server.registerTool(
 		'remove_from_collection',
-		'Remove a specific release instance from a folder in your Discogs collection. Use search_collection to find the instance_id for a release.',
 		{
-			folder_id: z.number().describe('Folder ID containing the release'),
-			release_id: z.number().describe('The Discogs release ID'),
-			instance_id: z.number().describe('The specific instance ID to remove (from search_collection results)'),
+			description: 'Remove a specific release instance from a folder in your Discogs collection. Use search_collection to find the instance_id for a release.',
+			inputSchema: {
+				folder_id: z.number().describe('Folder ID containing the release'),
+				release_id: z.number().describe('The Discogs release ID'),
+				instance_id: z.number().describe('The specific instance ID to remove (from search_collection results)'),
+			},
 		},
 		async ({ folder_id, release_id, instance_id }) => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
@@ -2084,14 +2110,16 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: move_release
 	 * Move a release instance to a different folder
 	 */
-	server.tool(
+	server.registerTool(
 		'move_release',
-		'Move a release instance to a different folder in your Discogs collection. Use search_collection to find release and instance IDs, and list_folders to see available folders.',
 		{
-			folder_id: z.number().describe('Current folder ID containing the release'),
-			release_id: z.number().describe('The Discogs release ID'),
-			instance_id: z.number().describe('The specific instance ID to move'),
-			target_folder_id: z.number().describe('Destination folder ID'),
+			description: 'Move a release instance to a different folder in your Discogs collection. Use search_collection to find release and instance IDs, and list_folders to see available folders.',
+			inputSchema: {
+				folder_id: z.number().describe('Current folder ID containing the release'),
+				release_id: z.number().describe('The Discogs release ID'),
+				instance_id: z.number().describe('The specific instance ID to move'),
+				target_folder_id: z.number().describe('Destination folder ID'),
+			},
 		},
 		async ({ folder_id, release_id, instance_id, target_folder_id }) => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
@@ -2144,14 +2172,16 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: rate_release
 	 * Rate a release in your collection (0-5 stars)
 	 */
-	server.tool(
+	server.registerTool(
 		'rate_release',
-		'Rate a release in your Discogs collection from 0 (no rating) to 5 stars. Use search_collection to find release and instance IDs.',
 		{
-			folder_id: z.number().describe('Folder ID containing the release'),
-			release_id: z.number().describe('The Discogs release ID'),
-			instance_id: z.number().describe('The specific instance ID to rate'),
-			rating: z.number().min(0).max(5).describe('Rating from 0 (remove rating) to 5 stars'),
+			description: 'Rate a release in your Discogs collection from 0 (no rating) to 5 stars. Use search_collection to find release and instance IDs.',
+			inputSchema: {
+				folder_id: z.number().describe('Folder ID containing the release'),
+				release_id: z.number().describe('The Discogs release ID'),
+				instance_id: z.number().describe('The specific instance ID to rate'),
+				rating: z.number().min(0).max(5).describe('Rating from 0 (remove rating) to 5 stars'),
+			},
 		},
 		async ({ folder_id, release_id, instance_id, rating }) => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
@@ -2205,10 +2235,12 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: list_custom_fields
 	 * List custom fields defined in the user's collection
 	 */
-	server.tool(
+	server.registerTool(
 		'list_custom_fields',
-		'List all custom fields defined in your Discogs collection. Custom fields allow you to add metadata like notes, tags, or categories to releases.',
-		{},
+		{
+			description: 'List all custom fields defined in your Discogs collection. Custom fields allow you to add metadata like notes, tags, or categories to releases.',
+			inputSchema: {},
+		},
 		async () => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
 
@@ -2271,15 +2303,17 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: edit_custom_field
 	 * Set a custom field value on a collection instance
 	 */
-	server.tool(
+	server.registerTool(
 		'edit_custom_field',
-		'Set a custom field value on a release in your Discogs collection. Use list_custom_fields to see available fields and their IDs. For dropdown fields, the value must match one of the defined options.',
 		{
-			folder_id: z.number().describe('Folder ID containing the release'),
-			release_id: z.number().describe('The Discogs release ID'),
-			instance_id: z.number().describe('The specific instance ID'),
-			field_id: z.number().describe('Custom field ID (from list_custom_fields)'),
-			value: z.string().describe('Value to set for the field'),
+			description: 'Set a custom field value on a release in your Discogs collection. Use list_custom_fields to see available fields and their IDs. For dropdown fields, the value must match one of the defined options.',
+			inputSchema: {
+				folder_id: z.number().describe('Folder ID containing the release'),
+				release_id: z.number().describe('The Discogs release ID'),
+				instance_id: z.number().describe('The specific instance ID'),
+				field_id: z.number().describe('Custom field ID (from list_custom_fields)'),
+				value: z.string().describe('Value to set for the field'),
+			},
 		},
 		async ({ folder_id, release_id, instance_id, field_id, value }) => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
@@ -2333,12 +2367,14 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: get_wantlist
 	 * List the authenticated user's Discogs wantlist (paginated)
 	 */
-	server.tool(
+	server.registerTool(
 		'get_wantlist',
-		"List releases on your Discogs wantlist (releases you want but don't own). Paginated.",
 		{
-			page: z.number().min(1).optional().default(1).describe('Page number (default: 1)'),
-			per_page: z.number().min(1).max(100).optional().default(50).describe('Items per page, max 100 (default: 50)'),
+			description: "List releases on your Discogs wantlist (releases you want but don't own). Paginated.",
+			inputSchema: {
+				page: z.number().min(1).optional().default(1).describe('Page number (default: 1)'),
+				per_page: z.number().min(1).max(100).optional().default(50).describe('Items per page, max 100 (default: 50)'),
+			},
 		},
 		async ({ page, per_page }) => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
@@ -2379,11 +2415,13 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: add_to_wantlist
 	 * Add a release to the wantlist (PUT)
 	 */
-	server.tool(
+	server.registerTool(
 		'add_to_wantlist',
-		"Add a release to your Discogs wantlist (releases you want but don't own).",
 		{
-			release_id: z.number().describe('The Discogs release ID to want'),
+			description: "Add a release to your Discogs wantlist (releases you want but don't own).",
+			inputSchema: {
+				release_id: z.number().describe('The Discogs release ID to want'),
+			},
 		},
 		async ({ release_id }) => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
@@ -2419,11 +2457,13 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 	 * Tool: remove_from_wantlist
 	 * Remove a release from the wantlist
 	 */
-	server.tool(
+	server.registerTool(
 		'remove_from_wantlist',
-		'Remove a release from your Discogs wantlist.',
 		{
-			release_id: z.number().describe('The Discogs release ID to remove from the wantlist'),
+			description: 'Remove a release from your Discogs wantlist.',
+			inputSchema: {
+				release_id: z.number().describe('The Discogs release ID to remove from the wantlist'),
+			},
 		},
 		async ({ release_id }) => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
