@@ -1181,7 +1181,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 					.sort(([, a], [, b]) => b - a)
 					.slice(0, 5)
 				topDecades.forEach(([decade, count]) => {
-					text += `• ${decade}s: ${count} releases\n`
+					text += `• ${decade}: ${count} releases\n`
 				})
 
 				text += `\n**Top Formats:**\n`
