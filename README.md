@@ -1,6 +1,6 @@
 # 🎵 Discogs MCP Server
 
-[![Version](https://img.shields.io/badge/version-3.5.0-blue.svg)](https://github.com/rianvdm/discogs-mcp/releases)
+[![Version](https://img.shields.io/badge/version-3.6.0-blue.svg)](https://github.com/rianvdm/discogs-mcp/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://workers.cloudflare.com/)
