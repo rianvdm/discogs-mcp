@@ -21,6 +21,7 @@ import {
 	type DiscogsWant,
 	type DiscogsWantlistResponse,
 } from './discogs'
+import type { ExecutionContext } from '@cloudflare/workers-types'
 import { SmartCache, CacheKeys, createDiscogsCache } from '../utils/cache'
 import type { RateLimiterStub } from '../rate-limiter/types'
 import { snapshotKey } from '../sync/keys'
@@ -31,9 +32,12 @@ export class CachedDiscogsClient {
 	private cache: SmartCache
 	private readonly FETCH_LOCK_TTL = 120 // 2 minutes — long enough for a full collection fetch
 
-	constructor(client: DiscogsClient, kv: KVNamespace) {
+	/**
+	 * @param ctx - The request's ExecutionContext, so background cache deletes outlive the response.
+	 */
+	constructor(client: DiscogsClient, kv: KVNamespace, ctx?: ExecutionContext) {
 		this.client = client
-		this.cache = createDiscogsCache(kv)
+		this.cache = createDiscogsCache(kv, ctx ? (promise) => ctx.waitUntil(promise) : undefined)
 	}
 
 	/**

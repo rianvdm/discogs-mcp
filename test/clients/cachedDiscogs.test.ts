@@ -290,3 +290,22 @@ describe('CachedDiscogsClient.searchCollection — cache keyed by per_page', () 
     expect(innerSearchCollection).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('CachedDiscogsClient — ExecutionContext plumbing', () => {
+  // The client hands the Worker ExecutionContext to its cache so background KV
+  // deletes outlive the request. https://github.com/rianvdm/discogs-mcp/issues/27
+  it('registers an expired-entry delete with ctx.waitUntil during a cached read', async () => {
+    const expired = JSON.stringify({ data: { releases: [] }, timestamp: 0, expiresAt: Date.now() - 1, version: '1.0.0' })
+    const store = new Map([['cache:collections:user:1:default:desc:50', expired]])
+    const kv = makeKV(store)
+    const ctx = { waitUntil: vi.fn(), passThroughOnException: vi.fn(), props: {} } as unknown as ExecutionContext
+    const inner = { searchCollection: vi.fn(async () => ({ pagination: { page: 1, pages: 1, per_page: 50, items: 0, urls: {} }, releases: [] })) }
+    const client = new CachedDiscogsClient(inner as unknown as DiscogsClient, kv, ctx)
+
+    await client.searchCollection('user', 'token', 'secret', { page: 1 }, 'key', 'csecret')
+
+    expect(ctx.waitUntil).toHaveBeenCalledTimes(1)
+    await (ctx.waitUntil as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(kv.delete).toHaveBeenCalledWith('cache:collections:user:1:default:desc:50')
+  })
+})

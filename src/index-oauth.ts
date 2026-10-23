@@ -54,7 +54,7 @@ const mcpApiHandler = {
     const url = new URL(request.url)
     const baseUrl = `${url.protocol}//${url.host}`
 
-    const { server, setContext } = createMcpServer(env, baseUrl)
+    const { server, setContext } = createMcpServer(env, baseUrl, ctx)
 
     const props = (ctx as unknown as { props?: DiscogsUserProps }).props
     if (props && !isAllowedUser(props.numericId, env)) {
@@ -150,7 +150,7 @@ async function handleSessionBasedMcp(
     })
   }
 
-  const { server, setContext } = createMcpServer(env, baseUrl)
+  const { server, setContext } = createMcpServer(env, baseUrl, ctx)
   setContext({
     session: {
       username: sessionData.username,

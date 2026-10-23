@@ -2,6 +2,7 @@
  * MCP Server factory for Discogs
  * Returns { server, setContext } so both OAuth and session paths can inject auth props.
  */
+import type { ExecutionContext } from '@cloudflare/workers-types'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import type { Env } from '../types/env.js'
 import { registerPublicTools } from './tools/public.js'
@@ -66,8 +67,9 @@ export interface McpServerWithContext {
  *
  * @param env - Cloudflare Worker environment bindings
  * @param baseUrl - Base URL for constructing auth URLs (e.g. https://host)
+ * @param ctx - The request's ExecutionContext, for background work that must outlive the response
  */
-export function createMcpServer(env: Env, baseUrl: string): McpServerWithContext {
+export function createMcpServer(env: Env, baseUrl: string, ctx?: ExecutionContext): McpServerWithContext {
   const server = new McpServer(
     {
       name: 'discogs-mcp',
@@ -119,8 +121,8 @@ export function createMcpServer(env: Env, baseUrl: string): McpServerWithContext
 
   // Register all tools and resources
   registerPublicTools(server, env, getSessionContext)
-  registerAuthenticatedTools(server, env, getSessionContext)
-  registerResources(server, env, getSessionContext)
+  registerAuthenticatedTools(server, env, getSessionContext, ctx)
+  registerResources(server, env, getSessionContext, ctx)
   registerPrompts(server)
 
   return {
