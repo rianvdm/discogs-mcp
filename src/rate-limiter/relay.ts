@@ -111,11 +111,15 @@ export function describeAge(sinceMs: number, now: number): string {
 	return `${Math.round(h / 24)} d ago`
 }
 
+/** A fallback newer than this still suggests the relay host is down right now. */
+const RECENT_FALLBACK_MS = 60 * 60 * 1000
+
 /**
  * One human-readable line for `ping` / `server_info` saying how Discogs traffic
  * is leaving and whether the relay has failed lately. The relay falls back to
  * direct calls silently as far as tool results go, so this is where a user
- * finds out that the relay host is down.
+ * finds out that the relay host is down. The fallback count is persisted, so
+ * the "may be down" warning is tied to recency rather than to the count alone.
  */
 export function describeRelayStatus(status: RelayStatus | null, now: number): string {
 	if (!status) return 'Discogs egress: status unavailable (rate limiter did not answer)'
@@ -123,5 +127,7 @@ export function describeRelayStatus(status: RelayStatus | null, now: number): st
 	const host = status.origin ? new URL(status.origin).host : 'relay'
 	if (status.fallbacks === 0 || status.lastFallbackAt === null) return `Discogs egress: via relay ${host}, no fallbacks recorded`
 	const times = status.fallbacks === 1 ? 'once' : `${status.fallbacks} times`
-	return `Discogs egress: via relay ${host}; fell back to direct ${times}, last ${describeAge(status.lastFallbackAt, now)} — the relay host may be down`
+	const line = `Discogs egress: via relay ${host}; fell back to direct ${times}, last ${describeAge(status.lastFallbackAt, now)}`
+	const recent = now - status.lastFallbackAt < RECENT_FALLBACK_MS
+	return recent ? `${line} — the relay host may be down` : line
 }

@@ -148,6 +148,22 @@ describe('describeRelayStatus', () => {
 		)
 	})
 
+	it('drops the "may be down" warning once the last fallback is old news', () => {
+		const line = describeRelayStatus(
+			{ enabled: true, origin: 'https://relay.example.com', lastFallbackAt: now - 62 * 24 * 60 * 60_000, fallbacks: 1 },
+			now,
+		)
+		expect(line).toBe('Discogs egress: via relay relay.example.com; fell back to direct once, last 62 d ago')
+	})
+
+	it('keeps the warning for a fallback inside the last hour', () => {
+		const line = describeRelayStatus(
+			{ enabled: true, origin: 'https://relay.example.com', lastFallbackAt: now - 59 * 60_000, fallbacks: 1 },
+			now,
+		)
+		expect(line).toContain('the relay host may be down')
+	})
+
 	it('says "once" for a single fallback', () => {
 		expect(
 			describeRelayStatus({ enabled: true, origin: 'https://relay.example.com', lastFallbackAt: now - 1000, fallbacks: 1 }, now),
