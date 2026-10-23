@@ -23,19 +23,20 @@ export { DiscogsRateLimiter } from './rate-limiter/durable-object'
 const ACCESS_TOKEN_TTL = 7 * 24 * 60 * 60
 
 /**
- * Options shared by both MCP handler call sites.
+ * Options for both MCP handler call sites, built per request.
  *
  * Non-browser clients (Claude.ai, Claude Code, Claude Desktop) send no Origin
- * and are always accepted. Browser-based clients must come from the custom
- * domain or local dev tooling (the MCP inspector against `wrangler dev`).
+ * and are always accepted. Browser-based clients must come from the deployment's
+ * own hostname, so a self-hosted copy on any domain accepts its own browser
+ * clients, or from local dev tooling (the MCP inspector against `wrangler dev`).
  * Setting this option replaces the handler's defaults rather than extending
  * them, which is why localhost is listed explicitly. Host validation is left
  * to Cloudflare routing: the handler only checks Host on localhost and
- * workers.dev endpoints, and discogs-mcp.com is routed by the dashboard, not
+ * workers.dev endpoints, and custom domains are routed by the dashboard, not
  * by wrangler.toml.
  */
-const MCP_HANDLER_OPTIONS: CreateMcpHandlerOptions = {
-  allowedOriginHostnames: ['discogs-mcp.com', 'localhost', '127.0.0.1'],
+function mcpHandlerOptions(url: URL): CreateMcpHandlerOptions {
+  return { allowedOriginHostnames: [url.hostname, 'localhost', '127.0.0.1'] }
 }
 
 /**
@@ -89,7 +90,7 @@ const mcpApiHandler = {
     }
 
     // The server is built per request above, so the factory hands back the configured instance.
-    return createMcpHandler(() => server, MCP_HANDLER_OPTIONS)(request, env, ctx)
+    return createMcpHandler(() => server, mcpHandlerOptions(url))(request, env, ctx)
   },
 }
 
@@ -179,7 +180,7 @@ async function handleSessionBasedMcp(
     sessionId,
   })
 
-  return createMcpHandler(() => server, MCP_HANDLER_OPTIONS)(request, env, ctx)
+  return createMcpHandler(() => server, mcpHandlerOptions(url))(request, env, ctx)
 }
 
 /**
