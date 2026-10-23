@@ -118,14 +118,19 @@ export class CachedDiscogsClient {
 		// Different caching strategies based on query type
 		if (options.query) {
 			// Search queries - shorter cache time since they're context-specific
-			const cacheKey = CacheKeys.collectionSearch(username, options.query, options.page)
+			const cacheKey = CacheKeys.collectionSearch(username, options.query, options.page, options.per_page)
 
 			return this.cache.getOrFetch('searches', cacheKey, () =>
 				this.client.searchCollection(username, accessToken, accessTokenSecret, options, consumerKey, consumerSecret),
 			)
 		} else {
 			// Collection browsing - longer cache time since collections don't change often
-			const cacheKey = CacheKeys.collection(username, options.page, `${options.sort || 'default'}:${options.sort_order || 'desc'}`)
+			const cacheKey = CacheKeys.collection(
+				username,
+				options.page,
+				`${options.sort || 'default'}:${options.sort_order || 'desc'}`,
+				options.per_page,
+			)
 
 			return this.cache.getOrFetch(
 				'collections',

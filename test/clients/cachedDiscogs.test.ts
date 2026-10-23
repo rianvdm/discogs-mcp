@@ -230,3 +230,63 @@ describe('CachedDiscogsClient.getWantlist — cache keyed by per_page', () => {
     expect(innerGetWantlist).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('CachedDiscogsClient.searchCollection — cache keyed by per_page', () => {
+  // Both collection cache keys must key on per_page as well as page, like the
+  // wantlist key above. Keyed on page alone, a per_page=50 page-1 read written by
+  // one caller is served to a per_page=100 page-1 read by another, which then
+  // paginates with the wrong page count and silently drops items. Regression test
+  // for https://github.com/rianvdm/discogs-mcp/issues/39.
+  let client: CachedDiscogsClient
+  let innerSearchCollection: ReturnType<typeof vi.fn>
+
+  // Inner client honors per_page the way the real Discogs API does: it returns
+  // min(per_page, total) items and echoes the requested per_page in pagination.
+  function collectionPage(perPage: number, totalItems: number) {
+    const count = Math.min(perPage, totalItems)
+    return {
+      pagination: { page: 1, pages: Math.max(1, Math.ceil(totalItems / perPage)), per_page: perPage, items: totalItems, urls: {} },
+      releases: Array.from({ length: count }, (_, i) => ({ id: i + 1 })),
+    }
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    innerSearchCollection = vi.fn(async (_u: string, _t: string, _s: string, opts: { page?: number; per_page?: number } = {}) =>
+      collectionPage(opts.per_page ?? 50, 31)
+    )
+    client = new CachedDiscogsClient({ searchCollection: innerSearchCollection } as unknown as DiscogsClient, makeKV())
+  })
+
+  it('browse: does not serve a per_page=1 entry to a per_page=100 request for the same page', async () => {
+    const small = await client.searchCollection('user', 'token', 'secret', { page: 1, per_page: 1 }, 'key', 'csecret')
+    expect(small.releases).toHaveLength(1)
+
+    const full = await client.searchCollection('user', 'token', 'secret', { page: 1, per_page: 100 }, 'key', 'csecret')
+    expect(full.releases).toHaveLength(31)
+    expect(full.pagination.per_page).toBe(100)
+    expect(innerSearchCollection).toHaveBeenCalledTimes(2)
+  })
+
+  it('browse: reuses the cache for an identical (page, per_page) request', async () => {
+    await client.searchCollection('user', 'token', 'secret', { page: 1, per_page: 100 }, 'key', 'csecret')
+    await client.searchCollection('user', 'token', 'secret', { page: 1, per_page: 100 }, 'key', 'csecret')
+    expect(innerSearchCollection).toHaveBeenCalledTimes(1)
+  })
+
+  it('query: does not serve a per_page=1 entry to a per_page=100 request for the same page', async () => {
+    const small = await client.searchCollection('user', 'token', 'secret', { query: 'bowie', page: 1, per_page: 1 }, 'key', 'csecret')
+    expect(small.releases).toHaveLength(1)
+
+    const full = await client.searchCollection('user', 'token', 'secret', { query: 'bowie', page: 1, per_page: 100 }, 'key', 'csecret')
+    expect(full.releases).toHaveLength(31)
+    expect(full.pagination.per_page).toBe(100)
+    expect(innerSearchCollection).toHaveBeenCalledTimes(2)
+  })
+
+  it('query: reuses the cache for an identical (query, page, per_page) request', async () => {
+    await client.searchCollection('user', 'token', 'secret', { query: 'bowie', page: 1, per_page: 100 }, 'key', 'csecret')
+    await client.searchCollection('user', 'token', 'secret', { query: 'bowie', page: 1, per_page: 100 }, 'key', 'csecret')
+    expect(innerSearchCollection).toHaveBeenCalledTimes(1)
+  })
+})
