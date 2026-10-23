@@ -2,6 +2,7 @@
  * Authenticated tools - require Discogs OAuth authentication
  * These tools can only be called after the user has authenticated via OAuth 1.0a
  */
+import type { ExecutionContext } from '@cloudflare/workers-types'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import type { Env } from '../../types/env.js'
@@ -284,7 +285,12 @@ Your authentication will be secure and tied to your specific session.`
 /**
  * Register all authenticated tools that require Discogs OAuth
  */
-export function registerAuthenticatedTools(server: McpServer, env: Env, getSessionContext: () => Promise<SessionContext>): void {
+export function registerAuthenticatedTools(
+	server: McpServer,
+	env: Env,
+	getSessionContext: () => Promise<SessionContext>,
+	ctx?: ExecutionContext,
+): void {
 	// Create Discogs clients
 	const discogsClient = new DiscogsClient()
 	// Set up rate limiter DO for coordinated rate limiting
@@ -293,7 +299,7 @@ export function registerAuthenticatedTools(server: McpServer, env: Env, getSessi
 		const stub = env.RATE_LIMITER.get(id)
 		discogsClient.setRateLimiter(stub)
 	}
-	const cachedClient = env.MCP_SESSIONS ? new CachedDiscogsClient(discogsClient, env.MCP_SESSIONS) : null
+	const cachedClient = env.MCP_SESSIONS ? new CachedDiscogsClient(discogsClient, env.MCP_SESSIONS, ctx) : null
 	const client = cachedClient || discogsClient
 
 	/**

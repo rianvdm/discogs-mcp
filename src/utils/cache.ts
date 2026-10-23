@@ -38,6 +38,12 @@ export interface CacheEntry<T> {
 	version: string // For cache versioning/invalidation
 }
 
+/**
+ * Registers background work with the Worker's ExecutionContext so the runtime
+ * keeps the isolate alive until it settles. Shaped like `ctx.waitUntil`.
+ */
+export type WaitUntil = (promise: Promise<unknown>) => void
+
 export interface PendingRequest {
 	promise: Promise<unknown>
 	timestamp: number
@@ -47,11 +53,13 @@ export class SmartCache {
 	private kv: KVNamespace
 	private config: CacheConfig
 	private pendingRequests = new Map<string, PendingRequest>()
+	private waitUntil?: WaitUntil
 	private readonly CACHE_VERSION = '1.0.0'
 
-	constructor(kv: KVNamespace, config: Partial<CacheConfig> = {}) {
+	constructor(kv: KVNamespace, config: Partial<CacheConfig> = {}, waitUntil?: WaitUntil) {
 		this.kv = kv
 		this.config = { ...DEFAULT_CACHE_CONFIG, ...config }
+		this.waitUntil = waitUntil
 	}
 
 	/**
@@ -77,6 +85,16 @@ export class SmartCache {
 	}
 
 	/**
+	 * Delete a cache entry without blocking the caller. Without a WaitUntil the
+	 * delete may be cancelled when the request handler returns; with one, the
+	 * runtime keeps the isolate alive until it settles.
+	 */
+	private deleteInBackground(cacheKey: string): void {
+		const deletion = this.kv.delete(cacheKey).catch(console.error)
+		this.waitUntil?.(deletion)
+	}
+
+	/**
 	 * Get data from cache
 	 */
 	async get<T>(type: keyof CacheConfig, identifier: string): Promise<T | null> {
@@ -92,15 +110,13 @@ export class SmartCache {
 
 			// Check if cache entry has expired
 			if (Date.now() > entry.expiresAt) {
-				// Clean up expired entry asynchronously
-				this.kv.delete(cacheKey).catch(console.error)
+				this.deleteInBackground(cacheKey)
 				return null
 			}
 
 			// Check cache version compatibility
 			if (entry.version !== this.CACHE_VERSION) {
-				// Clean up incompatible cache entry
-				this.kv.delete(cacheKey).catch(console.error)
+				this.deleteInBackground(cacheKey)
 				return null
 			}
 
@@ -308,14 +324,18 @@ export const CacheKeys = {
 /**
  * Helper for creating collection-specific cache instances
  */
-export function createDiscogsCache(kv: KVNamespace): SmartCache {
-	return new SmartCache(kv, {
-		// Tune cache TTLs based on data freshness requirements
-		collections: 4 * 60 * 60, // Complete collection cache; 4 hours — collections change infrequently
-		releases: 24 * 60 * 60, // Release data is mostly static
-		stats: 60 * 60, // Stats can be cached for an hour
-		searches: 15 * 60, // Search results cached for 15 minutes
-		userProfiles: 6 * 60 * 60, // User profiles rarely change
-		wantlists: 30 * 60, // Wantlists change more often than collections; invalidated on write
-	})
-} 
+export function createDiscogsCache(kv: KVNamespace, waitUntil?: WaitUntil): SmartCache {
+	return new SmartCache(
+		kv,
+		{
+			// Tune cache TTLs based on data freshness requirements
+			collections: 4 * 60 * 60, // Complete collection cache; 4 hours — collections change infrequently
+			releases: 24 * 60 * 60, // Release data is mostly static
+			stats: 60 * 60, // Stats can be cached for an hour
+			searches: 15 * 60, // Search results cached for 15 minutes
+			userProfiles: 6 * 60 * 60, // User profiles rarely change
+			wantlists: 30 * 60, // Wantlists change more often than collections; invalidated on write
+		},
+		waitUntil,
+	)
+}

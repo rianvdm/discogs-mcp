@@ -1,4 +1,5 @@
 import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
+import type { ExecutionContext } from '@cloudflare/workers-types'
 import type { Env } from '../../types/env.js'
 import { DiscogsClient } from '../../clients/discogs.js'
 import { CachedDiscogsClient } from '../../clients/cachedDiscogs.js'
@@ -9,7 +10,12 @@ import { sessionProfile } from '../session-profile.js'
 /**
  * Register Discogs resources with the MCP server
  */
-export function registerResources(server: McpServer, env: Env, getSessionContext: () => Promise<SessionContext>): void {
+export function registerResources(
+	server: McpServer,
+	env: Env,
+	getSessionContext: () => Promise<SessionContext>,
+	ctx?: ExecutionContext,
+): void {
 	// Create Discogs clients
 	const discogsClient = new DiscogsClient()
 	// Set up rate limiter DO for coordinated rate limiting
@@ -18,7 +24,7 @@ export function registerResources(server: McpServer, env: Env, getSessionContext
 		const stub = env.RATE_LIMITER.get(id)
 		discogsClient.setRateLimiter(stub)
 	}
-	const cachedClient = env.MCP_SESSIONS ? new CachedDiscogsClient(discogsClient, env.MCP_SESSIONS) : null
+	const cachedClient = env.MCP_SESSIONS ? new CachedDiscogsClient(discogsClient, env.MCP_SESSIONS, ctx) : null
 	const client = cachedClient || discogsClient
 
 	// List available resources
