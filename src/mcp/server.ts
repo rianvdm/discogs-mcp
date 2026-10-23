@@ -3,7 +3,7 @@
  * Returns { server, setContext } so both OAuth and session paths can inject auth props.
  */
 import type { ExecutionContext } from '@cloudflare/workers-types'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { McpServer } from '@modelcontextprotocol/server'
 import type { Env } from '../types/env.js'
 import { registerPublicTools } from './tools/public.js'
 import { registerAuthenticatedTools } from './tools/authenticated.js'

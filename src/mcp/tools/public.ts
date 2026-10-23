@@ -2,7 +2,7 @@
  * Public tools - available without authentication
  * These tools can be called by anyone and don't require Discogs authentication
  */
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { McpServer } from '@modelcontextprotocol/server'
 import { z } from 'zod'
 import type { Env } from '../../types/env.js'
 import { READ_ONLY } from './annotations.js'
@@ -10,6 +10,7 @@ import type { SessionContext } from '../server.js'
 import { buildNextSteps } from '../../utils/breadcrumb.js'
 import { describeRelayStatus, type RelayStatus } from '../../rate-limiter/relay.js'
 import { SERVER_VERSION } from '../../version.js'
+import { PROTOCOL_VERSION } from '../protocol.js'
 
 /**
  * Generate authentication URL with connection ID if available
@@ -45,9 +46,9 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 		{
 			description: 'Test connectivity to the Discogs MCP server',
 			annotations: READ_ONLY,
-			inputSchema: {
+			inputSchema: z.object({
 				message: z.string().optional().default('Hello from Discogs MCP!').describe('Message to echo back'),
-			},
+			}),
 		},
 		async ({ message }) => {
 			const egress = await relayStatusLine(env)
@@ -69,7 +70,7 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 	// Server info tool - get server details
 	server.registerTool(
 		'server_info',
-		{ description: 'Get information about the Discogs MCP server', annotations: READ_ONLY, inputSchema: {} },
+		{ description: 'Get information about the Discogs MCP server', annotations: READ_ONLY, inputSchema: z.object({}) },
 		async () => {
 			const { connectionId, baseUrl } = await getSessionContext()
 			const authUrl = getAuthUrl(baseUrl, connectionId)
@@ -84,7 +85,7 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 				content: [
 					{
 						type: 'text',
-						text: `Discogs MCP Server v${SERVER_VERSION}\n\nStatus: Running\nProtocol: MCP 2024-11-05\nFeatures:\n- Resources: Collection, Releases, Search\n- Authentication: OAuth 1.0a\n- Rate Limiting: Enabled\n- ${egress}\n\nTo get started, authenticate at ${authUrl}${nextSteps}`,
+						text: `Discogs MCP Server v${SERVER_VERSION}\n\nStatus: Running\nProtocol: MCP ${PROTOCOL_VERSION}\nFeatures:\n- Resources: Collection, Releases, Search\n- Authentication: OAuth 1.0a\n- Rate Limiting: Enabled\n- ${egress}\n\nTo get started, authenticate at ${authUrl}${nextSteps}`,
 					},
 				],
 			}
@@ -94,7 +95,7 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 	// Auth status tool - check authentication status
 	server.registerTool(
 		'auth_status',
-		{ description: 'Check authentication status and get login instructions if needed', annotations: READ_ONLY, inputSchema: {} },
+		{ description: 'Check authentication status and get login instructions if needed', annotations: READ_ONLY, inputSchema: z.object({}) },
 		async () => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
 			const loginUrl = getAuthUrl(baseUrl, connectionId)

@@ -120,6 +120,8 @@ class MockMCPClient {
 			headers: {
 				'Content-Type': 'application/json',
 				Accept: 'application/json, text/event-stream',
+				// A real HTTP client always sends Host; the MCP handler validates it on localhost endpoints.
+				Host: 'localhost:8787',
 			},
 			body: JSON.stringify(body),
 		})

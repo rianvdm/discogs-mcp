@@ -50,6 +50,7 @@ src/
 
 ### Key patterns
 
+- **MCP transport**: `createMcpHandler` from `agents/mcp/server` with a per-request server factory (`@modelcontextprotocol/server` v2, protocol 2026-07-28, legacy `initialize` clients served by the handler's compatibility lane). `allowedOriginHostnames` replaces the handler defaults, so localhost stays listed. The repo's own `?session_id=` parameter selects the manual-login session path; there is no `Mcp-Session-Id` header. Hand-rolled requests to the modern lane fail (`missing _meta`); use an SDK client
 - **Request context injection**: MCP server injects auth context before each tool handler call — tools receive the authenticated user's Discogs client
 - **Two-layer caching**: CachedDiscogsClient wraps DiscogsClient; cache keys in KV with TTLs to stay within Discogs' 60 req/min rate limit
 - **Rate limiting via Durable Objects**: `src/rate-limiter/durable-object.ts` coordinates rate limits across Worker instances
