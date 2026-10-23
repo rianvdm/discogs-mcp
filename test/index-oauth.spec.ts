@@ -179,14 +179,15 @@ describe('POST /mcp — browser Origin policy', () => {
   // tooling. The handler option replaces its defaults, so localhost is listed explicitly.
   const sessionId = 'origin-policy-session'
 
-  async function postWithOrigin(origin?: string): Promise<Response> {
+  async function postWithOrigin(origin?: string, host = 'discogs-mcp.com'): Promise<Response> {
     await env.MCP_SESSIONS.put(
       `session:${sessionId}`,
       JSON.stringify({ username: 'testuser', numericId: '12345', accessToken: 'tok', accessTokenSecret: 'sec', expiresAt: Date.now() + 60_000, sessionId }),
     )
-    const headers: Record<string, string> = { ...MCP_HEADERS }
+    // A real HTTP client always sends Host; the handler validates it on workers.dev endpoints.
+    const headers: Record<string, string> = { ...MCP_HEADERS, Host: host }
     if (origin) headers.Origin = origin
-    const req = new Request(`https://discogs-mcp.com/mcp?session_id=${sessionId}`, { method: 'POST', body: MCP_INIT_BODY, headers })
+    const req = new Request(`https://${host}/mcp?session_id=${sessionId}`, { method: 'POST', body: MCP_INIT_BODY, headers })
     const ctx = createExecutionContext()
     const res = await worker.fetch(req, env, ctx)
     await waitOnExecutionContext(ctx)
@@ -207,6 +208,15 @@ describe('POST /mcp — browser Origin policy', () => {
 
   it('accepts localhost Origins for the MCP inspector against wrangler dev', async () => {
     expect((await postWithOrigin('http://localhost:6274')).status).toBe(200)
+  })
+
+  it('accepts a self-hosted deployment\'s own Origin, whatever its hostname', async () => {
+    const host = 'discogs-mcp.someone.workers.dev'
+    expect((await postWithOrigin(`https://${host}`, host)).status).toBe(200)
+  })
+
+  it('still rejects a foreign Origin on a self-hosted deployment', async () => {
+    expect((await postWithOrigin('https://discogs-mcp.com', 'discogs-mcp.someone.workers.dev')).status).toBe(403)
   })
 })
 
