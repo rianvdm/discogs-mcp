@@ -5,6 +5,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import type { Env } from '../../types/env.js'
+import { READ_ONLY } from './annotations.js'
 import type { SessionContext } from '../server.js'
 import { buildNextSteps } from '../../utils/breadcrumb.js'
 import { describeRelayStatus, type RelayStatus } from '../../rate-limiter/relay.js'
@@ -43,6 +44,7 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 		'ping',
 		{
 			description: 'Test connectivity to the Discogs MCP server',
+			annotations: READ_ONLY,
 			inputSchema: {
 				message: z.string().optional().default('Hello from Discogs MCP!').describe('Message to echo back'),
 			},
@@ -65,30 +67,34 @@ export function registerPublicTools(server: McpServer, env: Env, getSessionConte
 	)
 
 	// Server info tool - get server details
-	server.registerTool('server_info', { description: 'Get information about the Discogs MCP server', inputSchema: {} }, async () => {
-		const { connectionId, baseUrl } = await getSessionContext()
-		const authUrl = getAuthUrl(baseUrl, connectionId)
-		const egress = await relayStatusLine(env)
+	server.registerTool(
+		'server_info',
+		{ description: 'Get information about the Discogs MCP server', annotations: READ_ONLY, inputSchema: {} },
+		async () => {
+			const { connectionId, baseUrl } = await getSessionContext()
+			const authUrl = getAuthUrl(baseUrl, connectionId)
+			const egress = await relayStatusLine(env)
 
-		const nextSteps = buildNextSteps([
-			{ tool: 'auth_status', args: '', hint: 'check whether the current session is authenticated' },
-			{ tool: 'ping', args: '', hint: 'test connectivity' },
-		])
+			const nextSteps = buildNextSteps([
+				{ tool: 'auth_status', args: '', hint: 'check whether the current session is authenticated' },
+				{ tool: 'ping', args: '', hint: 'test connectivity' },
+			])
 
-		return {
-			content: [
-				{
-					type: 'text',
-					text: `Discogs MCP Server v${SERVER_VERSION}\n\nStatus: Running\nProtocol: MCP 2024-11-05\nFeatures:\n- Resources: Collection, Releases, Search\n- Authentication: OAuth 1.0a\n- Rate Limiting: Enabled\n- ${egress}\n\nTo get started, authenticate at ${authUrl}${nextSteps}`,
-				},
-			],
-		}
-	})
+			return {
+				content: [
+					{
+						type: 'text',
+						text: `Discogs MCP Server v${SERVER_VERSION}\n\nStatus: Running\nProtocol: MCP 2024-11-05\nFeatures:\n- Resources: Collection, Releases, Search\n- Authentication: OAuth 1.0a\n- Rate Limiting: Enabled\n- ${egress}\n\nTo get started, authenticate at ${authUrl}${nextSteps}`,
+					},
+				],
+			}
+		},
+	)
 
 	// Auth status tool - check authentication status
 	server.registerTool(
 		'auth_status',
-		{ description: 'Check authentication status and get login instructions if needed', inputSchema: {} },
+		{ description: 'Check authentication status and get login instructions if needed', annotations: READ_ONLY, inputSchema: {} },
 		async () => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
 			const loginUrl = getAuthUrl(baseUrl, connectionId)

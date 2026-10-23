@@ -61,6 +61,45 @@ describe('createMcpServer registration', () => {
 		expect(catalogue).toMatchSnapshot()
 	})
 
+	it('annotates every tool so clients can tell reads from destructive writes', async () => {
+		// The spec defaults destructiveHint to true for any tool that is not read-only,
+		// so a client confirms nothing unless reads say readOnlyHint and the additive or
+		// reversible writes say destructiveHint: false. Only the four tools that discard
+		// user-authored data are left flagged. https://github.com/rianvdm/discogs-mcp/issues/44
+		const { tools } = await client.listTools()
+		const annotations = Object.fromEntries(tools.map((t) => [t.name, t.annotations]).sort(([a], [b]) => a.localeCompare(b)))
+
+		const read = { readOnlyHint: true }
+		const additive = { readOnlyHint: false, destructiveHint: false }
+		const destructive = { readOnlyHint: false, destructiveHint: true }
+
+		expect(annotations).toEqual({
+			add_to_collection: additive,
+			add_to_wantlist: additive,
+			auth_status: read,
+			create_folder: additive,
+			delete_folder: destructive,
+			edit_custom_field: destructive,
+			edit_folder: additive,
+			get_cache_stats: read,
+			get_collection_stats: read,
+			get_recommendations: read,
+			get_release: read,
+			get_wantlist: read,
+			list_custom_fields: read,
+			list_folders: read,
+			move_release: additive,
+			ping: read,
+			rate_release: additive,
+			refresh_collection: additive,
+			remove_from_collection: destructive,
+			remove_from_wantlist: destructive,
+			search_collection: read,
+			search_discogs: read,
+			server_info: read,
+		})
+	})
+
 	it('advertises the expected prompt catalogue', async () => {
 		const { prompts } = await client.listPrompts()
 		const catalogue = prompts
