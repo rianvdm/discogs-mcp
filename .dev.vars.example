@@ -9,11 +9,9 @@
 # Where to get these:
 #   DISCOGS_CONSUMER_KEY    — https://www.discogs.com/settings/developers (create a new app)
 #   DISCOGS_CONSUMER_SECRET — same page, shown alongside the key
-#   JWT_SECRET              — any random string; e.g. `openssl rand -hex 32`
 
 DISCOGS_CONSUMER_KEY=
 DISCOGS_CONSUMER_SECRET=
-JWT_SECRET=
 
 # Optional — egress relay for Discogs API calls. Not needed to run the server.
 # Discogs throttles per source IP and Workers share Cloudflare's egress IPs; the

@@ -93,5 +93,4 @@ id = "35c396a7d0924dd8a5527334cd4538d3"
 # For the maintainer's hosted instance, set with `wrangler secret put <NAME> --env production`:
 # - DISCOGS_CONSUMER_KEY
 # - DISCOGS_CONSUMER_SECRET
-# - JWT_SECRET
 # - RELAY_ACCESS_CLIENT_ID / RELAY_ACCESS_CLIENT_SECRET (only with DISCOGS_RELAY_ORIGIN)
