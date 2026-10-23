@@ -498,7 +498,7 @@ export const MARKETING_PAGE_HTML = `<!DOCTYPE html>
                 <h1>Your records,<br><span class="hl">AI-powered</span></h1>
                 <p>Discogs MCP is an open-source Model Context Protocol server that connects Claude and other AI assistants to your Discogs record collection. Search by genre, decade, or just tell it you want <strong>something for a rainy Sunday</strong>. Self-hosted on Cloudflare Workers \u2014 <strong>you bring your own Discogs API key</strong>.</p>
                 <div class="cta-row">
-                    <a href="https://github.com/rianvdm/discogs-mcp#-self-hosting" class="btn btn-primary">Self-Hosting Guide</a>
+                    <a href="https://github.com/rianvdm/discogs-mcp#deploy-your-own-copy" class="btn btn-primary">Self-Hosting Guide</a>
                     <a href="https://github.com/rianvdm/discogs-mcp" class="btn btn-secondary">View Source</a>
                 </div>
             </div>
@@ -510,7 +510,7 @@ export const MARKETING_PAGE_HTML = `<!DOCTYPE html>
 
         <section class="notice">
             <div class="container">
-                <p><strong>Heads up:</strong> <code>discogs-mcp.com</code> is the maintainer's private instance and is locked to a single Discogs account. The Discogs API rate limit is too tight to share, so you'll need to <a href="https://github.com/rianvdm/discogs-mcp#-self-hosting">deploy your own copy</a> (free on Cloudflare Workers, takes ~10 minutes).</p>
+                <p><strong>Heads up:</strong> <code>discogs-mcp.com</code> is the maintainer's private instance and is locked to a single Discogs account. The Discogs API rate limit is too tight to share, so you'll need to <a href="https://github.com/rianvdm/discogs-mcp#deploy-your-own-copy">deploy your own copy</a> (free on Cloudflare Workers, takes ~10 minutes).</p>
             </div>
         </section>
 
@@ -546,7 +546,7 @@ export const MARKETING_PAGE_HTML = `<!DOCTYPE html>
                     <div class="setup-card">
                         <h3>1. Deploy your own instance</h3>
                         <p>Clone the repo, add your Discogs API credentials, and deploy to Cloudflare Workers. The free tier is more than enough.</p>
-                        <p><a href="https://github.com/rianvdm/discogs-mcp#-self-hosting" style="color: var(--yellow-dark); font-weight: 600;">Read the self-hosting guide \u2192</a></p>
+                        <p><a href="https://github.com/rianvdm/discogs-mcp#deploy-your-own-copy" style="color: var(--yellow-dark); font-weight: 600;">Read the self-hosting guide \u2192</a></p>
                     </div>
                     <div class="setup-card">
                         <h3>2. Connect your MCP client</h3>
