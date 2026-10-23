@@ -28,7 +28,7 @@ Entry point: `src/index-oauth.ts` — routes requests through `OAuthProvider` wh
 
 ```
 src/
-├── auth/              # OAuth 1.0a flow (Discogs) + JWT session tokens
+├── auth/              # OAuth 1.0a flow against Discogs
 ├── clients/           # DiscogsClient (API calls + retry) → CachedDiscogsClient (KV cache wrapper)
 ├── mcp/
 │   ├── server.ts      # MCP server factory — registers all tools, resources, prompts
@@ -61,7 +61,7 @@ src/
 - **Runtime**: Cloudflare Workers (ES2021 target, Node.js compat enabled)
 - **Storage**: KV namespaces for sessions (`MCP_SESSIONS`) and OAuth state (`OAUTH_KV`); sync outcomes structured-log to console (Workers Observability)
 - **Durable Objects**: `DiscogsRateLimiter` class
-- **Secrets** (via `wrangler secret put`): `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`, `JWT_SECRET`
+- **Secrets** (via `wrangler secret put`): `DISCOGS_CONSUMER_KEY`, `DISCOGS_CONSUMER_SECRET`
 - **CI**: GitHub Actions — lint → test → build → auto-deploy to prod on main push
 
 ## Code conventions

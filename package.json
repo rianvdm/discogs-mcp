@@ -61,9 +61,6 @@
 			"DISCOGS_CONSUMER_SECRET": {
 				"description": "Your Discogs app **Consumer Secret** (shown alongside the Consumer Key on the same page)."
 			},
-			"JWT_SECRET": {
-				"description": "A random string used to sign session tokens. Generate one with `openssl rand -hex 32`. Don't reuse across instances."
-			},
 			"ALLOWED_DISCOGS_USER_ID": {
 				"description": "**Optional.** Numeric Discogs user ID(s) permitted to authenticate — comma-separated for multiple users (e.g. `123456,789012`). Find your ID at `https://api.discogs.com/users/<your-username>`. Leave blank for an open instance."
 			}

@@ -33,7 +33,7 @@ Workers do share Cloudflare's outbound IP addresses with other Workers, so you c
 
 ## Deploy your own copy
 
-The Deploy to Cloudflare button does most of the work. It clones this repo into your GitHub account, creates the KV namespaces and the Durable Object in your Cloudflare account, prompts you for three secrets, and sets up Workers Builds so that pushes to your fork redeploy automatically.
+The Deploy to Cloudflare button does most of the work. It clones this repo into your GitHub account, creates the KV namespaces and the Durable Object in your Cloudflare account, prompts you for two secrets, and sets up Workers Builds so that pushes to your fork redeploy automatically.
 
 ### 1. Register a Discogs app
 
@@ -45,11 +45,10 @@ Go to [discogs.com/settings/developers](https://www.discogs.com/settings/develop
 
 When prompted, provide:
 
-| Secret                    | Value                                                   |
-| ------------------------- | ------------------------------------------------------- |
-| `DISCOGS_CONSUMER_KEY`    | from step 1                                             |
-| `DISCOGS_CONSUMER_SECRET` | from step 1                                             |
-| `JWT_SECRET`              | any random string; `openssl rand -hex 32` is a good one |
+| Secret                    | Value       |
+| ------------------------- | ----------- |
+| `DISCOGS_CONSUMER_KEY`    | from step 1 |
+| `DISCOGS_CONSUMER_SECRET` | from step 1 |
 
 When the deploy finishes, Cloudflare shows your Worker URL, something like `https://discogs-mcp.<your-subdomain>.workers.dev`. The MCP endpoint is `/mcp` on that host.
 
@@ -90,10 +89,9 @@ npm install
 wrangler kv namespace create MCP_SESSIONS
 wrangler kv namespace create OAUTH_KV
 
-# Set the three secrets
+# Set the two secrets
 wrangler secret put DISCOGS_CONSUMER_KEY
 wrangler secret put DISCOGS_CONSUMER_SECRET
-wrangler secret put JWT_SECRET
 
 npm run deploy
 ```
@@ -125,8 +123,8 @@ Steps I expect:
    with a placeholder callback URL, and wait for me to give you the Consumer
    Key and Consumer Secret.
 3. Clone the repo, install dependencies, create the MCP_SESSIONS and OAUTH_KV
-   namespaces, put their IDs into wrangler.toml, store the three secrets
-   (generate JWT_SECRET yourself), and deploy. Tell me the Worker URL.
+   namespaces, put their IDs into wrangler.toml, store the two secrets,
+   and deploy. Tell me the Worker URL.
 4. Tell me the exact callback URL to set on the Discogs app and wait for me to
    confirm I've done it.
 5. Ask for my Discogs username, look up my numeric user ID at
@@ -304,7 +302,7 @@ Leave `DISCOGS_RELAY_ORIGIN` empty to call Discogs directly, which is the defaul
 Dev secrets live in `.dev.vars`, which is gitignored. The same Discogs app you registered for production is fine for local use.
 
 ```bash
-cp .dev.vars.example .dev.vars   # then fill in DISCOGS_CONSUMER_KEY, DISCOGS_CONSUMER_SECRET, JWT_SECRET
+cp .dev.vars.example .dev.vars   # then fill in DISCOGS_CONSUMER_KEY and DISCOGS_CONSUMER_SECRET
 npm run dev                      # Worker on http://localhost:8787
 npx @modelcontextprotocol/inspector http://localhost:8787/mcp
 ```
