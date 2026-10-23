@@ -226,7 +226,7 @@ describe('GET / — marketing page', () => {
     const res = await worker.fetch(req, env, ctx)
     await waitOnExecutionContext(ctx)
     const body = await res.text()
-    expect(body).toContain('github.com/rianvdm/discogs-mcp#-self-hosting')
+    expect(body).toContain('github.com/rianvdm/discogs-mcp#deploy-your-own-copy')
     expect(body).toContain('private instance')
   })
 })

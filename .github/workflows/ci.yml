@@ -93,6 +93,6 @@ jobs:
                 owner,
                 repo,
                 issue_number: associatedPR.number,
-                body: '🚀 **Deploy succeeded!** Your changes have been deployed to production.'
+                body: 'Deploy succeeded. Your changes have been deployed to production.'
               });
             }
