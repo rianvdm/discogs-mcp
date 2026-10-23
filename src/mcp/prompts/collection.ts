@@ -2,7 +2,7 @@
  * Collection Prompts
  * Provides MCP prompts for common Discogs collection workflows
  */
-import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 
 /**
@@ -17,7 +17,7 @@ export function registerPrompts(server: McpServer): void {
 		"browse_collection",
 		{
 			description: "Browse and explore your Discogs music collection",
-			argsSchema: {},
+			argsSchema: z.object({}),
 		},
 		async () => {
 			return {
@@ -42,13 +42,13 @@ export function registerPrompts(server: McpServer): void {
 		"find_music",
 		{
 			description: "Find specific music in your collection",
-			argsSchema: {
+			argsSchema: z.object({
 				query: z
 					.string()
 					.describe(
 						"Search query for finding music (artist, album, track, genre, mood, etc.)"
 					),
-			},
+			}),
 		},
 		async ({ query }) => {
 			return {
@@ -73,7 +73,7 @@ export function registerPrompts(server: McpServer): void {
 		"collection_insights",
 		{
 			description: "Get insights and statistics about your music collection",
-			argsSchema: {},
+			argsSchema: z.object({}),
 		},
 		async () => {
 			return {

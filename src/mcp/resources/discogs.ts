@@ -1,4 +1,4 @@
-import { McpServer, ResourceTemplate } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { McpServer, ResourceTemplate } from '@modelcontextprotocol/server'
 import type { ExecutionContext } from '@cloudflare/workers-types'
 import type { Env } from '../../types/env.js'
 import { DiscogsClient } from '../../clients/discogs.js'

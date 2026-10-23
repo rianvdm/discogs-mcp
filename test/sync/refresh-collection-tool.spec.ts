@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { env } from 'cloudflare:test'
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
+import { McpServer } from '@modelcontextprotocol/server'
 import { registerAuthenticatedTools } from '../../src/mcp/tools/authenticated'
 import { snapshotKey, progressKey, pageKey } from '../../src/sync/keys'
 import { toSnapshotItem, type ProgressBlob } from '../../src/sync/types'

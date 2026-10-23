@@ -1,8 +1,7 @@
 // ABOUTME: Tests the text get_collection_stats renders from a computed stats object.
 // ABOUTME: Calls the tool through an MCP client against a stubbed DiscogsClient, with no KV cache bound.
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { Client } from '@modelcontextprotocol/sdk/client/index.js'
-import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js'
+import { Client, InMemoryTransport } from '@modelcontextprotocol/client'
 import { createMcpServer } from '../../../src/mcp/server'
 import { DiscogsClient, type DiscogsCollectionStats } from '../../../src/clients/discogs'
 

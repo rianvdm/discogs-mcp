@@ -2,11 +2,12 @@
 // ABOUTME: Routes /mcp requests to session handler or OAuth provider based on auth state.
 import { OAuthProvider } from '@cloudflare/workers-oauth-provider'
 import type { ExecutionContext, ScheduledController } from '@cloudflare/workers-types'
-import { createMcpHandler } from 'agents/mcp'
+import { createMcpHandler, type CreateMcpHandlerOptions } from 'agents/mcp/server'
 
 import { DiscogsOAuthHandler, parseAllowlist, type DiscogsUserProps } from './auth/oauth-handler'
 import { DiscogsClient } from './clients/discogs'
 import { MARKETING_PAGE_HTML } from './marketing-page.js'
+import { PROTOCOL_VERSION } from './mcp/protocol'
 import { createMcpServer } from './mcp/server'
 import { syncCollection, type SyncClient } from './sync/collectionSync'
 import { tokenMirrorKey } from './sync/keys'
@@ -20,6 +21,22 @@ export { DiscogsRateLimiter } from './rate-limiter/durable-object'
 
 // PKCE + standard MCP session TTL (7 days)
 const ACCESS_TOKEN_TTL = 7 * 24 * 60 * 60
+
+/**
+ * Options shared by both MCP handler call sites.
+ *
+ * Non-browser clients (Claude.ai, Claude Code, Claude Desktop) send no Origin
+ * and are always accepted. Browser-based clients must come from the custom
+ * domain or local dev tooling (the MCP inspector against `wrangler dev`).
+ * Setting this option replaces the handler's defaults rather than extending
+ * them, which is why localhost is listed explicitly. Host validation is left
+ * to Cloudflare routing: the handler only checks Host on localhost and
+ * workers.dev endpoints, and discogs-mcp.com is routed by the dashboard, not
+ * by wrangler.toml.
+ */
+const MCP_HANDLER_OPTIONS: CreateMcpHandlerOptions = {
+  allowedOriginHostnames: ['discogs-mcp.com', 'localhost', '127.0.0.1'],
+}
 
 /**
  * Enforce ALLOWED_DISCOGS_USER_ID on authenticated MCP requests.
@@ -71,7 +88,8 @@ const mcpApiHandler = {
       })
     }
 
-    return createMcpHandler(server)(request, env, ctx)
+    // The server is built per request above, so the factory hands back the configured instance.
+    return createMcpHandler(() => server, MCP_HANDLER_OPTIONS)(request, env, ctx)
   },
 }
 
@@ -111,10 +129,9 @@ function getOAuthProvider(origin: string): OAuthProvider {
 }
 
 /**
- * Handle MCP request using a pre-existing KV session (session_id param or Mcp-Session-Id header).
- * Two call paths:
- *   - session_id param: called unconditionally, handles KV miss internally
- *   - Mcp-Session-Id header: only called after router verifies KV entry exists
+ * Handle an MCP request using a pre-existing KV session from the manual /login
+ * flow, selected by the repo's own `?session_id=` parameter. Handles a KV miss
+ * internally. MCP 2026-07-28 has no session header, so nothing else selects it.
  */
 async function handleSessionBasedMcp(
   request: Request,
@@ -162,18 +179,7 @@ async function handleSessionBasedMcp(
     sessionId,
   })
 
-  const handler = createMcpHandler(server)
-  const response = await handler(request, env, ctx)
-
-  const newHeaders = new Headers(response.headers)
-  newHeaders.set('Mcp-Session-Id', sessionId)
-  newHeaders.set('Access-Control-Expose-Headers', 'Mcp-Session-Id')
-
-  return new Response(response.body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: newHeaders,
-  })
+  return createMcpHandler(() => server, MCP_HANDLER_OPTIONS)(request, env, ctx)
 }
 
 /**
@@ -241,8 +247,7 @@ export default {
         headers: {
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type, Authorization, Mcp-Session-Id',
-          'Access-Control-Expose-Headers': 'Mcp-Session-Id',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, MCP-Protocol-Version, Mcp-Method, Mcp-Name',
           'Access-Control-Max-Age': '86400',
         },
       })
@@ -290,6 +295,7 @@ export default {
       return new Response(
         JSON.stringify({
           version: '1.0',
+          protocolVersion: PROTOCOL_VERSION,
           serverInfo: { name: 'discogs-mcp', version: SERVER_VERSION },
           transport: { type: 'streamable-http', endpoint: '/mcp' },
           authentication: { required: false },
@@ -300,23 +306,16 @@ export default {
 
     // /mcp — session routing (applies to both GET and POST)
     if (url.pathname === '/mcp') {
-      // 1. Explicit session_id param → session path (handles KV miss internally)
+      // Explicit session_id param → session path (handles KV miss internally).
+      // This is the repo's own parameter from the manual /login flow, not protocol
+      // session state: MCP 2026-07-28 has no Mcp-Session-Id header, and a legacy
+      // client sending one falls through to the OAuth provider like any other request.
       const sessionId = url.searchParams.get('session_id')
       if (sessionId) {
         return handleSessionBasedMcp(request, env, ctx, sessionId)
       }
 
-      // 2. Mcp-Session-Id header — only route to session path if KV entry exists
-      const mcpSessionId = request.headers.get('Mcp-Session-Id')
-      if (mcpSessionId) {
-        const sessionDataStr = await env.MCP_SESSIONS.get(`session:${mcpSessionId}`)
-        if (sessionDataStr) {
-          return handleSessionBasedMcp(request, env, ctx, mcpSessionId)
-        }
-        // No KV entry → fall through to OAuth provider (returns 401 + WWW-Authenticate)
-      }
-
-      // 3. Everything else → OAuth provider
+      // Everything else → OAuth provider
       const response = await getOAuthProvider(url.origin).fetch(request, env, ctx)
 
       // Inject WWW-Authenticate on 401 responses from /mcp

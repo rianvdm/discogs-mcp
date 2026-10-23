@@ -15,7 +15,7 @@ exports[`createMcpServer registration > advertises the expected prompt catalogue
   {
     "arguments": [
       {
-        "description": undefined,
+        "description": "Search query for finding music (artist, album, track, genre, mood, etc.)",
         "name": "query",
         "required": true,
       },
@@ -58,7 +58,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Add a release to a folder in your Discogs collection. If no folder is specified, adds to the Uncategorized folder (ID 1).",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "folder_id": {
           "default": 1,
@@ -87,7 +87,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Add a release to your Discogs wantlist (releases you want but don't own).",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "release_id": {
           "description": "The Discogs release ID to want",
@@ -110,7 +110,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Check authentication status and get login instructions if needed",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "type": "object",
     },
@@ -121,7 +121,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Create a new folder in your Discogs collection for organizing releases.",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "name": {
           "description": "Name for the new folder",
@@ -146,7 +146,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Delete a folder from your Discogs collection. The folder must be empty (no releases). Cannot delete system folders (All or Uncategorized).",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "folder_id": {
           "description": "ID of the folder to delete (must be 2 or higher — system folders cannot be deleted)",
@@ -170,7 +170,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Set a custom field value on a release in your Discogs collection. Use list_custom_fields to see available fields and their IDs. For dropdown fields, the value must match one of the defined options.",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "field_id": {
           "description": "Custom field ID (from list_custom_fields)",
@@ -221,7 +221,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Rename an existing folder in your Discogs collection. Cannot rename the system folders (All or Uncategorized).",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "folder_id": {
           "description": "ID of the folder to rename (must be 2 or higher — system folders cannot be renamed)",
@@ -254,7 +254,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Get cache performance statistics including total entries, pending requests, and data type breakdown.",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "type": "object",
     },
@@ -265,7 +265,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Get comprehensive statistics about your Discogs collection including genre breakdown, decade analysis, format distribution, and ratings.",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "type": "object",
     },
@@ -276,7 +276,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Get personalized music recommendations from your collection based on genre, decade, mood, or similarity to other releases. Supports mood-aware filtering with descriptors like 'mellow', 'energetic', 'melancholic'.",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "decade": {
           "description": "Filter by decade (e.g., '1970s', '1980')",
@@ -322,7 +322,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Get detailed information about a specific release from Discogs, including tracklist, formats, labels, and more.",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "release_id": {
           "description": "The Discogs release ID (e.g., from search results)",
@@ -345,7 +345,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "List releases on your Discogs wantlist (releases you want but don't own). Paginated.",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "page": {
           "default": 1,
@@ -373,7 +373,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "List all custom fields defined in your Discogs collection. Custom fields allow you to add metadata like notes, tags, or categories to releases.",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "type": "object",
     },
@@ -384,7 +384,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "List all folders in your Discogs collection. Shows folder ID, name, and release count for each folder. Folder 0 is "All" (virtual), folder 1 is "Uncategorized" (default).",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "type": "object",
     },
@@ -395,7 +395,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Move a release instance to a different folder in your Discogs collection. Use search_collection to find release and instance IDs, and list_folders to see available folders.",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "folder_id": {
           "description": "Current folder ID containing the release",
@@ -439,7 +439,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Test connectivity to the Discogs MCP server",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "message": {
           "default": "Hello from Discogs MCP!",
@@ -458,7 +458,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Rate a release in your Discogs collection from 0 (no rating) to 5 stars. Use search_collection to find release and instance IDs.",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "folder_id": {
           "description": "Folder ID containing the release",
@@ -504,7 +504,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Force an immediate full refresh of the cached collection snapshot. Use after adding or removing items in Discogs if you need them visible to search before the next scheduled sync (every 6 hours).",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "type": "object",
     },
@@ -515,7 +515,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Remove a specific release instance from a folder in your Discogs collection. Use search_collection to find the instance_id for a release.",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "folder_id": {
           "description": "Folder ID containing the release",
@@ -552,7 +552,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Remove a release from your Discogs wantlist.",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "release_id": {
           "description": "The Discogs release ID to remove from the wantlist",
@@ -575,7 +575,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Search your Discogs collection with natural language queries. IMPORTANT: Pass the user's query as-is — do NOT rewrite, decompose, or make multiple searches. The tool handles semantic/conceptual queries internally (e.g., 'strong empowering female voice', 'perfect for a rainy Sunday') by first attempting a keyword match, then returning the collection for LLM-based selection if no matches are found. Also supports mood descriptors like 'mellow jazz', temporal terms like 'recent' or 'oldest', and specific searches by artist, album, genre, or year. One call is sufficient for any query.",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "group_pressings": {
           "default": false,
@@ -619,7 +619,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Search the Discogs-wide catalog for releases, masters, artists, or labels (not limited to your collection). Use this to look up albums, artists, or releases that you don't own. If you want to search only what you own, use search_collection instead.",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
         "per_page": {
           "default": 10,
@@ -662,7 +662,7 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
   {
     "description": "Get information about the Discogs MCP server",
     "inputSchema": {
-      "$schema": "http://json-schema.org/draft-07/schema#",
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {},
       "type": "object",
     },
