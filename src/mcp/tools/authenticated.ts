@@ -6,6 +6,7 @@ import type { ExecutionContext } from '@cloudflare/workers-types'
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js'
 import { z } from 'zod'
 import type { Env } from '../../types/env.js'
+import { ADDITIVE_WRITE, DESTRUCTIVE_WRITE, READ_ONLY } from './annotations.js'
 
 import { DiscogsClient } from '../../clients/discogs.js'
 import { syncCollection, type SyncClient } from '../../sync/collectionSync.js'
@@ -513,6 +514,7 @@ export function registerAuthenticatedTools(
 		'refresh_collection',
 		{
 			description: 'Force an immediate full refresh of the cached collection snapshot. Use after adding or removing items in Discogs if you need them visible to search before the next scheduled sync (every 6 hours).',
+			annotations: ADDITIVE_WRITE,
 			inputSchema: {},
 		},
 		async () => {
@@ -583,6 +585,7 @@ export function registerAuthenticatedTools(
 		'search_collection',
 		{
 			description: "Search your Discogs collection with natural language queries. IMPORTANT: Pass the user's query as-is — do NOT rewrite, decompose, or make multiple searches. The tool handles semantic/conceptual queries internally (e.g., 'strong empowering female voice', 'perfect for a rainy Sunday') by first attempting a keyword match, then returning the collection for LLM-based selection if no matches are found. Also supports mood descriptors like 'mellow jazz', temporal terms like 'recent' or 'oldest', and specific searches by artist, album, genre, or year. One call is sufficient for any query.",
+			annotations: READ_ONLY,
 			inputSchema: {
 				query: z
 					.string()
@@ -913,6 +916,7 @@ export function registerAuthenticatedTools(
 		'get_release',
 		{
 			description: 'Get detailed information about a specific release from Discogs, including tracklist, formats, labels, and more.',
+			annotations: READ_ONLY,
 			inputSchema: {
 				release_id: z.string().describe('The Discogs release ID (e.g., from search results)'),
 			},
@@ -992,6 +996,7 @@ export function registerAuthenticatedTools(
 		'search_discogs',
 		{
 			description: "Search the Discogs-wide catalog for releases, masters, artists, or labels (not limited to your collection). Use this to look up albums, artists, or releases that you don't own. If you want to search only what you own, use search_collection instead.",
+			annotations: READ_ONLY,
 			inputSchema: {
 				query: z
 					.string()
@@ -1106,6 +1111,7 @@ export function registerAuthenticatedTools(
 		'get_collection_stats',
 		{
 			description: 'Get comprehensive statistics about your Discogs collection including genre breakdown, decade analysis, format distribution, and ratings.',
+			annotations: READ_ONLY,
 			inputSchema: {},
 		},
 		async () => {
@@ -1240,6 +1246,7 @@ export function registerAuthenticatedTools(
 		'get_recommendations',
 		{
 			description: "Get personalized music recommendations from your collection based on genre, decade, mood, or similarity to other releases. Supports mood-aware filtering with descriptors like 'mellow', 'energetic', 'melancholic'.",
+			annotations: READ_ONLY,
 			inputSchema: {
 				limit: z.number().min(1).max(50).optional().default(10).describe('Number of recommendations to return (1-50)'),
 				genre: z.string().optional().describe("Filter by genre or mood descriptor (e.g., 'jazz', 'mellow', 'energetic')"),
@@ -1687,6 +1694,7 @@ export function registerAuthenticatedTools(
 		'get_cache_stats',
 		{
 			description: 'Get cache performance statistics including total entries, pending requests, and data type breakdown.',
+			annotations: READ_ONLY,
 			inputSchema: {},
 		},
 		async () => {
@@ -1775,6 +1783,7 @@ export function registerAuthenticatedTools(
 		'list_folders',
 		{
 			description: 'List all folders in your Discogs collection. Shows folder ID, name, and release count for each folder. Folder 0 is "All" (virtual), folder 1 is "Uncategorized" (default).',
+			annotations: READ_ONLY,
 			inputSchema: {},
 		},
 		async () => {
@@ -1833,6 +1842,7 @@ export function registerAuthenticatedTools(
 		'create_folder',
 		{
 			description: 'Create a new folder in your Discogs collection for organizing releases.',
+			annotations: ADDITIVE_WRITE,
 			inputSchema: {
 				name: z.string().min(1).max(100).describe('Name for the new folder'),
 			},
@@ -1889,6 +1899,7 @@ export function registerAuthenticatedTools(
 		'edit_folder',
 		{
 			description: 'Rename an existing folder in your Discogs collection. Cannot rename the system folders (All or Uncategorized).',
+			annotations: ADDITIVE_WRITE,
 			inputSchema: {
 				folder_id: z.number().min(2).describe('ID of the folder to rename (must be 2 or higher — system folders cannot be renamed)'),
 				name: z.string().min(1).max(100).describe('New name for the folder'),
@@ -1946,6 +1957,7 @@ export function registerAuthenticatedTools(
 		'delete_folder',
 		{
 			description: 'Delete a folder from your Discogs collection. The folder must be empty (no releases). Cannot delete system folders (All or Uncategorized).',
+			annotations: DESTRUCTIVE_WRITE,
 			inputSchema: {
 				folder_id: z.number().min(2).describe('ID of the folder to delete (must be 2 or higher — system folders cannot be deleted)'),
 			},
@@ -2001,6 +2013,7 @@ export function registerAuthenticatedTools(
 		'add_to_collection',
 		{
 			description: 'Add a release to a folder in your Discogs collection. If no folder is specified, adds to the Uncategorized folder (ID 1).',
+			annotations: ADDITIVE_WRITE,
 			inputSchema: {
 				release_id: z.number().describe('The Discogs release ID to add'),
 				folder_id: z.number().optional().default(1).describe('Folder ID to add the release to (default: 1 = Uncategorized)'),
@@ -2060,6 +2073,7 @@ export function registerAuthenticatedTools(
 		'remove_from_collection',
 		{
 			description: 'Remove a specific release instance from a folder in your Discogs collection. Use search_collection to find the instance_id for a release.',
+			annotations: DESTRUCTIVE_WRITE,
 			inputSchema: {
 				folder_id: z.number().describe('Folder ID containing the release'),
 				release_id: z.number().describe('The Discogs release ID'),
@@ -2120,6 +2134,7 @@ export function registerAuthenticatedTools(
 		'move_release',
 		{
 			description: 'Move a release instance to a different folder in your Discogs collection. Use search_collection to find release and instance IDs, and list_folders to see available folders.',
+			annotations: ADDITIVE_WRITE,
 			inputSchema: {
 				folder_id: z.number().describe('Current folder ID containing the release'),
 				release_id: z.number().describe('The Discogs release ID'),
@@ -2182,6 +2197,7 @@ export function registerAuthenticatedTools(
 		'rate_release',
 		{
 			description: 'Rate a release in your Discogs collection from 0 (no rating) to 5 stars. Use search_collection to find release and instance IDs.',
+			annotations: ADDITIVE_WRITE,
 			inputSchema: {
 				folder_id: z.number().describe('Folder ID containing the release'),
 				release_id: z.number().describe('The Discogs release ID'),
@@ -2245,6 +2261,7 @@ export function registerAuthenticatedTools(
 		'list_custom_fields',
 		{
 			description: 'List all custom fields defined in your Discogs collection. Custom fields allow you to add metadata like notes, tags, or categories to releases.',
+			annotations: READ_ONLY,
 			inputSchema: {},
 		},
 		async () => {
@@ -2313,6 +2330,7 @@ export function registerAuthenticatedTools(
 		'edit_custom_field',
 		{
 			description: 'Set a custom field value on a release in your Discogs collection. Use list_custom_fields to see available fields and their IDs. For dropdown fields, the value must match one of the defined options.',
+			annotations: DESTRUCTIVE_WRITE,
 			inputSchema: {
 				folder_id: z.number().describe('Folder ID containing the release'),
 				release_id: z.number().describe('The Discogs release ID'),
@@ -2377,6 +2395,7 @@ export function registerAuthenticatedTools(
 		'get_wantlist',
 		{
 			description: "List releases on your Discogs wantlist (releases you want but don't own). Paginated.",
+			annotations: READ_ONLY,
 			inputSchema: {
 				page: z.number().min(1).optional().default(1).describe('Page number (default: 1)'),
 				per_page: z.number().min(1).max(100).optional().default(50).describe('Items per page, max 100 (default: 50)'),
@@ -2425,6 +2444,7 @@ export function registerAuthenticatedTools(
 		'add_to_wantlist',
 		{
 			description: "Add a release to your Discogs wantlist (releases you want but don't own).",
+			annotations: ADDITIVE_WRITE,
 			inputSchema: {
 				release_id: z.number().describe('The Discogs release ID to want'),
 			},
@@ -2467,6 +2487,7 @@ export function registerAuthenticatedTools(
 		'remove_from_wantlist',
 		{
 			description: 'Remove a release from your Discogs wantlist.',
+			annotations: DESTRUCTIVE_WRITE,
 			inputSchema: {
 				release_id: z.number().describe('The Discogs release ID to remove from the wantlist'),
 			},
