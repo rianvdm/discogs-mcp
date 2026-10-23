@@ -290,11 +290,11 @@ export class SmartCache {
  * Cache key generators for consistent naming
  */
 export const CacheKeys = {
-	collection: (username: string, page?: number, sort?: string) =>
-		`${username}:${page || 'all'}:${sort || 'default'}`,
+	collection: (username: string, page?: number, sort?: string, perPage?: number) =>
+		`${username}:${page || 'all'}:${sort || 'default'}:${perPage || 50}`,
 
-	collectionSearch: (username: string, query: string, page?: number) =>
-		`${username}:${encodeURIComponent(query)}:${page || 1}`,
+	collectionSearch: (username: string, query: string, page?: number, perPage?: number) =>
+		`${username}:${encodeURIComponent(query)}:${page || 1}:${perPage || 50}`,
 
 	release: (releaseId: string) => releaseId,
 
