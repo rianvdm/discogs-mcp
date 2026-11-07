@@ -250,7 +250,6 @@ export class DiscogsAuth {
 			})
 
 			const text = await response.text()
-			console.log('Discogs response:', text)
 
 			const params = new URLSearchParams(text)
 

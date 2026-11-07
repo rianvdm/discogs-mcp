@@ -348,6 +348,16 @@ describe('DiscogsAuth', () => {
 			expect(loggedMessages.some((msg) => msg.includes('oauth_signature'))).toBe(false)
 		})
 
+		it('should not log the request token secret from the Discogs response', async () => {
+			const consoleSpy = vi.spyOn(console, 'log')
+			mockFetch.mockResolvedValueOnce(new Response('oauth_token=tok&oauth_token_secret=the-request-secret', { status: 200 }))
+
+			await auth.getRequestToken('http://localhost/callback')
+
+			const loggedMessages = consoleSpy.mock.calls.map((args) => args.join(' '))
+			expect(loggedMessages.some((msg) => msg.includes('the-request-secret'))).toBe(false)
+		})
+
 		it('should not log the signing key or signature', async () => {
 			const consoleSpy = vi.spyOn(console, 'log')
 			mockFetch.mockResolvedValueOnce({
