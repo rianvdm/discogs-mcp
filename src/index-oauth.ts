@@ -110,6 +110,11 @@ const oauthProviders = new Map<string, OAuthProvider>()
  * (with or without a trailing slash, which compare equal), never `${origin}/mcp`.
  * One provider per origin, because the Worker serves several hostnames and each
  * self-hosted deployment has its own.
+ *
+ * Callers pass a per-request copy of env (`{ ...env }`): the provider stores its
+ * helpers on `env.OAUTH_PROVIDER` only when that is unset, and env is shared by
+ * every request in an isolate, so on the shared object the first origin's helpers
+ * would serve every later origin's /authorize and reject its `resource`.
  */
 function getOAuthProvider(origin: string): OAuthProvider {
   const existing = oauthProviders.get(origin)
@@ -317,7 +322,7 @@ export default {
       }
 
       // Everything else → OAuth provider
-      const response = await getOAuthProvider(url.origin).fetch(request, env, ctx)
+      const response = await getOAuthProvider(url.origin).fetch(request, { ...env }, ctx)
 
       // Inject WWW-Authenticate on 401 responses from /mcp
       if (response.status === 401) {
@@ -339,16 +344,16 @@ export default {
     // /oauth/token — strip resource param before forwarding
     if (url.pathname === '/oauth/token') {
       request = await stripResourceParam(request)
-      return getOAuthProvider(url.origin).fetch(request, env, ctx)
+      return getOAuthProvider(url.origin).fetch(request, { ...env }, ctx)
     }
 
     if (url.pathname === '/authorize') {
-      return getOAuthProvider(url.origin).fetch(normalizeAuthorizeResource(request, url), env, ctx)
+      return getOAuthProvider(url.origin).fetch(normalizeAuthorizeResource(request, url), { ...env }, ctx)
     }
 
     // All other routes → OAuth provider (handles /discogs-callback, /login,
     // /callback, /.well-known/oauth-protected-resource, /.well-known/oauth-authorization-server)
-    return getOAuthProvider(url.origin).fetch(request, env, ctx)
+    return getOAuthProvider(url.origin).fetch(request, { ...env }, ctx)
   },
 
   async scheduled(_event: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
