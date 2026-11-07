@@ -96,6 +96,21 @@ export const DiscogsOAuthHandler = {
   },
 }
 
+/**
+ * A DiscogsAuth for the sign-in handshake. When the rate limiter is bound, its
+ * calls share the Worker's Discogs budget and, like every other Discogs call,
+ * leave through the egress relay when one is configured. Discogs throttles
+ * Cloudflare's shared egress IPs, so a direct handshake can be refused even
+ * when nothing else is running.
+ */
+function createDiscogsAuth(env: Env): DiscogsAuth {
+  const discogsAuth = new DiscogsAuth(env.DISCOGS_CONSUMER_KEY, env.DISCOGS_CONSUMER_SECRET)
+  if (env.RATE_LIMITER) {
+    discogsAuth.setRateLimiter(env.RATE_LIMITER.get(env.RATE_LIMITER.idFromName('discogs-rate-limiter')))
+  }
+  return discogsAuth
+}
+
 // ── Stub implementations (filled in subsequent tasks) ──────────────────────────
 
 // Parameters /authorize needs before any client lookup or Discogs call is made.
@@ -134,7 +149,7 @@ async function handleAuthorize(request: Request, env: OAuthEnv): Promise<Respons
   try {
     const callbackUrl = `${url.protocol}//${url.host}/discogs-callback`
 
-    const discogsAuth = new DiscogsAuth(env.DISCOGS_CONSUMER_KEY, env.DISCOGS_CONSUMER_SECRET)
+    const discogsAuth = createDiscogsAuth(env)
     const { oauth_token: requestToken, oauth_token_secret: requestTokenSecret } =
       await discogsAuth.getRequestToken(callbackUrl)
 
@@ -183,28 +198,12 @@ async function handleDiscogsCallback(request: Request, env: OAuthEnv): Promise<R
 
   try {
     // Exchange request token for access token
-    const discogsAuth = new DiscogsAuth(env.DISCOGS_CONSUMER_KEY, env.DISCOGS_CONSUMER_SECRET)
+    const discogsAuth = createDiscogsAuth(env)
     const { oauth_token: accessToken, oauth_token_secret: accessTokenSecret } =
       await discogsAuth.getAccessToken(oauthToken, requestTokenSecret, oauthVerifier)
 
     // Fetch Discogs identity to get username and numeric ID
-    const identityRes = await fetch('https://api.discogs.com/oauth/identity', {
-      headers: {
-        Authorization: (
-          await discogsAuth.getAuthHeaders('https://api.discogs.com/oauth/identity', 'GET', {
-            key: accessToken,
-            secret: accessTokenSecret,
-          })
-        ).Authorization,
-        'User-Agent': 'discogs-mcp/1.0.0',
-      },
-    })
-
-    if (!identityRes.ok) {
-      throw new Error(`Failed to fetch Discogs identity: ${identityRes.status}`)
-    }
-
-    const identity = await identityRes.json() as { id: number; username: string }
+    const identity = await discogsAuth.getIdentity(accessToken, accessTokenSecret)
 
     // Allowlist gate (set on maintainer's deployment; empty = open)
     const denied = checkAllowlist(identity, env.ALLOWED_DISCOGS_USER_ID)
@@ -268,7 +267,7 @@ async function handleManualLogin(request: Request, env: OAuthEnv): Promise<Respo
     const callbackUrl = `${url.protocol}//${url.host}/callback?session_id=${sessionId}`
 
     // Get Discogs request token
-    const discogsAuth = new DiscogsAuth(env.DISCOGS_CONSUMER_KEY, env.DISCOGS_CONSUMER_SECRET)
+    const discogsAuth = createDiscogsAuth(env)
     const { oauth_token: requestToken, oauth_token_secret: requestTokenSecret } =
       await discogsAuth.getRequestToken(callbackUrl)
 
@@ -356,28 +355,12 @@ async function handleManualCallback(request: Request, env: OAuthEnv): Promise<Re
     await env.MCP_SESSIONS.delete(pendingKey)
 
     // Exchange tokens
-    const discogsAuth = new DiscogsAuth(env.DISCOGS_CONSUMER_KEY, env.DISCOGS_CONSUMER_SECRET)
+    const discogsAuth = createDiscogsAuth(env)
     const { oauth_token: accessToken, oauth_token_secret: accessTokenSecret } =
       await discogsAuth.getAccessToken(oauthToken, pendingData.requestTokenSecret, oauthVerifier)
 
     // Fetch identity
-    const identityRes = await fetch('https://api.discogs.com/oauth/identity', {
-      headers: {
-        Authorization: (
-          await discogsAuth.getAuthHeaders('https://api.discogs.com/oauth/identity', 'GET', {
-            key: accessToken,
-            secret: accessTokenSecret,
-          })
-        ).Authorization,
-        'User-Agent': 'discogs-mcp/1.0.0',
-      },
-    })
-
-    if (!identityRes.ok) {
-      throw new Error(`Failed to fetch Discogs identity: ${identityRes.status}`)
-    }
-
-    const identity = await identityRes.json() as { id: number; username: string }
+    const identity = await discogsAuth.getIdentity(accessToken, accessTokenSecret)
 
     // Allowlist gate (set on maintainer's deployment; empty = open)
     const denied = checkAllowlist(identity, env.ALLOWED_DISCOGS_USER_ID)

@@ -20,11 +20,13 @@ vi.mock('../src/auth/discogs', () => ({
       getAuthHeaders: vi.fn().mockResolvedValue({
         Authorization: 'OAuth mock-auth',
       }),
+      getIdentity: vi.fn().mockResolvedValue({ id: 42, username: 'discogsuser' }),
+      setRateLimiter: vi.fn(),
     }
   }),
 }))
 
-// Mock fetch for Discogs /oauth/identity
+// No Discogs call should reach the network
 const mockFetch = vi.fn()
 vi.stubGlobal('fetch', mockFetch)
 
@@ -194,12 +196,6 @@ describe('Full OAuth round-trip', () => {
         requestTokenSecret: 'mock-request-secret',
       }),
     )
-
-    // Mock identity API
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ id: 42, username: 'discogsuser' }),
-    })
 
     const envWithOAuth = {
       ...env,

@@ -16,6 +16,8 @@ vi.mock('../src/auth/discogs', () => ({
         oauth_token_secret: 'manual-access-secret',
       }),
       getAuthHeaders: vi.fn().mockResolvedValue({ Authorization: 'OAuth mock' }),
+      getIdentity: vi.fn().mockResolvedValue({ id: 777, username: 'manualuser' }),
+      setRateLimiter: vi.fn(),
     }
   }),
 }))
@@ -71,12 +73,6 @@ describe('Manual login round-trip', () => {
         timestamp: Date.now(),
       }),
     )
-
-    // Mock identity API
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ id: 777, username: 'manualuser' }),
-    })
 
     const req = new Request(
       `${BASE_URL}/callback?session_id=${SESSION_ID}&oauth_token=manual-request-token&oauth_verifier=manual-verifier`,
