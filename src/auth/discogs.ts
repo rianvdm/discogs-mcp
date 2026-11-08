@@ -1,7 +1,11 @@
+// ABOUTME: OAuth 1.0a client for Discogs: signs requests and runs the sign-in handshake (request token, access token, identity).
+// ABOUTME: Sends handshake calls through the rate limiter Durable Object when one is set, and straight to Discogs otherwise.
 /// <reference lib="dom" />
 /// <reference lib="dom.iterable" />
 /// <reference lib="webworker" />
 
+import { rateLimitedFetch } from '../rate-limiter/client'
+import type { RateLimiterStub } from '../rate-limiter/types'
 import { fetchWithRetry, RetryOptions } from '../utils/retry'
 
 interface DiscogsTokenResponse {
@@ -14,6 +18,20 @@ interface DiscogsAccessTokenResponse {
 	oauth_token: string
 	oauth_token_secret: string
 }
+
+/** The fields of Discogs' `/oauth/identity` response that sign-in uses. */
+export interface DiscogsIdentity {
+	id: number
+	username: string
+}
+
+interface HandshakeRequest {
+	method: string
+	headers: Record<string, string>
+	body?: string
+}
+
+const RATE_LIMIT_MESSAGE = 'Discogs API rate limit exceeded during authentication. Please try again later.'
 
 // Helper function to convert ArrayBuffer to base64
 function arrayBufferToBase64(buffer: ArrayBuffer): string {
@@ -50,8 +68,11 @@ export class DiscogsAuth {
 	private consumerSecret: string
 	private requestTokenUrl = 'https://api.discogs.com/oauth/request_token'
 	private accessTokenUrl = 'https://api.discogs.com/oauth/access_token'
+	private identityUrl = 'https://api.discogs.com/oauth/identity'
 	private authorizeUrl = 'https://discogs.com/oauth/authorize'
+	private userAgent = 'discogs-mcp/1.0.0'
 	private lastRequestTime = 0
+	private rateLimiterStub: RateLimiterStub | null = null
 
 	// Discogs-specific retry configuration for auth requests (more aggressive than default)
 	private readonly discogsRetryOptions: RetryOptions = {
@@ -80,6 +101,38 @@ export class DiscogsAuth {
 	constructor(consumerKey: string, consumerSecret: string) {
 		this.consumerKey = consumerKey
 		this.consumerSecret = consumerSecret
+	}
+
+	/**
+	 * Route the handshake calls through the rate limiter, on its interactive
+	 * lane: someone is waiting in a browser for each of them.
+	 */
+	setRateLimiter(stub: RateLimiterStub): void {
+		this.rateLimiterStub = stub
+	}
+
+	/**
+	 * Send one handshake call to Discogs and return the successful response,
+	 * or throw `HTTP <status>: <body>` for any other.
+	 *
+	 * Through the rate limiter the call is sent once. The limiter already paces
+	 * it against the shared budget and retries a 429 within the interactive
+	 * lane's backoff, so retrying here would spend budget behind its back.
+	 * Without the limiter, the call goes straight to Discogs with a short pause
+	 * between calls and retries of its own.
+	 */
+	private async handshakeFetch(url: string, request: HandshakeRequest): Promise<Response> {
+		if (!this.rateLimiterStub) {
+			await this.throttleRequest()
+			return fetchWithRetry(url, request, this.discogsRetryOptions)
+		}
+
+		const response = await rateLimitedFetch(this.rateLimiterStub, url, request)
+		if (!response.ok) {
+			const body = await response.text()
+			throw new Error(`HTTP ${response.status}: ${body.slice(0, 200)}`)
+		}
+		return response
 	}
 
 	/**
@@ -185,25 +238,18 @@ export class DiscogsAuth {
 
 		const authHeader = await this.generateOAuthHeader('GET', this.requestTokenUrl, { oauth_callback: callbackUrl })
 
-		console.log('Authorization header:', authHeader)
 		console.log('Making request to:', this.requestTokenUrl)
 
 		try {
-			await this.throttleRequest()
-			const response = await fetchWithRetry(
-				this.requestTokenUrl,
-				{
-					method: 'GET',
-					headers: {
-						Authorization: authHeader,
-						'User-Agent': 'discogs-mcp/1.0.0',
-					},
+			const response = await this.handshakeFetch(this.requestTokenUrl, {
+				method: 'GET',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
 				},
-				this.discogsRetryOptions,
-			)
+			})
 
 			const text = await response.text()
-			console.log('Discogs response:', text)
 
 			const params = new URLSearchParams(text)
 
@@ -222,7 +268,7 @@ export class DiscogsAuth {
 			}
 		} catch (error) {
 			if (error instanceof Error && error.message.includes('429')) {
-				throw new Error('Discogs API rate limit exceeded during authentication. Please try again later.')
+				throw new Error(RATE_LIMIT_MESSAGE)
 			}
 			console.error('Discogs API error:', error)
 			throw new Error(`Failed to get request token: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -254,20 +300,15 @@ export class DiscogsAuth {
 		const authHeader = await this.generateOAuthHeader('POST', this.accessTokenUrl, { oauth_verifier: oauthVerifier }, token)
 
 		try {
-			await this.throttleRequest()
-			const response = await fetchWithRetry(
-				this.accessTokenUrl,
-				{
-					method: 'POST',
-					headers: {
-						Authorization: authHeader,
-						'Content-Type': 'application/x-www-form-urlencoded',
-						'User-Agent': 'discogs-mcp/1.0.0',
-					},
-					body: `oauth_verifier=${encodeURIComponent(oauthVerifier)}`,
+			const response = await this.handshakeFetch(this.accessTokenUrl, {
+				method: 'POST',
+				headers: {
+					Authorization: authHeader,
+					'Content-Type': 'application/x-www-form-urlencoded',
+					'User-Agent': this.userAgent,
 				},
-				this.discogsRetryOptions,
-			)
+				body: `oauth_verifier=${encodeURIComponent(oauthVerifier)}`,
+			})
 
 			const text = await response.text()
 			const params = new URLSearchParams(text)
@@ -285,10 +326,36 @@ export class DiscogsAuth {
 			}
 		} catch (error) {
 			if (error instanceof Error && error.message.includes('429')) {
-				throw new Error('Discogs API rate limit exceeded during authentication. Please try again later.')
+				throw new Error(RATE_LIMIT_MESSAGE)
 			}
 			console.error('Discogs API error:', error)
 			throw new Error(`Failed to get access token: ${error instanceof Error ? error.message : 'Unknown error'}`)
+		}
+	}
+
+	/**
+	 * Fetch the Discogs user an access token belongs to
+	 * @param accessToken The access token from getAccessToken
+	 * @param accessTokenSecret The access token secret from getAccessToken
+	 * @returns The user's numeric ID and username
+	 */
+	async getIdentity(accessToken: string, accessTokenSecret: string): Promise<DiscogsIdentity> {
+		const authHeader = await this.generateOAuthHeader('GET', this.identityUrl, {}, { key: accessToken, secret: accessTokenSecret })
+
+		try {
+			const response = await this.handshakeFetch(this.identityUrl, {
+				method: 'GET',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
+				},
+			})
+			return (await response.json()) as DiscogsIdentity
+		} catch (error) {
+			if (error instanceof Error && error.message.includes('429')) {
+				throw new Error(RATE_LIMIT_MESSAGE)
+			}
+			throw new Error(`Failed to fetch Discogs identity: ${error instanceof Error ? error.message : 'Unknown error'}`)
 		}
 	}
 

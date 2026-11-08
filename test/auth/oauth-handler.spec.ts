@@ -5,6 +5,9 @@ import { DiscogsOAuthHandler, checkAllowlist } from '../../src/auth/oauth-handle
 import { DiscogsAuth } from '../../src/auth/discogs'
 import { tokenMirrorKey } from '../../src/sync/keys'
 
+// Each test that reaches the identity call queues the identity it expects
+const mockGetIdentity = vi.hoisted(() => vi.fn())
+
 // Mock DiscogsAuth at the top of the file (add after existing imports)
 vi.mock('../../src/auth/discogs', () => ({
   DiscogsAuth: vi.fn().mockImplementation(function () {
@@ -19,6 +22,8 @@ vi.mock('../../src/auth/discogs', () => ({
         oauth_token_secret: 'mock-access-secret',
       }),
       getAuthHeaders: vi.fn().mockResolvedValue({ Authorization: 'OAuth mock-header' }),
+      getIdentity: mockGetIdentity,
+      setRateLimiter: vi.fn(),
     }
   }),
 }))
@@ -210,6 +215,7 @@ describe('/authorize', () => {
     vi.mocked(DiscogsAuth).mockImplementationOnce(function () {
       return {
         getRequestToken: vi.fn().mockRejectedValue(new Error('Failed to get request token: upstream <b>detail</b>')),
+        setRateLimiter: vi.fn(),
       } as unknown as DiscogsAuth
     })
     const parseAuthRequest = vi.fn().mockResolvedValue({ clientId: 'test-client', redirectUri: 'https://client/callback' })
@@ -239,10 +245,7 @@ describe('/discogs-callback', () => {
     )
 
     // Mock Discogs /oauth/identity response
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ id: 12345, username: 'testuser' }),
-    })
+    mockGetIdentity.mockResolvedValueOnce({ id: 12345, username: 'testuser' })
 
     const envWithOAuth = {
       ...env,
@@ -262,6 +265,7 @@ describe('/discogs-callback', () => {
 
     // Should redirect (302) — library issues the code redirect to client
     expect([302, 303]).toContain(res.status)
+    expect(mockGetIdentity).toHaveBeenCalledWith('mock-access-token', 'mock-access-secret')
   })
 
   it('mirrors the access token under discogs:token:{userId} for cron access', async () => {
@@ -279,10 +283,7 @@ describe('/discogs-callback', () => {
     )
 
     // Numeric id is what the mirror is keyed on
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ id: 555555, username: 'mcpmirroruser' }),
-    })
+    mockGetIdentity.mockResolvedValueOnce({ id: 555555, username: 'mcpmirroruser' })
 
     const envWithOAuth = {
       ...env,
@@ -324,6 +325,7 @@ describe('/discogs-callback', () => {
     vi.mocked(DiscogsAuth).mockImplementationOnce(function () {
       return {
         getAccessToken: vi.fn().mockRejectedValue(new Error('Failed to get access token: upstream <b>detail</b>')),
+        setRateLimiter: vi.fn(),
       } as unknown as DiscogsAuth
     })
 
@@ -441,10 +443,7 @@ describe('/callback (manual path)', () => {
     )
 
     // Mock identity fetch
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ id: 99, username: 'happyuser' }),
-    })
+    mockGetIdentity.mockResolvedValueOnce({ id: 99, username: 'happyuser' })
 
     // URL is https so cookie name is __Host-csrf
     const req = new Request(
@@ -480,10 +479,7 @@ describe('/callback (manual path)', () => {
     )
 
     // Mock identity fetch — numeric id is what the mirror is keyed on
-    mockFetch.mockResolvedValueOnce({
-      ok: true,
-      json: async () => ({ id: 424242, username: 'mirroruser' }),
-    })
+    mockGetIdentity.mockResolvedValueOnce({ id: 424242, username: 'mirroruser' })
 
     const req = new Request(
       'https://example.com/callback?session_id=mirror-path&oauth_token=mock-request-token&oauth_verifier=mock-verifier',

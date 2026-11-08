@@ -17,6 +17,8 @@ vi.mock('../src/auth/discogs', () => ({
 				oauth_token_secret: 'cross-origin-access-secret',
 			}),
 			getAuthHeaders: vi.fn().mockResolvedValue({ Authorization: 'OAuth mock-auth' }),
+			getIdentity: vi.fn().mockResolvedValue({ id: 42, username: 'discogsuser' }),
+			setRateLimiter: vi.fn(),
 		}
 	}),
 }))
@@ -83,7 +85,6 @@ async function signIn(origin: string): Promise<void> {
 	expect(authRes.status, `${origin}/authorize: ${await authRes.clone().text()}`).toBe(302)
 	expect(authRes.headers.get('Location')).toContain('discogs.com/oauth/authorize')
 
-	mockFetch.mockResolvedValueOnce(new Response(JSON.stringify({ id: 42, username: 'discogsuser' }), { status: 200 }))
 	const cbRes = await call(new Request(`${origin}/discogs-callback?oauth_token=cross-origin-request-token&oauth_verifier=v`))
 	expect(cbRes.status).toBe(302)
 	const location = new URL(cbRes.headers.get('Location') ?? '')
