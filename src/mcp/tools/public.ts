@@ -122,9 +122,10 @@ You are successfully authenticated with Discogs!
 
 *Search & discovery:* search_collection, search_discogs, get_release, get_collection_stats, get_recommendations
 *Collection management:* add_to_collection, remove_from_collection, move_release, rate_release
+*Wantlist:* get_wantlist, add_to_wantlist, remove_from_wantlist
 *Folders:* list_folders, create_folder, edit_folder, delete_folder
 *Custom fields:* list_custom_fields, edit_custom_field
-*Diagnostics:* get_cache_stats${nextSteps}`,
+*Diagnostics:* get_cache_stats, refresh_collection${nextSteps}`,
 						},
 					],
 				}
@@ -154,6 +155,7 @@ You are not currently authenticated with Discogs. To access your personal music 
 - get_release: Get release details
 - get_collection_stats: View collection statistics
 - get_recommendations: Get personalized recommendations
+- get_wantlist, add_to_wantlist, remove_from_wantlist: View and manage your wantlist
 - get_cache_stats: View cache performance`,
 					},
 				],
