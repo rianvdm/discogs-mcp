@@ -20,6 +20,7 @@ export interface CacheConfig {
 	searches: number // 15 minutes
 	userProfiles: number // 6 hours
 	wantlists: number // 30 minutes
+	marketplace: number // 1 hour
 }
 
 export const DEFAULT_CACHE_CONFIG: CacheConfig = {
@@ -29,6 +30,7 @@ export const DEFAULT_CACHE_CONFIG: CacheConfig = {
 	searches: 30 * 60, // 30 minutes in seconds (increased from 15 to reduce API load)
 	userProfiles: 6 * 60 * 60, // 6 hours in seconds
 	wantlists: 30 * 60, // 30 minutes in seconds
+	marketplace: 60 * 60, // 1 hour in seconds
 }
 
 export interface CacheEntry<T> {
@@ -203,10 +205,12 @@ export class SmartCache {
 			timestamp: Date.now(),
 		})
 
-		// Clean up pending request when done (success or failure)
-		promise.finally(() => {
+		// Clean up pending request when done (success or failure). Both outcomes are
+		// handled here; `.finally()` would return a promise that rejects unobserved.
+		const forget = () => {
 			this.pendingRequests.delete(dedupeKey)
-		})
+		}
+		promise.then(forget, forget)
 
 		return promise
 	}
@@ -318,6 +322,9 @@ export const CacheKeys = {
 
 	wantlist: (username: string, page?: number, perPage?: number) => `${username}:${page || 'all'}:${perPage || 50}`,
 
+	// Keyed by user because Discogs prices in the user's own currency when none is requested
+	marketplaceStats: (username: string, releaseId: number, currency?: string) => `${username}:${releaseId}:${currency || 'default'}`,
+
 	userProfile: (userId: string) => userId,
 }
 
@@ -335,6 +342,7 @@ export function createDiscogsCache(kv: KVNamespace, waitUntil?: WaitUntil): Smar
 			searches: 15 * 60, // Search results cached for 15 minutes
 			userProfiles: 6 * 60 * 60, // User profiles rarely change
 			wantlists: 30 * 60, // Wantlists change more often than collections; invalidated on write
+			marketplace: 60 * 60, // Listings come and go; an hour keeps a daily check current without re-asking within a session
 		},
 		waitUntil,
 	)

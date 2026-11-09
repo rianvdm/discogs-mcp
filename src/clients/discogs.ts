@@ -108,6 +108,16 @@ export interface DiscogsWantlistResponse {
 	wants: DiscogsWant[]
 }
 
+/**
+ * Marketplace summary for one release. Discogs returns null for both
+ * figures when nothing is listed, or when the release is blocked from sale.
+ */
+export interface DiscogsMarketplaceStats {
+	num_for_sale: number | null
+	lowest_price: { currency: string; value: number } | null
+	blocked_from_sale: boolean
+}
+
 export interface DiscogsSearchResponse {
 	pagination: {
 		pages: number
@@ -1145,6 +1155,41 @@ export class DiscogsClient {
 			}
 		} catch (error) {
 			throw new Error(`Failed to remove from wantlist: ${error instanceof Error ? error.message : 'Unknown error'}`)
+		}
+	}
+
+	/**
+	 * Get how many copies of a release are for sale and the lowest asking price.
+	 * Prices come back in the authenticated user's Discogs currency unless `currency` is given.
+	 */
+	async getMarketplaceStats(
+		releaseId: number,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+		currency?: string,
+	): Promise<DiscogsMarketplaceStats> {
+		const qs = currency ? `?curr_abbr=${encodeURIComponent(currency)}` : ''
+		const url = `${this.baseUrl}/marketplace/stats/${releaseId}${qs}`
+		const authHeader = await this.createOAuthHeader(url, 'GET', accessToken, accessTokenSecret, consumerKey, consumerSecret)
+
+		try {
+			const response = await this.discogsApiFetch(url, {
+				method: 'GET',
+				headers: {
+					Authorization: authHeader,
+					'User-Agent': this.userAgent,
+				},
+			})
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}: ${await response.text()}`)
+			}
+			return response.json()
+		} catch (error) {
+			throw new Error(
+				`Failed to fetch marketplace stats for release ${releaseId}: ${error instanceof Error ? error.message : 'Unknown error'}`,
+			)
 		}
 	}
 }

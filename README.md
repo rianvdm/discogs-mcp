@@ -14,6 +14,7 @@ Once a client is connected, you ask questions in plain language and the assistan
 - "What do I own that would suit a rainy Sunday afternoon?"
 - "Which Blue Note CDs do I have from the sixties?"
 - "Find the original UK pressing of this on Discogs and add it to my wantlist."
+- "Which of the records I marked 'watch' on my wantlist are for sale right now, and what's the cheapest copy?"
 - "How is my collection split by decade and format?"
 - "Move everything in my Unsorted folder that's rated five stars into Favourites."
 
@@ -21,7 +22,7 @@ Searching your collection takes natural-language queries. Mood words ("mellow", 
 
 Searching the whole Discogs catalog works the same way. It covers releases, masters, artists, and labels, and flags anything you already own.
 
-Beyond search there are tools for collection statistics (genre, decade, format, and ratings), recommendations by genre, decade, mood, or similarity, and the day-to-day admin: adding and removing releases, moving them between folders, rating them, managing your wantlist, creating and renaming folders, and editing custom fields. The full list is under [Tools, resources, and prompts](#tools-resources-and-prompts).
+Beyond search there are tools for collection statistics (genre, decade, format, and ratings), recommendations by genre, decade, mood, or similarity, and the day-to-day admin: adding and removing releases, moving them between folders, rating them, managing your wantlist, checking which wants are for sale and the lowest price, creating and renaming folders, and editing custom fields. The full list is under [Tools, resources, and prompts](#tools-resources-and-prompts).
 
 Four times a day a scheduled job refreshes a snapshot of your collection in KV. Collection searches read from that snapshot instead of paging through the Discogs API, which keeps them fast and saves your rate-limit budget for the calls that need it.
 
@@ -226,11 +227,17 @@ Collection management:
 
 Wantlist:
 
-| Tool                   | Description                               |
-| ---------------------- | ----------------------------------------- |
-| `get_wantlist`         | List releases on your wantlist, paginated |
-| `add_to_wantlist`      | Add a release to your wantlist            |
-| `remove_from_wantlist` | Remove a release from your wantlist       |
+| Tool                   | Description                                                                                  |
+| ---------------------- | -------------------------------------------------------------------------------------------- |
+| `get_wantlist`         | List your wantlist with each want's rating and notes; filter by notes text or minimum rating |
+| `add_to_wantlist`      | Add a release to your wantlist                                                               |
+| `remove_from_wantlist` | Remove a release from your wantlist                                                          |
+
+Marketplace:
+
+| Tool                    | Description                                                                 |
+| ----------------------- | --------------------------------------------------------------------------- |
+| `get_marketplace_stats` | Copies for sale and the lowest asking price for up to 50 releases at a time |
 
 Folders:
 
@@ -278,6 +285,17 @@ And three prompts, for clients that support them:
 On the free plan, the limit that matters is CPU time: 10 ms per invocation, for tool calls and the scheduled sync alike. The sync stores one page at a time to stay inside that budget, and the snapshot it builds keeps only the fields search needs (about 450 bytes per release). That comfortably covers collections up to roughly 2,000 releases. Past that, reading the snapshot on every search starts to crowd the budget, and a collection of 4,000 or more can see `search_collection` or `refresh_collection` fail with a bare execution error and no message. That's the runtime terminating the invocation, and it isn't a Discogs error. The fix is [Workers Paid](https://developers.cloudflare.com/workers/platform/pricing/) ($5 a month), which raises the CPU budget to 30 seconds. Nothing else about the deployment changes.
 
 Whatever plan you're on, `get_cache_stats` reports the snapshot's item count and fetch time, plus the page count of any sync in progress, so you can see whether the scheduled sync is landing.
+
+### Watching wantlist records for sale
+
+Discogs can email you when anything on your wantlist is listed, which gets noisy with a big wantlist. To hear about a handful of records instead, pair this server with an agent that runs on a schedule (a scheduled Claude task, for example):
+
+1. On the Discogs website, add a word such as `watch` to the notes of each want you care about.
+2. Have the agent run once a day: call `get_wantlist` with `notes_contains: "watch"`, pass the release IDs it returns to `get_marketplace_stats`, and tell you about anything that's for sale.
+
+A prompt along these lines works: "Find the wants on my Discogs wantlist whose notes contain 'watch', check which are for sale, and message me with the price of any that are listed and weren't listed yesterday."
+
+The server reports what's listed now. It doesn't remember earlier checks, so telling a new listing from one that was already there is the agent's job, and an agent that can't keep notes between runs will repeat the alert each day a copy stays up. The figures cover every listing for that exact release, whatever its condition or where the seller is, and may be up to an hour old. A filtered `get_wantlist` reads up to 5,000 wants, 100 per request, and each release `get_marketplace_stats` checks costs one request against Discogs' limit of 60 a minute, so keep the watch list to a few dozen records. On the free plan, a filtered read of a wantlist in the thousands may run into the same CPU limit described under [Collection size and the free plan](#collection-size-and-the-free-plan); if it fails with a bare execution error, Workers Paid fixes it.
 
 ### Route Discogs calls through your own IP
 

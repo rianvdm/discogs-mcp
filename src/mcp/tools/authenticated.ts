@@ -17,7 +17,7 @@ import { formatSearchDiscogsResults } from '../../utils/searchDiscogsFormatter.j
 import { parseSearchQuery, clearTemporalIfTokenIsLiteral } from '../../utils/searchQueryParser.js'
 import { applySearchPipeline, type DedupedCollectionItem } from '../../utils/searchRanking.js'
 import { buildIndex, searchIndex } from '../../utils/searchIndex.js'
-import type { DiscogsCollectionItem } from '../../clients/discogs.js'
+import type { DiscogsCollectionItem, DiscogsMarketplaceStats, DiscogsWant, DiscogsWantlistResponse } from '../../clients/discogs.js'
 import type { SessionContext } from '../server.js'
 import { sessionProfile } from '../session-profile.js'
 import { buildNextSteps } from '../../utils/breadcrumb.js'
@@ -281,6 +281,76 @@ You need to authenticate with Discogs to use this tool.
 4. Return here and try again
 
 Your authentication will be secure and tied to your specific session.`
+}
+
+/** Most wantlist pages a filtered get_wantlist reads (100 wants per page). */
+const WANTLIST_FILTER_MAX_PAGES = 50
+const WANTLIST_FILTER_PAGE_SIZE = 100
+
+/** One get_wantlist line; rating and notes appear only when the user has set them. */
+function formatWantLine(want: DiscogsWant): string {
+	const info = want.basic_information
+	const artists = info?.artists?.map((a) => a.name).join(', ') || 'Unknown'
+	let line = `- ${artists} — ${info?.title ?? 'Unknown'} (${info?.year || 'n/a'}) [release ${want.id}]`
+	if (want.rating > 0) line += ` — rating ${want.rating}/5`
+	const notes = want.notes?.replace(/\s+/g, ' ').trim()
+	if (notes) line += ` — notes: "${notes}"`
+	return line
+}
+
+interface WantlistFilter {
+	notesContains?: string
+	minRating?: number
+}
+
+/**
+ * Read the wantlist page by page and keep the wants that pass every filter.
+ * Discogs can't filter wants itself, so this stops at WANTLIST_FILTER_MAX_PAGES
+ * and reports how many wants it actually looked at.
+ */
+async function collectFilteredWants(
+	fetchPage: (page: number, perPage: number) => Promise<DiscogsWantlistResponse>,
+	filter: WantlistFilter,
+): Promise<{ matches: DiscogsWant[]; scanned: number; total: number }> {
+	const needle = filter.notesContains?.toLowerCase()
+	const passes = (want: DiscogsWant) =>
+		(needle === undefined || (want.notes ?? '').toLowerCase().includes(needle)) &&
+		(filter.minRating === undefined || want.rating >= filter.minRating)
+
+	const matches: DiscogsWant[] = []
+	let scanned = 0
+	let total = 0
+	for (let page = 1; page <= WANTLIST_FILTER_MAX_PAGES; page++) {
+		const result = await fetchPage(page, WANTLIST_FILTER_PAGE_SIZE)
+		total = result.pagination.items
+		scanned += result.wants.length
+		matches.push(...result.wants.filter(passes))
+		if (page >= result.pagination.pages) break
+	}
+	return { matches, scanned, total }
+}
+
+/** Header for a filtered get_wantlist, naming the filters and any part of the wantlist left unsearched. */
+function describeFilteredWantlist(filter: WantlistFilter, matched: number, scanned: number, total: number): string {
+	const criteria: string[] = []
+	if (filter.notesContains !== undefined) criteria.push(`notes containing "${filter.notesContains}"`)
+	if (filter.minRating !== undefined) criteria.push(`rating ${filter.minRating}/5 or higher`)
+	let header = `Wantlist — ${matched} of ${total} item(s) match ${criteria.join(' and ')}`
+	if (scanned < total) {
+		header += ` (searched the first ${scanned} of ${total}; the rest is past the ${WANTLIST_FILTER_MAX_PAGES}-page limit)`
+	}
+	return header
+}
+
+/** Currencies the Discogs marketplace prices in (the `curr_abbr` values its API accepts). */
+const DISCOGS_CURRENCIES = ['USD', 'GBP', 'EUR', 'CAD', 'AUD', 'JPY', 'CHF', 'MXN', 'BRL', 'NZD', 'SEK', 'ZAR'] as const
+
+/** One line of get_marketplace_stats output, worded so a daily check can compare runs line by line. */
+function formatMarketplaceStatsLine(releaseId: number, stats: DiscogsMarketplaceStats): string {
+	if (stats.blocked_from_sale) return `- release ${releaseId}: blocked from sale on Discogs`
+	if (!stats.num_for_sale) return `- release ${releaseId}: none for sale`
+	const price = stats.lowest_price ? `, lowest ${stats.lowest_price.value.toFixed(2)} ${stats.lowest_price.currency}` : ''
+	return `- release ${releaseId}: ${stats.num_for_sale} for sale${price}`
 }
 
 /**
@@ -2394,36 +2464,51 @@ export function registerAuthenticatedTools(
 	server.registerTool(
 		'get_wantlist',
 		{
-			description: "List releases on your Discogs wantlist (releases you want but don't own). Paginated.",
+			description:
+				"List releases on your Discogs wantlist (releases you want but don't own), with any rating and notes you've set. " +
+				'Paginated. Pass notes_contains and/or min_rating to search the whole wantlist and return every match instead of one page; ' +
+				'a want must pass all filters given.',
 			annotations: READ_ONLY,
 			inputSchema: z.object({
-				page: z.number().min(1).optional().default(1).describe('Page number (default: 1)'),
-				per_page: z.number().min(1).max(100).optional().default(50).describe('Items per page, max 100 (default: 50)'),
+				page: z.number().min(1).optional().default(1).describe('Page number (default: 1). Ignored when a filter is given'),
+				per_page: z.number().min(1).max(100).optional().default(50).describe('Items per page, max 100 (default: 50). Ignored when a filter is given'),
+				notes_contains: z.string().min(1).optional().describe('Only wants whose notes contain this text (case-insensitive)'),
+				min_rating: z.number().int().min(1).max(5).optional().describe('Only wants rated at least this (1–5)'),
 			}),
 		},
-		async ({ page, per_page }) => {
+		async ({ page, per_page, notes_contains, min_rating }) => {
 			const { session, connectionId, baseUrl } = await getSessionContext()
 			if (!session) {
 				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId, baseUrl) }] }
 			}
 			try {
 				const userProfile = sessionProfile(session)
-				const result = await client.getWantlist(
-					userProfile.username,
-					session.accessToken,
-					session.accessTokenSecret,
-					{ page, per_page },
-					env.DISCOGS_CONSUMER_KEY,
-					env.DISCOGS_CONSUMER_SECRET,
-				)
+				const fetchPage = (pageNumber: number, perPage: number) =>
+					client.getWantlist(
+						userProfile.username,
+						session.accessToken,
+						session.accessTokenSecret,
+						{ page: pageNumber, per_page: perPage },
+						env.DISCOGS_CONSUMER_KEY,
+						env.DISCOGS_CONSUMER_SECRET,
+					)
 
-				const lines = result.wants.map(w => {
-					const info = w.basic_information
-					const artists = info?.artists?.map(a => a.name).join(', ') || 'Unknown'
-					return `- ${artists} — ${info?.title ?? 'Unknown'} (${info?.year || 'n/a'}) [release ${w.id}]`
-				})
-				const header = `Wantlist — ${result.pagination.items} item(s), page ${result.pagination.page}/${result.pagination.pages}`
+				let header: string
+				let wants: DiscogsWant[]
+				if (notes_contains !== undefined || min_rating !== undefined) {
+					const filter = { notesContains: notes_contains, minRating: min_rating }
+					const { matches, scanned, total } = await collectFilteredWants(fetchPage, filter)
+					header = describeFilteredWantlist(filter, matches.length, scanned, total)
+					wants = matches
+				} else {
+					const result = await fetchPage(page, per_page)
+					header = `Wantlist — ${result.pagination.items} item(s), page ${result.pagination.page}/${result.pagination.pages}`
+					wants = result.wants
+				}
+
+				const lines = wants.map(formatWantLine)
 				const nextSteps = buildNextSteps([
+					{ tool: 'get_marketplace_stats', args: 'release_ids=[<id>, ...]', hint: 'check which of these wants are for sale right now' },
 					{ tool: 'add_to_collection', args: 'release_id=<id>', hint: 'move a want into your collection once you acquire it' },
 					{ tool: 'get_release', args: 'release_id=<id>', hint: 'pull tracklist and full metadata for a want' },
 				])
@@ -2514,6 +2599,70 @@ export function registerAuthenticatedTools(
 			} catch (error) {
 				throw error instanceof Error ? error : new Error('Failed to remove from wantlist: Unknown error')
 			}
+		},
+	)
+
+	/**
+	 * Tool: get_marketplace_stats
+	 * Copies for sale and lowest price for a batch of releases
+	 */
+	server.registerTool(
+		'get_marketplace_stats',
+		{
+			description:
+				'Check how many copies of each release are for sale on the Discogs marketplace and the lowest asking price. ' +
+				'Takes up to 50 release IDs in one call, so a daily check of watched wantlist items needs a single call. ' +
+				'Figures cover all listings regardless of condition or seller location, and may be up to an hour old.',
+			annotations: READ_ONLY,
+			inputSchema: z.object({
+				release_ids: z.array(z.number().int().positive()).min(1).max(50).describe('Discogs release IDs to check (1–50)'),
+				currency: z
+					.enum(DISCOGS_CURRENCIES)
+					.optional()
+					.describe("Currency for prices (default: the user's Discogs currency setting)"),
+			}),
+		},
+		async ({ release_ids, currency }) => {
+			const { session, connectionId, baseUrl } = await getSessionContext()
+			if (!session) {
+				return { content: [{ type: 'text', text: generateAuthInstructions(connectionId, baseUrl) }] }
+			}
+			const userProfile = sessionProfile(session)
+			const uniqueIds = [...new Set(release_ids)]
+
+			// Sequential on purpose: the rate limiter's queue is shallower than a full batch.
+			const lines: string[] = []
+			for (const releaseId of uniqueIds) {
+				try {
+					const stats = cachedClient
+						? await cachedClient.getMarketplaceStats(
+								userProfile.username,
+								releaseId,
+								session.accessToken,
+								session.accessTokenSecret,
+								env.DISCOGS_CONSUMER_KEY,
+								env.DISCOGS_CONSUMER_SECRET,
+								currency,
+							)
+						: await discogsClient.getMarketplaceStats(
+								releaseId,
+								session.accessToken,
+								session.accessTokenSecret,
+								env.DISCOGS_CONSUMER_KEY,
+								env.DISCOGS_CONSUMER_SECRET,
+								currency,
+							)
+					lines.push(formatMarketplaceStatsLine(releaseId, stats))
+				} catch (error) {
+					lines.push(`- release ${releaseId}: could not check (${error instanceof Error ? error.message : 'Unknown error'})`)
+				}
+			}
+
+			const header = `Marketplace stats for ${uniqueIds.length} release(s)`
+			const nextSteps = buildNextSteps([
+				{ tool: 'get_release', args: 'release_id=<id>', hint: 'pull tracklist and full metadata for a listed release' },
+			])
+			return { content: [{ type: 'text', text: `${header}\n${lines.join('\n')}${nextSteps}` }] }
 		},
 	)
 }

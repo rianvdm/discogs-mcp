@@ -53,8 +53,9 @@ src/
 - **MCP transport**: `createMcpHandler` from `agents/mcp/server` with a per-request server factory (`@modelcontextprotocol/server` v2, protocol 2026-07-28, legacy `initialize` clients served by the handler's compatibility lane). `allowedOriginHostnames` replaces the handler defaults and is built per request from the request hostname plus localhost, so self-hosted copies accept their own browser clients. The repo's own `?session_id=` parameter selects the manual-login session path; there is no `Mcp-Session-Id` header. Hand-rolled requests to the modern lane fail (`missing _meta`); use an SDK client
 - **Request context injection**: MCP server injects auth context before each tool handler call — tools receive the authenticated user's Discogs client
 - **Two-layer caching**: CachedDiscogsClient wraps DiscogsClient; cache keys in KV with TTLs to stay within Discogs' 60 req/min rate limit
-- **Rate limiting via Durable Objects**: `src/rate-limiter/durable-object.ts` coordinates rate limits across Worker instances
+- **Rate limiting via Durable Objects**: `src/rate-limiter/durable-object.ts` coordinates rate limits across Worker instances. Its queue holds 20 requests (`MAX_QUEUE_DEPTH`), so a tool that makes many Discogs calls in one invocation issues them sequentially
 - **Mood intelligence**: `moodMapping.ts` converts emotional/situational descriptors into genre and style filters — core differentiator of the search experience
+- **Adding or renaming a tool**: the catalogue is listed by hand in several places that must move together: the `auth_status` lists in `src/mcp/tools/public.ts` (signed-in and signed-out), the tool count and annotation map in `test/mcp/server.test.ts`, the tool count in `test/integration/mcp-client.test.ts`, the catalogue snapshot (`npm test -- test/mcp/server.test.ts -u`, then read the diff), and the tables in `README.md`. `test/mcp/tools/authStatusToolList.spec.ts` fails if `auth_status` drifts
 - **OAuth dance**: Discogs uses OAuth 1.0a (not 2.0); `oauth-1.0a` library signs requests. The Workers OAuth Provider wraps this with OAuth 2.1 for MCP clients
 
 ### Infrastructure

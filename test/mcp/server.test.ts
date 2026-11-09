@@ -50,7 +50,7 @@ describe('createMcpServer registration', () => {
 			}))
 			.sort((a, b) => a.name.localeCompare(b.name))
 
-		expect(catalogue).toHaveLength(23)
+		expect(catalogue).toHaveLength(24)
 		for (const tool of catalogue) {
 			if (!ZERO_ARG_TOOLS.includes(tool.name)) {
 				expect(tool.properties, `${tool.name} registered with an empty input schema`).not.toHaveLength(0)
@@ -82,6 +82,7 @@ describe('createMcpServer registration', () => {
 			edit_folder: additive,
 			get_cache_stats: read,
 			get_collection_stats: read,
+			get_marketplace_stats: read,
 			get_recommendations: read,
 			get_release: read,
 			get_wantlist: read,
