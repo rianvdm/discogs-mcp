@@ -1,5 +1,5 @@
 // ABOUTME: Type contracts for the collection sync subsystem.
-// ABOUTME: SnapshotBlob, ProgressBlob, SyncResult, SyncOptions.
+// ABOUTME: SnapshotBlob, ProgressBlob, SyncResult, LastSyncRecord, SyncOptions.
 
 import type { DiscogsCollectionItem } from '../clients/discogs'
 
@@ -92,6 +92,30 @@ export interface SyncResult {
 	syncedThroughPage?: number
 	/** Page count of the current sweep, set alongside syncedThroughPage. */
 	totalPages?: number
+}
+
+/** What started a sync run: the cron, or a user calling refresh_collection. */
+export type SyncTrigger = 'scheduled' | 'manual'
+
+/**
+ * The outcome of a user's most recent sync run, kept so get_cache_stats can show
+ * a failing background sync that would otherwise only appear in the Worker logs.
+ * Records with any other schemaVersion are ignored.
+ */
+export interface LastSyncRecord {
+	schemaVersion: 1
+	outcome: SyncOutcome
+	trigger: SyncTrigger
+	/** ISO time the run finished. */
+	at: string
+	pagesFetched: number
+	count?: number
+	/** Whitespace collapsed, truncated to 500 characters. */
+	error?: string
+	/** Runs in a row whose outcome was failed, crashed, or token_invalid, including this one. 0 when this run was healthy. */
+	consecutiveFailures: number
+	/** ISO time of the most recent completed, resumed, or skipped run; null if none recorded yet. */
+	lastHealthyAt: string | null
 }
 
 export interface SyncOptions {

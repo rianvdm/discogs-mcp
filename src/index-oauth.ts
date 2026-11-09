@@ -12,6 +12,7 @@ import { createMcpServer } from './mcp/server'
 import { syncCollection, type SyncClient } from './sync/collectionSync'
 import { tokenMirrorKey } from './sync/keys'
 import { isUnauthorizedError } from './sync/errors'
+import { recordSyncOutcome } from './sync/lastOutcome'
 import type { SyncResult, TokenMirror } from './sync/types'
 import type { Env } from './types/env'
 import { SERVER_VERSION } from './version'
@@ -230,9 +231,10 @@ function normalizeAuthorizeResource(request: Request, url: URL): Request {
   return new Request(rewritten.toString(), request)
 }
 
-async function logSyncOutcome(_env: Env, numericId: string, result: SyncResult): Promise<void> {
+async function logSyncOutcome(env: Env, numericId: string, result: SyncResult): Promise<void> {
   const entry = { event: 'sync', timestamp: new Date().toISOString(), numericId, ...result }
   console.log(JSON.stringify(entry))
+  await recordSyncOutcome(env.MCP_SESSIONS, numericId, result, 'scheduled')
 }
 
 // Note on concurrency: users in ALLOWED_DISCOGS_USER_ID are processed sequentially.

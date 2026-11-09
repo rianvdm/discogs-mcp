@@ -5,4 +5,5 @@ export const snapshotKey = (userId: string) => `collection:snapshot:${userId}`
 export const progressKey = (userId: string) => `collection:sync:progress:${userId}`
 export const pageKey = (userId: string, page: number) => `collection:sync:page:${userId}:${page}`
 export const lastForcedFullSyncKey = (userId: string) => `collection:sync:lastForcedFullSync:${userId}`
+export const lastOutcomeKey = (userId: string) => `collection:sync:lastOutcome:${userId}`
 export const tokenMirrorKey = (userId: string) => `discogs:token:${userId}`

@@ -11,6 +11,8 @@ import { ADDITIVE_WRITE, DESTRUCTIVE_WRITE, READ_ONLY } from './annotations.js'
 import { DiscogsClient } from '../../clients/discogs.js'
 import { syncCollection, type SyncClient } from '../../sync/collectionSync.js'
 import { describeSyncState } from '../../sync/status.js'
+import { recordSyncOutcome } from '../../sync/lastOutcome.js'
+import type { SyncResult } from '../../sync/types.js'
 import { CachedDiscogsClient } from '../../clients/cachedDiscogs.js'
 import { analyzeMoodQuery, hasMoodContent, generateMoodSearchTerms } from '../../utils/moodMapping.js'
 import { formatSearchDiscogsResults } from '../../utils/searchDiscogsFormatter.js'
@@ -627,7 +629,16 @@ export function registerAuthenticatedTools(
 			// When that is the rate limiter's circuit breaker, the message includes
 			// retryAfterSecs, and without it a throttled sync and a dead one both
 			// read as "failed" with the same page count.
-			const result = await syncCollection(syncClient, env.MCP_SESSIONS, session.numericId, { force: true })
+			let result: SyncResult
+			try {
+				result = await syncCollection(syncClient, env.MCP_SESSIONS, session.numericId, { force: true })
+			} catch (err) {
+				// Recorded so get_cache_stats shows the crash; the tool still fails as before.
+				const error = err instanceof Error ? err.message : String(err)
+				await recordSyncOutcome(env.MCP_SESSIONS, session.numericId, { outcome: 'crashed', pagesFetched: 0, error }, 'manual')
+				throw err
+			}
+			await recordSyncOutcome(env.MCP_SESSIONS, session.numericId, result, 'manual')
 			const nextSteps = buildNextSteps([
 				{ tool: 'search_collection', args: 'query="..."', hint: 'newly cached items are now searchable' },
 				{ tool: 'get_collection_stats', args: '', hint: 'see updated totals' },
@@ -641,6 +652,9 @@ export function registerAuthenticatedTools(
 						fetchedAt: result.fetchedAt,
 						pagesFetched: result.pagesFetched,
 						...(result.error ? { error: result.error } : {}),
+						...(result.syncedThroughPage !== undefined
+							? { syncedThroughPage: result.syncedThroughPage, totalPages: result.totalPages }
+							: {}),
 					}),
 				},
 			]
