@@ -3,15 +3,8 @@
 
 import type { DiscogsCollectionResponse } from '../clients/discogs'
 import { lastForcedFullSyncKey, pageKey, progressKey, snapshotKey } from './keys'
-import {
-	toSnapshotItem,
-	type ProgressBlob,
-	type SnapshotBlob,
-	type SnapshotItem,
-	type SyncOptions,
-	type SyncOutcome,
-	type SyncResult,
-} from './types'
+import { isUnauthorizedError } from './errors'
+import { toSnapshotItem, type ProgressBlob, type SnapshotBlob, type SnapshotItem, type SyncOptions, type SyncResult } from './types'
 
 export interface SyncClient {
 	fetchCollectionPage(opts: { page: number; per_page: number; sort: string; sort_order: string }): Promise<DiscogsCollectionResponse>
@@ -58,6 +51,20 @@ async function readStoredPage(kv: KVNamespace, numericId: string, page: number):
  * later sync overwrites pages 1..N before it ever reads them.
  */
 export async function syncCollection(client: SyncClient, kv: KVNamespace, numericId: string, opts: SyncOptions): Promise<SyncResult> {
+	return runSync(client, kv, numericId, opts, { pages: 0 })
+}
+
+/**
+ * The sync itself. `fetched` is shared with any restart this run triggers, so
+ * the reported page count covers every Discogs fetch the caller paid for.
+ */
+async function runSync(
+	client: SyncClient,
+	kv: KVNamespace,
+	numericId: string,
+	opts: SyncOptions,
+	fetched: { pages: number },
+): Promise<SyncResult> {
 	const nowDate = (opts.now ?? (() => new Date()))()
 	const now = nowDate.toISOString()
 	const nowMs = nowDate.getTime()
@@ -103,7 +110,16 @@ export async function syncCollection(client: SyncClient, kv: KVNamespace, numeri
 
 		if (existingSnapshot && lastForcedFresh) {
 			// Run probe: fetch page 1, compare count + top instance_ids
-			const probe = await fetchPageWithRetry(client, 1, sleep)
+			let probe: DiscogsCollectionResponse
+			try {
+				probe = await fetchPageWithRetry(client, 1, sleep)
+			} catch (err) {
+				// A revoked token propagates so the scheduled handler can clear the
+				// token mirror; anything else is a failed run, like a failed page.
+				if (isUnauthorizedError(err)) throw err
+				return { outcome: 'failed', pagesFetched: fetched.pages, error: err instanceof Error ? err.message : String(err) }
+			}
+			fetched.pages++
 			const probeTopIds = probe.releases.map((r) => r.instance_id)
 			const sameCount = probe.pagination.items === existingSnapshot.count
 			const sameTopIds =
@@ -113,7 +129,7 @@ export async function syncCollection(client: SyncClient, kv: KVNamespace, numeri
 			if (sameCount && sameTopIds) {
 				return {
 					outcome: 'skipped',
-					pagesFetched: 1,
+					pagesFetched: fetched.pages,
 					count: existingSnapshot.count,
 					fetchedAt: existingSnapshot.fetchedAt,
 				}
@@ -123,15 +139,16 @@ export async function syncCollection(client: SyncClient, kv: KVNamespace, numeri
 			totalPages = probe.pagination.pages
 			totalCount = probe.pagination.items
 			firstPage = probe.releases.map(toSnapshotItem)
-			lastPageFetched = 1
 			startPage = 2
 			await persistPage(kv, numericId, 1, firstPage, totalPages, totalCount, startedAt)
+			lastPageFetched = 1
 		}
 	}
 
 	try {
 		for (let page = startPage; page <= totalPages; page++) {
 			const res = await fetchPageWithRetry(client, page, sleep)
+			fetched.pages++
 			if (page === 1) {
 				totalPages = res.pagination.pages
 				totalCount = res.pagination.items
@@ -143,18 +160,19 @@ export async function syncCollection(client: SyncClient, kv: KVNamespace, numeri
 			// the page that defines totalCount.
 			if (page > 1 && res.pagination.items !== totalCount) {
 				await kv.delete(progressKey(numericId))
-				return syncCollection(client, kv, numericId, { ...opts, force: true })
+				return runSync(client, kv, numericId, { ...opts, force: true }, fetched)
 			}
 			const items = res.releases.map(toSnapshotItem)
 			if (page === 1) firstPage = items
-			lastPageFetched = page
 			await persistPage(kv, numericId, page, items, totalPages, totalCount, startedAt)
+			lastPageFetched = page
 		}
 	} catch (err) {
 		return {
 			outcome: 'failed',
-			pagesFetched: lastPageFetched,
+			pagesFetched: fetched.pages,
 			error: err instanceof Error ? err.message : String(err),
+			...sweepProgress(lastPageFetched, totalPages),
 		}
 	}
 
@@ -170,7 +188,7 @@ export async function syncCollection(client: SyncClient, kv: KVNamespace, numeri
 			// A page key expired (or was never written) under a progress record
 			// that still claims it. Committing would leave a hole, so start over.
 			await kv.delete(progressKey(numericId))
-			return syncCollection(client, kv, numericId, { ...opts, force: true })
+			return runSync(client, kv, numericId, { ...opts, force: true }, fetched)
 		}
 		if (page === 1) topPageInstanceIds = stored.map((i) => i.instance_id)
 		items.push(...stored)
@@ -191,8 +209,21 @@ export async function syncCollection(client: SyncClient, kv: KVNamespace, numeri
 	await kv.put(lastForcedFullSyncKey(numericId), now)
 	await kv.delete(progressKey(numericId))
 
-	const outcome: SyncOutcome = resumed ? 'resumed' : 'completed'
-	return { outcome, pagesFetched: lastPageFetched, count: totalCount, fetchedAt: now }
+	if (resumed) {
+		return {
+			outcome: 'resumed',
+			pagesFetched: fetched.pages,
+			count: totalCount,
+			fetchedAt: now,
+			...sweepProgress(lastPageFetched, totalPages),
+		}
+	}
+	return { outcome: 'completed', pagesFetched: fetched.pages, count: totalCount, fetchedAt: now }
+}
+
+/** How far the current sweep got, or nothing when no page of it is stored yet. */
+function sweepProgress(syncedThroughPage: number, totalPages: number): Pick<SyncResult, 'syncedThroughPage' | 'totalPages'> {
+	return syncedThroughPage > 0 ? { syncedThroughPage, totalPages } : {}
 }
 
 /**

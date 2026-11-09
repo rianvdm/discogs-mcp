@@ -3,6 +3,7 @@ import { env } from 'cloudflare:test'
 import { McpServer } from '@modelcontextprotocol/server'
 import { registerAuthenticatedTools } from '../../src/mcp/tools/authenticated'
 import { snapshotKey, progressKey, pageKey } from '../../src/sync/keys'
+import { readLastSyncRecord } from '../../src/sync/lastOutcome'
 import { toSnapshotItem, type ProgressBlob } from '../../src/sync/types'
 import type { DiscogsCollectionItem } from '../../src/clients/discogs'
 
@@ -67,15 +68,35 @@ const fakeSession = () => ({
 	connectionId: 'conn-1',
 })
 
-function buildServer() {
+function buildServer(kv: KVNamespace = env.MCP_SESSIONS) {
 	const server = new McpServer({ name: 'test', version: '0.0.0' })
-	registerAuthenticatedTools(server, env as any, async () => fakeSession() as any)
+	registerAuthenticatedTools(server, { ...env, MCP_SESSIONS: kv } as any, async () => fakeSession() as any)
 	return server
 }
 
-async function callRefresh(
-	server: McpServer,
-): Promise<{ status: string; count?: number; fetchedAt?: string; pagesFetched?: number; error?: string }> {
+/** A KV namespace that delegates to `inner` but rejects a `put` to one key. */
+function kvFailingPutOn(inner: KVNamespace, failingKey: string): KVNamespace {
+	return {
+		get: inner.get.bind(inner),
+		list: inner.list.bind(inner),
+		delete: inner.delete.bind(inner),
+		getWithMetadata: inner.getWithMetadata.bind(inner),
+		put: async (key: string, value: string, options?: KVNamespacePutOptions) => {
+			if (key === failingKey) throw new Error(`KV put failed for ${key}`)
+			return inner.put(key, value, options)
+		},
+	} as unknown as KVNamespace
+}
+
+async function callRefresh(server: McpServer): Promise<{
+	status: string
+	count?: number
+	fetchedAt?: string
+	pagesFetched?: number
+	error?: string
+	syncedThroughPage?: number
+	totalPages?: number
+}> {
 	// The MCP SDK stores registrations on the server instance; reach in and call
 	// the callback directly. This mirrors how the MCP server eventually invokes
 	// it for a tools/call request, without standing up the full transport.
@@ -152,7 +173,8 @@ describe('refresh_collection tool', () => {
 
 		expect(result.status).toBe('resumed')
 		expect(result.count).toBe(1)
-		expect(result.pagesFetched).toBe(1)
+		// The resume had nothing left to fetch, so this run made no Discogs calls.
+		expect(result.pagesFetched).toBe(0)
 
 		// Progress key was deleted on commit
 		const remaining = await env.MCP_SESSIONS.get(progressKey('12345'))
@@ -180,5 +202,41 @@ describe('refresh_collection tool', () => {
 
 		expect(result.status).toBe('completed')
 		expect(result).not.toHaveProperty('error')
+	})
+
+	it('records a manual outcome', async () => {
+		await callRefresh(buildServer())
+
+		expect(await readLastSyncRecord(env.MCP_SESSIONS, '12345')).toMatchObject({ outcome: 'completed', trigger: 'manual' })
+	})
+
+	it('includes syncedThroughPage and totalPages when the sync reports them', async () => {
+		const progress: ProgressBlob = {
+			schemaVersion: 2,
+			startedAt: new Date().toISOString(),
+			totalPages: 3,
+			totalCount: 3,
+			lastPageFetched: 1,
+		}
+		await env.MCP_SESSIONS.put(progressKey('12345'), JSON.stringify(progress))
+		await env.MCP_SESSIONS.put(pageKey('12345', 1), JSON.stringify([toSnapshotItem(cannedPage.releases[0] as DiscogsCollectionItem)]))
+		searchCollection.mockRejectedValue(new Error('Failed to search collection: HTTP 429: throttled'))
+
+		const result = await callRefresh(buildServer())
+
+		expect(result.status).toBe('failed')
+		expect(result.syncedThroughPage).toBe(1)
+		expect(result.totalPages).toBe(3)
+	}, 15_000)
+
+	it('records crashed and keeps throwing when the sync throws', async () => {
+		const server = buildServer(kvFailingPutOn(env.MCP_SESSIONS, snapshotKey('12345')))
+
+		await expect(callRefresh(server)).rejects.toThrow(`KV put failed for ${snapshotKey('12345')}`)
+		expect(await readLastSyncRecord(env.MCP_SESSIONS, '12345')).toMatchObject({
+			outcome: 'crashed',
+			trigger: 'manual',
+			error: `KV put failed for ${snapshotKey('12345')}`,
+		})
 	})
 })

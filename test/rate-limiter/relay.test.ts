@@ -7,8 +7,8 @@ import {
 	relayTarget,
 	relayHeaders,
 	isRelayLayerError,
-	describeAge,
 	describeRelayStatus,
+	missingRelayCredentials,
 	DISCOGS_ORIGIN,
 } from '../../src/rate-limiter/relay'
 
@@ -34,6 +34,37 @@ describe('relayConfigFrom', () => {
 				RELAY_ACCESS_CLIENT_SECRET: 'shh',
 			}),
 		).toEqual(relay)
+	})
+})
+
+describe('missingRelayCredentials', () => {
+	const origin = 'https://relay.example.com'
+
+	it('is empty when no relay origin is set, even with credentials left behind', () => {
+		expect(missingRelayCredentials({})).toEqual([])
+		expect(
+			missingRelayCredentials({ DISCOGS_RELAY_ORIGIN: '  ', RELAY_ACCESS_CLIENT_ID: 'id', RELAY_ACCESS_CLIENT_SECRET: 'shh' }),
+		).toEqual([])
+	})
+
+	it('names the secret when only the client ID is set', () => {
+		expect(missingRelayCredentials({ DISCOGS_RELAY_ORIGIN: origin, RELAY_ACCESS_CLIENT_ID: 'id' })).toEqual(['RELAY_ACCESS_CLIENT_SECRET'])
+	})
+
+	it('names both when neither credential is set', () => {
+		expect(missingRelayCredentials({ DISCOGS_RELAY_ORIGIN: origin })).toEqual(['RELAY_ACCESS_CLIENT_ID', 'RELAY_ACCESS_CLIENT_SECRET'])
+	})
+
+	it('treats a blank credential as missing', () => {
+		expect(
+			missingRelayCredentials({ DISCOGS_RELAY_ORIGIN: origin, RELAY_ACCESS_CLIENT_ID: ' ', RELAY_ACCESS_CLIENT_SECRET: 'shh' }),
+		).toEqual(['RELAY_ACCESS_CLIENT_ID'])
+	})
+
+	it('is empty when the relay is fully configured', () => {
+		expect(
+			missingRelayCredentials({ DISCOGS_RELAY_ORIGIN: origin, RELAY_ACCESS_CLIENT_ID: 'id', RELAY_ACCESS_CLIENT_SECRET: 'shh' }),
+		).toEqual([])
 	})
 })
 
@@ -109,16 +140,6 @@ describe('isRelayLayerError', () => {
 	})
 })
 
-describe('describeAge', () => {
-	it('rounds to the coarsest sensible unit', () => {
-		const now = 1_000_000_000
-		expect(describeAge(now - 20_000, now)).toBe('just now')
-		expect(describeAge(now - 4 * 60_000, now)).toBe('4 min ago')
-		expect(describeAge(now - 3 * 3_600_000, now)).toBe('3 h ago')
-		expect(describeAge(now - 2 * 86_400_000, now)).toBe('2 d ago')
-	})
-})
-
 describe('describeRelayStatus', () => {
 	const now = 1_000_000_000
 
@@ -130,6 +151,33 @@ describe('describeRelayStatus', () => {
 		expect(describeRelayStatus({ enabled: false, origin: null, lastFallbackAt: null, fallbacks: 0 }, now)).toBe(
 			'Discogs egress: direct from Cloudflare (no relay configured)',
 		)
+	})
+
+	it('names a single missing credential', () => {
+		const status = { enabled: false, origin: null, lastFallbackAt: null, fallbacks: 0, missingCredentials: ['RELAY_ACCESS_CLIENT_SECRET'] }
+		expect(describeRelayStatus(status, now)).toBe(
+			'Discogs egress: direct from Cloudflare. The relay is NOT active: DISCOGS_RELAY_ORIGIN is set but RELAY_ACCESS_CLIENT_SECRET is missing. Set it with wrangler secret put.',
+		)
+	})
+
+	it('names both missing credentials', () => {
+		const status = {
+			enabled: false,
+			origin: null,
+			lastFallbackAt: null,
+			fallbacks: 0,
+			missingCredentials: ['RELAY_ACCESS_CLIENT_ID', 'RELAY_ACCESS_CLIENT_SECRET'],
+		}
+		expect(describeRelayStatus(status, now)).toBe(
+			'Discogs egress: direct from Cloudflare. The relay is NOT active: DISCOGS_RELAY_ORIGIN is set but RELAY_ACCESS_CLIENT_ID and RELAY_ACCESS_CLIENT_SECRET are missing. Set them with wrangler secret put.',
+		)
+	})
+
+	it('names the missing variable without leaking a configured secret value', () => {
+		const missing = missingRelayCredentials({ DISCOGS_RELAY_ORIGIN: 'https://r.example.com', RELAY_ACCESS_CLIENT_ID: 'id-value-123' })
+		const line = describeRelayStatus({ enabled: false, origin: null, lastFallbackAt: null, fallbacks: 0, missingCredentials: missing }, now)
+		expect(line).toContain('RELAY_ACCESS_CLIENT_SECRET')
+		expect(line).not.toContain('id-value-123')
 	})
 
 	it('names the relay host and a clean record', () => {

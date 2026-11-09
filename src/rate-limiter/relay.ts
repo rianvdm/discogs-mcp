@@ -1,6 +1,8 @@
 // ABOUTME: Routes Discogs API calls through an optional self-hosted egress relay so
 // ABOUTME: they leave from an IP we own instead of Cloudflare's shared pool.
 
+import { describeAge } from '../utils/age'
+
 /** The origin every Discogs API URL in this codebase starts with. */
 export const DISCOGS_ORIGIN = 'https://api.discogs.com'
 
@@ -36,7 +38,8 @@ export interface RelayEnv {
  *
  * All three values must be present. An origin without credentials would only
  * ever produce Access 401s, so it is treated as "not configured" rather than
- * half-configured; the log line at startup says which.
+ * half-configured. `missingRelayCredentials` names what's missing, for the
+ * rate limiter's startup warning and the ping / server_info egress line.
  */
 export function relayConfigFrom(env: RelayEnv): RelayConfig | null {
 	const origin = env.DISCOGS_RELAY_ORIGIN?.trim().replace(/\/+$/, '')
@@ -44,6 +47,24 @@ export function relayConfigFrom(env: RelayEnv): RelayConfig | null {
 	const clientSecret = env.RELAY_ACCESS_CLIENT_SECRET?.trim()
 	if (!origin || !clientId || !clientSecret) return null
 	return { origin, clientId, clientSecret }
+}
+
+const RELAY_CREDENTIALS = ['RELAY_ACCESS_CLIENT_ID', 'RELAY_ACCESS_CLIENT_SECRET'] as const
+
+/**
+ * Names of the relay credentials that are missing while DISCOGS_RELAY_ORIGIN is
+ * set. Empty when the relay is fully configured, or deliberately off because the
+ * origin is blank (credentials left behind then are not a mistake). Returns
+ * variable names only, never values.
+ */
+export function missingRelayCredentials(env: RelayEnv): string[] {
+	if (!env.DISCOGS_RELAY_ORIGIN?.trim()) return []
+	return RELAY_CREDENTIALS.filter((name) => !env[name]?.trim())
+}
+
+/** "X is missing" / "X and Y are missing", for log lines and the egress status. */
+export function describeMissingCredentials(names: string[]): string {
+	return `DISCOGS_RELAY_ORIGIN is set but ${names.join(' and ')} ${names.length === 1 ? 'is' : 'are'} missing`
 }
 
 /**
@@ -98,17 +119,8 @@ export interface RelayStatus {
 	lastFallbackAt: number | null
 	/** Fallbacks recorded so far. Persisted by the DO, so it survives restarts. */
 	fallbacks: number
-}
-
-/** "just now", "4 min ago", "3 h ago", "2 d ago" — coarse on purpose, this is a status line. */
-export function describeAge(sinceMs: number, now: number): string {
-	const s = Math.max(0, Math.round((now - sinceMs) / 1000))
-	if (s < 60) return 'just now'
-	const m = Math.round(s / 60)
-	if (m < 60) return `${m} min ago`
-	const h = Math.round(m / 60)
-	if (h < 24) return `${h} h ago`
-	return `${Math.round(h / 24)} d ago`
+	/** Relay credentials missing while an origin is set. Absent from an older DO's status; read as none. */
+	missingCredentials?: string[]
 }
 
 /** A fallback newer than this still suggests the relay host is down right now. */
@@ -123,6 +135,11 @@ const RECENT_FALLBACK_MS = 60 * 60 * 1000
  */
 export function describeRelayStatus(status: RelayStatus | null, now: number): string {
 	if (!status) return 'Discogs egress: status unavailable (rate limiter did not answer)'
+	const missing = status.missingCredentials ?? []
+	if (missing.length > 0) {
+		const pronoun = missing.length === 1 ? 'it' : 'them'
+		return `Discogs egress: direct from Cloudflare. The relay is NOT active: ${describeMissingCredentials(missing)}. Set ${pronoun} with wrangler secret put.`
+	}
 	if (!status.enabled) return 'Discogs egress: direct from Cloudflare (no relay configured)'
 	const host = status.origin ? new URL(status.origin).host : 'relay'
 	if (status.fallbacks === 0 || status.lastFallbackAt === null) return `Discogs egress: via relay ${host}, no fallbacks recorded`

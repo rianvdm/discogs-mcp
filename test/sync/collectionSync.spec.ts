@@ -183,6 +183,8 @@ describe('syncCollection — first-run bootstrap', () => {
 
 		expect(result.outcome).toBe('failed')
 		expect(result.pagesFetched).toBe(2)
+		expect(result.syncedThroughPage).toBe(2)
+		expect(result.totalPages).toBe(3)
 
 		// Snapshot still the previous one
 		const snap = await env.MCP_SESSIONS.get<SnapshotBlob>(snapshotKey('u'), 'json')
@@ -502,5 +504,165 @@ describe('syncCollection — first-run bootstrap', () => {
 		// Probe is gated on lastForcedFresh; with stale lastForced, the gate is skipped
 		// and we fall through to a full pagination — outcome 'completed', not 'skipped'.
 		expect(result.outcome).toBe('completed')
+	})
+})
+
+/** A KV namespace that delegates to `inner` but rejects a `put` to one key. */
+function kvFailingPutOn(inner: KVNamespace, failingKey: string): KVNamespace {
+	return {
+		get: inner.get.bind(inner),
+		list: inner.list.bind(inner),
+		delete: inner.delete.bind(inner),
+		getWithMetadata: inner.getWithMetadata.bind(inner),
+		put: async (key: string, value: string, options?: KVNamespacePutOptions) => {
+			if (key === failingKey) throw new Error(`KV put failed for ${key}`)
+			return inner.put(key, value, options)
+		},
+	} as unknown as KVNamespace
+}
+
+describe('syncCollection — page accounting', () => {
+	beforeEach(async () => {
+		const list = await env.MCP_SESSIONS.list({ prefix: 'collection:' })
+		for (const k of list.keys) await env.MCP_SESSIONS.delete(k.name)
+	})
+
+	it('reports pagesFetched 0 and syncedThroughPage at the stored marker when a resumed sweep fails on its first fetch', async () => {
+		const progress: ProgressBlob = {
+			schemaVersion: 2,
+			startedAt: new Date().toISOString(),
+			totalPages: 43,
+			totalCount: 4300,
+			lastPageFetched: 15,
+		}
+		await env.MCP_SESSIONS.put(progressKey('u'), JSON.stringify(progress))
+		const client: SyncClient = {
+			async fetchCollectionPage() {
+				throw new Error('HTTP 429: throttled')
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
+
+		expect(result.outcome).toBe('failed')
+		expect(result.pagesFetched).toBe(0)
+		expect(result.syncedThroughPage).toBe(15)
+		expect(result.totalPages).toBe(43)
+	})
+
+	it("counts only this run's fetches when a resumed sweep completes", async () => {
+		const progress: ProgressBlob = {
+			schemaVersion: 2,
+			startedAt: new Date().toISOString(),
+			totalPages: 2,
+			totalCount: 2,
+			lastPageFetched: 1,
+		}
+		await env.MCP_SESSIONS.put(progressKey('u'), JSON.stringify(progress))
+		await env.MCP_SESSIONS.put(pageKey('u', 1), JSON.stringify([toSnapshotItem(makeItem(1, 101))]))
+		const client: SyncClient = {
+			async fetchCollectionPage(opts) {
+				if (opts.page === 2) return makePage([makeItem(2, 102)], 2, 2, 2)
+				throw new Error(`unexpected page ${opts.page}`)
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
+
+		expect(result.outcome).toBe('resumed')
+		expect(result.pagesFetched).toBe(1)
+		expect(result.syncedThroughPage).toBe(2)
+		expect(result.totalPages).toBe(2)
+	})
+
+	it('counts pages from both passes when a drift check restarts the sync', async () => {
+		let pass = 1
+		const client: SyncClient = {
+			async fetchCollectionPage(opts) {
+				if (pass === 1) {
+					if (opts.page === 1) return makePage([makeItem(1, 101), makeItem(2, 102)], 1, 2, 3)
+					pass = 2
+					return makePage([makeItem(3, 103), makeItem(4, 104)], 2, 2, 4) // drift: 3 → 4
+				}
+				if (opts.page === 1) return makePage([makeItem(1, 101), makeItem(2, 102)], 1, 2, 4)
+				return makePage([makeItem(3, 103), makeItem(4, 104)], 2, 2, 4)
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
+
+		expect(result.outcome).toBe('completed')
+		expect(result.pagesFetched).toBe(4)
+	})
+
+	it('does not advance syncedThroughPage past a page whose write failed', async () => {
+		const kv = kvFailingPutOn(env.MCP_SESSIONS, pageKey('u', 2))
+		const client: SyncClient = {
+			async fetchCollectionPage(opts) {
+				return makePage([makeItem(opts.page, opts.page * 100)], opts.page, 3, 3)
+			},
+		}
+
+		const result = await syncCollection(client, kv, 'u', { sleep: async () => {} })
+
+		expect(result.outcome).toBe('failed')
+		expect(result.syncedThroughPage).toBe(1)
+		expect(result.totalPages).toBe(3)
+	})
+
+	it('omits syncedThroughPage when a fresh sweep fails before storing a page', async () => {
+		const client: SyncClient = {
+			async fetchCollectionPage() {
+				throw new Error('HTTP 500: boom')
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
+
+		expect(result.outcome).toBe('failed')
+		expect(result.pagesFetched).toBe(0)
+		expect(result).not.toHaveProperty('syncedThroughPage')
+		expect(result).not.toHaveProperty('totalPages')
+	})
+})
+
+describe('syncCollection — probe failures', () => {
+	beforeEach(async () => {
+		const list = await env.MCP_SESSIONS.list({ prefix: 'collection:' })
+		for (const k of list.keys) await env.MCP_SESSIONS.delete(k.name)
+		const prev: SnapshotBlob = {
+			schemaVersion: 1,
+			fetchedAt: '2026-05-03T00:00:00Z',
+			count: 2,
+			topPageInstanceIds: [101, 102],
+			items: [makeItem(1, 101), makeItem(2, 102)],
+		}
+		await env.MCP_SESSIONS.put(snapshotKey('u'), JSON.stringify(prev))
+		await env.MCP_SESSIONS.put(lastForcedFullSyncKey('u'), new Date().toISOString())
+	})
+
+	it('returns failed with the error when the probe fetch fails', async () => {
+		const client: SyncClient = {
+			async fetchCollectionPage() {
+				throw new Error('Failed to search collection: HTTP 429: {"error":"Discogs rate-limit circuit tripped"}')
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
+
+		expect(result.outcome).toBe('failed')
+		expect(result.pagesFetched).toBe(0)
+		expect(result.error).toContain('HTTP 429')
+		expect(result).not.toHaveProperty('syncedThroughPage')
+	})
+
+	it('still throws when the probe fails with a revoked token', async () => {
+		const client: SyncClient = {
+			async fetchCollectionPage() {
+				throw new Error('Failed to search collection: HTTP 401: {"message":"You must authenticate"}')
+			},
+		}
+
+		await expect(syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })).rejects.toThrow('HTTP 401')
 	})
 })

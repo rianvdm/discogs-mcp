@@ -138,10 +138,11 @@ Steps I expect:
    get_cache_stats to see whether the first collection snapshot has landed.
 8. Optional, only if I say yes when you ask: set up the Discogs egress relay
    described under "Route Discogs calls through your own IP". That needs an
-   always-on machine with its own IP, a Cloudflare Tunnel, a reverse proxy that
-   forwards to https://api.discogs.com with Host and X-Forwarded-Host set, and
-   a Cloudflare Access service token in front of it. Explain the trade-offs
-   before starting, and read src/rate-limiter/relay.ts for the details.
+   always-on machine or small VPS with its own IP, running either a Cloudflare
+   Tunnel to a reverse proxy behind a Cloudflare Access service token, or a
+   small proxy that checks the service-token headers itself. Explain the
+   trade-offs before starting, and read src/rate-limiter/relay.ts for the
+   details.
 
 When you're done, summarise what you created, where the secrets live, and how
 to update the deployment later.
@@ -284,7 +285,7 @@ And three prompts, for clients that support them:
 
 On the free plan, the limit that matters is CPU time: 10 ms per invocation, for tool calls and the scheduled sync alike. The sync stores one page at a time to stay inside that budget, and the snapshot it builds keeps only the fields search needs (about 450 bytes per release). That comfortably covers collections up to roughly 2,000 releases. Past that, reading the snapshot on every search starts to crowd the budget, and a collection of 4,000 or more can see `search_collection` or `refresh_collection` fail with a bare execution error and no message. That's the runtime terminating the invocation, and it isn't a Discogs error. The fix is [Workers Paid](https://developers.cloudflare.com/workers/platform/pricing/) ($5 a month), which raises the CPU budget to 30 seconds. Nothing else about the deployment changes.
 
-Whatever plan you're on, `get_cache_stats` reports the snapshot's item count and fetch time, plus the page count of any sync in progress, so you can see whether the scheduled sync is landing.
+Whatever plan you're on, `get_cache_stats` reports the snapshot's item count and fetch time, the page count of any sync in progress, and the outcome of the last sync run, so you can see whether the scheduled sync is landing.
 
 ### Watching wantlist records for sale
 
@@ -299,21 +300,36 @@ The server reports what's listed now. It doesn't remember earlier checks, so tel
 
 ### Route Discogs calls through your own IP
 
-Discogs throttles by source IP, and a Worker's outbound requests leave from Cloudflare's shared egress IPs. Other Workers talking to Discogs from the same location eat into your 60 requests a minute, which is why a first request after hours of idle can already report a low `X-Discogs-Ratelimit-Remaining`.
+Discogs throttles by source IP, and a Worker's outbound requests leave from Cloudflare's shared egress IPs. Other Workers talking to Discogs from the same location eat into your 60 requests a minute, which is why a first request after hours of idle can already report a low `X-Discogs-Ratelimit-Remaining`. It can get worse than that. Discogs can refuse every request from the shared IP, the first one included, and keep refusing for days, so the scheduled sync fails on every run ([#89](https://github.com/rianvdm/discogs-mcp/issues/89)). If `get_cache_stats` shows the last sync failing with HTTP 429 run after run, set up a relay.
 
-If it bites, point the Worker at a relay you run. A Cloudflare Tunnel to any always-on machine (a home Mac, a small VPS) with a local reverse proxy that forwards to `https://api.discogs.com` and sets both `Host` and `X-Forwarded-Host` to `api.discogs.com` is enough. cloudflared alone can't do this, because it overwrites `X-Forwarded-Host`. Put a Cloudflare Access application with a service-token policy in front of the tunnel hostname, then:
+A relay is an always-on HTTPS endpoint you control that forwards the Worker's Discogs calls, so they leave from your IP. Whatever you run, it has to:
+
+- forward the HTTP method, path, query, and request body (with its `Content-Type`) unchanged to `https://api.discogs.com`, because OAuth 1.0a signs the method and URL, and the write tools send request bodies
+- make sure Discogs sees `Host: api.discogs.com`, and either no `X-Forwarded-Host` or one that's also `api.discogs.com`, so OAuth 1.0a signatures computed against the real URL still verify
+- pass `Authorization` and `User-Agent` through
+- return Discogs' status code, headers, and body unchanged, 429s included, because the Worker reads the `x-discogs-*` headers to pace itself
+- answer its own failures (it can't reach Discogs, or the credentials are wrong) with a non-JSON error and no `x-discogs-*` headers, because that's how the Worker tells a broken relay from a Discogs error and retries the request directly; a JSON error from the relay is passed back as if Discogs had sent it
+- refuse any request that doesn't carry the right `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers, so it isn't an open proxy
+
+Two setups are known to work. One is a Cloudflare Tunnel to an always-on machine (a home Mac, a small VPS) with a local reverse proxy that forwards to `https://api.discogs.com` and sets both `Host` and `X-Forwarded-Host` to `api.discogs.com`. cloudflared alone can't do this, because it overwrites `X-Forwarded-Host`. Put a Cloudflare Access application with a service-token policy in front of the tunnel hostname, and Access checks the two headers for you.
+
+The other is a small proxy on a VPS or an always-on container host that checks the two headers itself (with a constant-time comparison) and strips its platform's forwarding headers before calling Discogs. One self-hoster runs a dependency-free Node proxy like this on Fly.io ([#89](https://github.com/rianvdm/discogs-mcp/issues/89)).
+
+Either way, point the Worker at it:
 
 ```bash
-# wrangler.toml: DISCOGS_RELAY_ORIGIN = "https://relay.example.com"
+# wrangler.toml, under [vars]: DISCOGS_RELAY_ORIGIN = "https://relay.example.com"
 wrangler secret put RELAY_ACCESS_CLIENT_ID
 wrangler secret put RELAY_ACCESS_CLIENT_SECRET
 ```
 
-Leave `DISCOGS_RELAY_ORIGIN` empty to call Discogs directly, which is the default. If the relay is unreachable, the Worker falls back to a direct call for that request and logs it, so a machine that's switched off degrades to the shared-IP behaviour and nothing stops working. The implementation and the reasoning behind it are in `src/rate-limiter/relay.ts`.
+Keep `DISCOGS_RELAY_ORIGIN` in `wrangler.toml` and set both credentials as secrets, the client ID included. Wrangler treats the config file as the source of truth, so a plain variable added in the Cloudflare dashboard is removed by the next `wrangler deploy` unless you set `keep_vars = true`. Secrets survive deploys ([Wrangler configuration](https://developers.cloudflare.com/workers/wrangler/configuration/)). If the origin is set and a secret is missing, the relay stays off, and `ping` and `server_info` name the variable to set.
+
+Leave `DISCOGS_RELAY_ORIGIN` empty to call Discogs directly, which is the default. When the relay answers with an error of its own (a Tunnel with no connector, the proxy behind it down, Access rejecting the token), the Worker retries that request directly and logs a fallback, so a switched-off machine behind a Tunnel degrades to the shared-IP behaviour. A relay host the Worker can't connect to at all, with no HTTP response, isn't retried: those requests fail with a 502 until the host is back. The implementation and the reasoning behind it are in `src/rate-limiter/relay.ts`.
 
 ### Diagnostics
 
-`ping` and `server_info` report how Discogs traffic is leaving (direct, or via the relay) and whether the relay has fallen back to direct calls. For the rate limiter's live state (remaining budget, queue depth, circuit-breaker status, relay fallbacks), set a `DEBUG_TOKEN` secret and call `GET /debug/budget?token=<DEBUG_TOKEN>`. Without the secret, the endpoint returns 404, so a self-hosted instance never exposes it by accident.
+`ping` and `server_info` report how Discogs traffic is leaving (direct, or via the relay), whether the relay has fallen back to direct calls, and which relay credential is missing if the relay is half set up. `get_cache_stats` shows how the last collection sync went: its outcome, what triggered it and when, and, if it failed, the error, how many runs in a row have failed, and when the last healthy run was. For the rate limiter's live state (remaining budget, queue depth, circuit-breaker status, relay fallbacks), set a `DEBUG_TOKEN` secret and call `GET /debug/budget?token=<DEBUG_TOKEN>`. Without the secret, the endpoint returns 404, so a self-hosted instance never exposes it by accident.
 
 ## Developing
 

@@ -1,6 +1,16 @@
 // src/rate-limiter/durable-object.ts
 import type { RateLimiterRequest, RateLimiterResponse, BudgetState, RequestPriority } from './types'
-import { relayConfigFrom, relayTarget, relayHeaders, isRelayLayerError, type RelayConfig, type RelayEnv, type RelayStatus } from './relay'
+import {
+  relayConfigFrom,
+  relayTarget,
+  relayHeaders,
+  isRelayLayerError,
+  missingRelayCredentials,
+  describeMissingCredentials,
+  type RelayConfig,
+  type RelayEnv,
+  type RelayStatus,
+} from './relay'
 
 const MAX_QUEUE_DEPTH = 20
 const QUEUE_TIMEOUT_MS = 90_000
@@ -231,6 +241,8 @@ export class DiscogsRateLimiter implements DurableObject {
   private trippedUntil: number | null = null
   /** Egress relay to send Discogs calls through; null = straight to api.discogs.com. */
   private relay: RelayConfig | null
+  /** Relay credentials missing while an origin is set; non-empty means the relay is off by mistake. */
+  private missingRelayCredentials: string[]
   /** Times a request fell back from the relay to a direct call. Persisted. */
   private relayFallbacks = 0
   /** Wall-clock ms of the most recent such fallback; null = none. Persisted. */
@@ -239,7 +251,12 @@ export class DiscogsRateLimiter implements DurableObject {
   constructor(state: DurableObjectState, env: RelayEnv) {
     this.state = state
     this.relay = relayConfigFrom(env)
-    console.log(this.relay ? `[RL] Egress relay enabled: ${this.relay.origin}` : '[RL] Egress relay off, calling api.discogs.com directly')
+    this.missingRelayCredentials = missingRelayCredentials(env)
+    if (this.missingRelayCredentials.length > 0) {
+      console.warn(`[RL] Egress relay OFF: ${describeMissingCredentials(this.missingRelayCredentials)}`)
+    } else {
+      console.log(this.relay ? `[RL] Egress relay enabled: ${this.relay.origin}` : '[RL] Egress relay off, calling api.discogs.com directly')
+    }
     state.blockConcurrencyWhile(async () => {
       this.relayFallbacks = (await state.storage.get<number>('relayFallbacks')) ?? 0
       this.lastRelayFallbackAt = (await state.storage.get<number>('lastRelayFallbackAt')) ?? null
@@ -623,6 +640,7 @@ export class DiscogsRateLimiter implements DurableObject {
       origin: this.relay?.origin ?? null,
       lastFallbackAt: this.lastRelayFallbackAt,
       fallbacks: this.relayFallbacks,
+      missingCredentials: this.missingRelayCredentials,
     }
   }
 
