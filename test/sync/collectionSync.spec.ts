@@ -625,3 +625,44 @@ describe('syncCollection — page accounting', () => {
 		expect(result).not.toHaveProperty('totalPages')
 	})
 })
+
+describe('syncCollection — probe failures', () => {
+	beforeEach(async () => {
+		const list = await env.MCP_SESSIONS.list({ prefix: 'collection:' })
+		for (const k of list.keys) await env.MCP_SESSIONS.delete(k.name)
+		const prev: SnapshotBlob = {
+			schemaVersion: 1,
+			fetchedAt: '2026-05-03T00:00:00Z',
+			count: 2,
+			topPageInstanceIds: [101, 102],
+			items: [makeItem(1, 101), makeItem(2, 102)],
+		}
+		await env.MCP_SESSIONS.put(snapshotKey('u'), JSON.stringify(prev))
+		await env.MCP_SESSIONS.put(lastForcedFullSyncKey('u'), new Date().toISOString())
+	})
+
+	it('returns failed with the error when the probe fetch fails', async () => {
+		const client: SyncClient = {
+			async fetchCollectionPage() {
+				throw new Error('Failed to search collection: HTTP 429: {"error":"Discogs rate-limit circuit tripped"}')
+			},
+		}
+
+		const result = await syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })
+
+		expect(result.outcome).toBe('failed')
+		expect(result.pagesFetched).toBe(0)
+		expect(result.error).toContain('HTTP 429')
+		expect(result).not.toHaveProperty('syncedThroughPage')
+	})
+
+	it('still throws when the probe fails with a revoked token', async () => {
+		const client: SyncClient = {
+			async fetchCollectionPage() {
+				throw new Error('Failed to search collection: HTTP 401: {"message":"You must authenticate"}')
+			},
+		}
+
+		await expect(syncCollection(client, env.MCP_SESSIONS, 'u', { sleep: async () => {} })).rejects.toThrow('HTTP 401')
+	})
+})

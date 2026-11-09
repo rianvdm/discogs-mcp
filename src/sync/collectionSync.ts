@@ -3,6 +3,7 @@
 
 import type { DiscogsCollectionResponse } from '../clients/discogs'
 import { lastForcedFullSyncKey, pageKey, progressKey, snapshotKey } from './keys'
+import { isUnauthorizedError } from './errors'
 import { toSnapshotItem, type ProgressBlob, type SnapshotBlob, type SnapshotItem, type SyncOptions, type SyncResult } from './types'
 
 export interface SyncClient {
@@ -109,7 +110,15 @@ async function runSync(
 
 		if (existingSnapshot && lastForcedFresh) {
 			// Run probe: fetch page 1, compare count + top instance_ids
-			const probe = await fetchPageWithRetry(client, 1, sleep)
+			let probe: DiscogsCollectionResponse
+			try {
+				probe = await fetchPageWithRetry(client, 1, sleep)
+			} catch (err) {
+				// A revoked token propagates so the scheduled handler can clear the
+				// token mirror; anything else is a failed run, like a failed page.
+				if (isUnauthorizedError(err)) throw err
+				return { outcome: 'failed', pagesFetched: fetched.pages, error: err instanceof Error ? err.message : String(err) }
+			}
 			fetched.pages++
 			const probeTopIds = probe.releases.map((r) => r.instance_id)
 			const sameCount = probe.pagination.items === existingSnapshot.count

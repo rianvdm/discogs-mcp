@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { env, createScheduledController, createExecutionContext } from 'cloudflare:test'
 import worker from '../../src/index-oauth'
-import { snapshotKey, tokenMirrorKey } from '../../src/sync/keys'
+import { lastForcedFullSyncKey, snapshotKey, tokenMirrorKey } from '../../src/sync/keys'
 
 // The scheduled handler ultimately calls DiscogsClient.searchCollection, which
 // routes through the rate-limiter Durable Object — its fetch runs in a separate
@@ -146,6 +146,41 @@ describe('scheduled() handler', () => {
 			.map((e) => e.event)
 		expect(events.indexOf('sync_started')).toBeGreaterThanOrEqual(0)
 		expect(events.indexOf('sync_started')).toBeLessThan(events.indexOf('sync'))
+
+		logSpy.mockRestore()
+	})
+
+	it('deletes the token mirror when the probe sees a revoked token', async () => {
+		const { DiscogsClient } = await import('../../src/clients/discogs')
+		;(DiscogsClient as unknown as ReturnType<typeof vi.fn>).mockImplementationOnce(function () {
+			return {
+				searchCollection: vi
+					.fn()
+					.mockRejectedValue(new Error('Failed to search collection: HTTP 401: {"message":"You must authenticate"}')),
+				setRateLimiter: vi.fn(),
+			}
+		})
+		await env.MCP_SESSIONS.put(
+			tokenMirrorKey('alpha'),
+			JSON.stringify({ numericId: 'alpha', username: 'a', accessToken: 'tok', accessTokenSecret: 'sec' }),
+		)
+		// A snapshot and a recent full sweep put the sync on the probe path.
+		await env.MCP_SESSIONS.put(
+			snapshotKey('alpha'),
+			JSON.stringify({ schemaVersion: 1, fetchedAt: '2026-01-01T00:00:00Z', count: 1, topPageInstanceIds: [101], items: [] }),
+		)
+		await env.MCP_SESSIONS.put(lastForcedFullSyncKey('alpha'), new Date().toISOString())
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+		const ctrl = createScheduledController({ scheduledTime: Date.now(), cron: '0 * * * *' })
+		await worker.scheduled!(ctrl, { ...env, ALLOWED_DISCOGS_USER_ID: 'alpha' } as any, createExecutionContext())
+
+		expect(await env.MCP_SESSIONS.get(tokenMirrorKey('alpha'))).toBeNull()
+		const outcomes = logSpy.mock.calls
+			.map((args) => args[0])
+			.filter((s): s is string => typeof s === 'string' && s.includes('"event":"sync"'))
+			.map((s) => (JSON.parse(s) as { outcome: string }).outcome)
+		expect(outcomes).toEqual(['token_invalid'])
 
 		logSpy.mockRestore()
 	})
