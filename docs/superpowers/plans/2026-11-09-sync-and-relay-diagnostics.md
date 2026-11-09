@@ -142,7 +142,7 @@ git commit -m "fix(sync): report a throttled probe as failed, keep revoked-token
 - [ ] **Step 4: Run** `npm test -- test/sync/lastOutcome.spec.ts`. Expected: PASS.
 
 - [ ] **Step 5: Write the failing wiring tests.**
-  - `test/sync/scheduled.spec.ts` `records the outcome for each user with trigger scheduled`: users `alpha` (token mirror, default mock → `completed`), `beta` (no mirror → `no_token`), `gamma` (`mockImplementationOnce` rejecting with `HTTP 500` → `failed`). Read each with `readLastSyncRecord`; expect the outcomes and `trigger: 'scheduled'`. Extend the Task 2 revoked-token test to expect a `token_invalid` record.
+  - `test/sync/scheduled.spec.ts` `records the outcome for each user with trigger scheduled`: allowlist `gamma,alpha,beta`: `gamma` (token mirror; `mockImplementationOnce` rejecting with `HTTP 500` → `failed`), `alpha` (token mirror, default mock → `completed`), `beta` (no mirror → `no_token`). `mockImplementationOnce` replaces the next `DiscogsClient` construction and users run in allowlist order, so the failing user must come first. Read each with `readLastSyncRecord`; expect the outcomes and `trigger: 'scheduled'`. Extend the Task 2 revoked-token test to expect a `token_invalid` record.
   - `test/sync/scheduled.spec.ts` `records crashed when the sync throws outside its own error handling`: make the mocked `DiscogsClient` constructor throw for one user via `mockImplementationOnce(function () { throw new Error('ctor boom') })`. Expect a `crashed` record with `error: 'ctor boom'`.
   - `test/sync/refresh-collection-tool.spec.ts`:
     - `records a manual outcome`: after a default call, `readLastSyncRecord` returns `{ outcome: 'completed', trigger: 'manual' }`.
