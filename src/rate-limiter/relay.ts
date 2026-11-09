@@ -1,6 +1,8 @@
 // ABOUTME: Routes Discogs API calls through an optional self-hosted egress relay so
 // ABOUTME: they leave from an IP we own instead of Cloudflare's shared pool.
 
+import { describeAge } from '../utils/age'
+
 /** The origin every Discogs API URL in this codebase starts with. */
 export const DISCOGS_ORIGIN = 'https://api.discogs.com'
 
@@ -98,17 +100,6 @@ export interface RelayStatus {
 	lastFallbackAt: number | null
 	/** Fallbacks recorded so far. Persisted by the DO, so it survives restarts. */
 	fallbacks: number
-}
-
-/** "just now", "4 min ago", "3 h ago", "2 d ago" — coarse on purpose, this is a status line. */
-export function describeAge(sinceMs: number, now: number): string {
-	const s = Math.max(0, Math.round((now - sinceMs) / 1000))
-	if (s < 60) return 'just now'
-	const m = Math.round(s / 60)
-	if (m < 60) return `${m} min ago`
-	const h = Math.round(m / 60)
-	if (h < 24) return `${h} h ago`
-	return `${Math.round(h / 24)} d ago`
 }
 
 /** A fallback newer than this still suggests the relay host is down right now. */

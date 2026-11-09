@@ -12,6 +12,11 @@ const RECORD_TTL_S = 30 * 24 * 60 * 60
 const HEALTHY: ReadonlySet<SyncOutcome> = new Set(['completed', 'resumed', 'skipped'])
 const FAILING: ReadonlySet<SyncOutcome> = new Set(['failed', 'crashed', 'token_invalid'])
 
+/** Whether an outcome counts toward the failure streak. */
+export function isFailingOutcome(outcome: SyncOutcome): boolean {
+	return FAILING.has(outcome)
+}
+
 const OUTCOMES = [
 	'completed',
 	'resumed',
@@ -71,7 +76,7 @@ export async function recordSyncOutcome(
 		if (HEALTHY.has(result.outcome)) {
 			consecutiveFailures = 0
 			lastHealthyAt = at
-		} else if (FAILING.has(result.outcome)) {
+		} else if (isFailingOutcome(result.outcome)) {
 			consecutiveFailures += 1
 		}
 

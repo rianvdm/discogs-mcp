@@ -7,7 +7,6 @@ import {
 	relayTarget,
 	relayHeaders,
 	isRelayLayerError,
-	describeAge,
 	describeRelayStatus,
 	DISCOGS_ORIGIN,
 } from '../../src/rate-limiter/relay'
@@ -106,16 +105,6 @@ describe('isRelayLayerError', () => {
 	it('never flags a success', () => {
 		expect(isRelayLayerError(200, {})).toBe(false)
 		expect(isRelayLayerError(204, {})).toBe(false)
-	})
-})
-
-describe('describeAge', () => {
-	it('rounds to the coarsest sensible unit', () => {
-		const now = 1_000_000_000
-		expect(describeAge(now - 20_000, now)).toBe('just now')
-		expect(describeAge(now - 4 * 60_000, now)).toBe('4 min ago')
-		expect(describeAge(now - 3 * 3_600_000, now)).toBe('3 h ago')
-		expect(describeAge(now - 2 * 86_400_000, now)).toBe('2 d ago')
 	})
 })
 
