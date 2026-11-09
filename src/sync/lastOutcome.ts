@@ -1,6 +1,7 @@
 // ABOUTME: Persists the outcome of each user's most recent sync run, with a failure
 // ABOUTME: streak and the time of the last healthy run, for get_cache_stats to report.
 
+import { z } from 'zod'
 import { lastOutcomeKey } from './keys'
 import type { LastSyncRecord, SyncOutcome, SyncResult, SyncTrigger } from './types'
 
@@ -11,11 +12,35 @@ const RECORD_TTL_S = 30 * 24 * 60 * 60
 const HEALTHY: ReadonlySet<SyncOutcome> = new Set(['completed', 'resumed', 'skipped'])
 const FAILING: ReadonlySet<SyncOutcome> = new Set(['failed', 'crashed', 'token_invalid'])
 
-/** The stored record, or null when there is none or it can't be read as this schema. Never throws. */
+const OUTCOMES = [
+	'completed',
+	'resumed',
+	'skipped',
+	'failed',
+	'crashed',
+	'no_token',
+	'token_invalid',
+	'in_progress',
+] as const satisfies readonly SyncOutcome[]
+
+/** A stored record is only trusted whole: a bad field would corrupt the streak it carries forward. */
+const lastSyncRecordSchema = z.object({
+	schemaVersion: z.literal(1),
+	outcome: z.enum(OUTCOMES),
+	trigger: z.enum(['scheduled', 'manual']),
+	at: z.string(),
+	pagesFetched: z.number().int().nonnegative(),
+	count: z.number().int().nonnegative().optional(),
+	error: z.string().optional(),
+	consecutiveFailures: z.number().int().nonnegative(),
+	lastHealthyAt: z.string().nullable(),
+}) satisfies z.ZodType<LastSyncRecord>
+
+/** The stored record, or null when there is none or it doesn't match this schema. Never throws. */
 export async function readLastSyncRecord(kv: KVNamespace, numericId: string): Promise<LastSyncRecord | null> {
 	try {
-		const raw = (await kv.get(lastOutcomeKey(numericId), 'json')) as Partial<LastSyncRecord> | null
-		return raw?.schemaVersion === 1 ? (raw as LastSyncRecord) : null
+		const parsed = lastSyncRecordSchema.safeParse(await kv.get(lastOutcomeKey(numericId), 'json'))
+		return parsed.success ? parsed.data : null
 	} catch {
 		return null
 	}

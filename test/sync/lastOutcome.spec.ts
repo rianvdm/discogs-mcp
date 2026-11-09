@@ -102,6 +102,15 @@ describe('recordSyncOutcome', () => {
 		expect(rec?.lastHealthyAt).toBeNull()
 	})
 
+	it('starts a fresh streak over a schemaVersion 1 record with invalid fields', async () => {
+		await env.MCP_SESSIONS.put(lastOutcomeKey(ID), JSON.stringify({ schemaVersion: 1, consecutiveFailures: '7', lastHealthyAt: {} }))
+		await record('failed', T0, 'x')
+
+		const rec = await readLastSyncRecord(env.MCP_SESSIONS, ID)
+		expect(rec?.consecutiveFailures).toBe(1)
+		expect(rec?.lastHealthyAt).toBeNull()
+	})
+
 	it('ignores a previous record that is not valid JSON', async () => {
 		await env.MCP_SESSIONS.put(lastOutcomeKey(ID), '{nope')
 		await record('failed', T0, 'x')
@@ -149,6 +158,11 @@ describe('readLastSyncRecord', () => {
 	})
 
 	it('returns null when nothing is stored', async () => {
+		expect(await readLastSyncRecord(env.MCP_SESSIONS, ID)).toBeNull()
+	})
+
+	it('returns null for a schemaVersion 1 record whose fields are the wrong type', async () => {
+		await env.MCP_SESSIONS.put(lastOutcomeKey(ID), JSON.stringify({ schemaVersion: 1, consecutiveFailures: '7', lastHealthyAt: {} }))
 		expect(await readLastSyncRecord(env.MCP_SESSIONS, ID)).toBeNull()
 	})
 
