@@ -83,10 +83,15 @@ export type SyncOutcome = 'completed' | 'resumed' | 'skipped' | 'failed' | 'cras
 
 export interface SyncResult {
 	outcome: SyncOutcome
+	/** Discogs page fetches that succeeded in this invocation, probe and restarts included. */
 	pagesFetched: number
 	count?: number
 	fetchedAt?: string
 	error?: string
+	/** Last page stored for the current sweep. Set on failed and resumed results once a page is stored. */
+	syncedThroughPage?: number
+	/** Page count of the current sweep, set alongside syncedThroughPage. */
+	totalPages?: number
 }
 
 export interface SyncOptions {

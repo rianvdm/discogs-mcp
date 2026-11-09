@@ -73,9 +73,15 @@ function buildServer() {
 	return server
 }
 
-async function callRefresh(
-	server: McpServer,
-): Promise<{ status: string; count?: number; fetchedAt?: string; pagesFetched?: number; error?: string }> {
+async function callRefresh(server: McpServer): Promise<{
+	status: string
+	count?: number
+	fetchedAt?: string
+	pagesFetched?: number
+	error?: string
+	syncedThroughPage?: number
+	totalPages?: number
+}> {
 	// The MCP SDK stores registrations on the server instance; reach in and call
 	// the callback directly. This mirrors how the MCP server eventually invokes
 	// it for a tools/call request, without standing up the full transport.
@@ -152,7 +158,8 @@ describe('refresh_collection tool', () => {
 
 		expect(result.status).toBe('resumed')
 		expect(result.count).toBe(1)
-		expect(result.pagesFetched).toBe(1)
+		// The resume had nothing left to fetch, so this run made no Discogs calls.
+		expect(result.pagesFetched).toBe(0)
 
 		// Progress key was deleted on commit
 		const remaining = await env.MCP_SESSIONS.get(progressKey('12345'))
