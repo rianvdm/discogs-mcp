@@ -335,7 +335,7 @@ npx vitest run        # one pass, then exit
 npm run lint          # ESLint; CI runs lint, the tests, and a dry-run build
 ```
 
-CI deploys to production when `main` changes. The architecture, code conventions, and testing notes are in [CLAUDE.md](CLAUDE.md), and pull requests are welcome.
+CI deploys to production when `main` changes. The architecture, code conventions, and testing notes are in [AGENTS.md](AGENTS.md), and pull requests are welcome.
 
 ## License
 
