@@ -304,10 +304,11 @@ Discogs throttles by source IP, and a Worker's outbound requests leave from Clou
 
 A relay is an always-on HTTPS endpoint you control that forwards the Worker's Discogs calls, so they leave from your IP. Whatever you run, it has to:
 
-- forward the path and query unchanged to `https://api.discogs.com`
+- forward the HTTP method, path, query, and request body (with its `Content-Type`) unchanged to `https://api.discogs.com`, because OAuth 1.0a signs the method and URL, and the write tools send request bodies
 - make sure Discogs sees `Host: api.discogs.com`, and either no `X-Forwarded-Host` or one that's also `api.discogs.com`, so OAuth 1.0a signatures computed against the real URL still verify
 - pass `Authorization` and `User-Agent` through
-- return Discogs' status code and its `x-discogs-*` headers unchanged, 429s included, because the Worker uses them to pace itself and to tell a Discogs error from a broken relay
+- return Discogs' status code, headers, and body unchanged, 429s included, because the Worker reads the `x-discogs-*` headers to pace itself
+- answer its own failures (it can't reach Discogs, or the credentials are wrong) with a non-JSON error and no `x-discogs-*` headers, because that's how the Worker tells a broken relay from a Discogs error and retries the request directly; a JSON error from the relay is passed back as if Discogs had sent it
 - refuse any request that doesn't carry the right `CF-Access-Client-Id` and `CF-Access-Client-Secret` headers, so it isn't an open proxy
 
 Two setups are known to work. One is a Cloudflare Tunnel to an always-on machine (a home Mac, a small VPS) with a local reverse proxy that forwards to `https://api.discogs.com` and sets both `Host` and `X-Forwarded-Host` to `api.discogs.com`. cloudflared alone can't do this, because it overwrites `X-Forwarded-Host`. Put a Cloudflare Access application with a service-token policy in front of the tunnel hostname, and Access checks the two headers for you.
@@ -324,7 +325,7 @@ wrangler secret put RELAY_ACCESS_CLIENT_SECRET
 
 Keep `DISCOGS_RELAY_ORIGIN` in `wrangler.toml` and set both credentials as secrets, the client ID included. Wrangler treats the config file as the source of truth, so a plain variable added in the Cloudflare dashboard is removed by the next `wrangler deploy` unless you set `keep_vars = true`. Secrets survive deploys ([Wrangler configuration](https://developers.cloudflare.com/workers/wrangler/configuration/)). If the origin is set and a secret is missing, the relay stays off, and `ping` and `server_info` name the variable to set.
 
-Leave `DISCOGS_RELAY_ORIGIN` empty to call Discogs directly, which is the default. If the relay is unreachable, the Worker falls back to a direct call for that request and logs it, so a machine that's switched off degrades to the shared-IP behaviour and nothing stops working. The implementation and the reasoning behind it are in `src/rate-limiter/relay.ts`.
+Leave `DISCOGS_RELAY_ORIGIN` empty to call Discogs directly, which is the default. When the relay answers with an error of its own (a Tunnel with no connector, the proxy behind it down, Access rejecting the token), the Worker retries that request directly and logs a fallback, so a switched-off machine behind a Tunnel degrades to the shared-IP behaviour. A relay host the Worker can't connect to at all, with no HTTP response, isn't retried: those requests fail with a 502 until the host is back. The implementation and the reasoning behind it are in `src/rate-limiter/relay.ts`.
 
 ### Diagnostics
 
