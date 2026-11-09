@@ -26,7 +26,9 @@ ALLOWED_DISCOGS_USER_ID = ""
 # src/rate-limiter/relay.ts). Empty = call api.discogs.com directly, which is
 # the right default for self-hosters and local dev. When set, the two Access
 # service-token secrets RELAY_ACCESS_CLIENT_ID / RELAY_ACCESS_CLIENT_SECRET
-# must be set too, or the relay is treated as off.
+# must be set too, or the relay is treated as off. Keep the origin here and the
+# two credentials as secrets: a plain variable set in the dashboard is removed
+# by the next `wrangler deploy`.
 DISCOGS_RELAY_ORIGIN = ""
 
 # Durable Object for coordinated Discogs API rate limiting
