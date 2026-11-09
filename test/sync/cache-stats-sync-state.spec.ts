@@ -185,6 +185,22 @@ describe('get_cache_stats — last sync outcome', () => {
 		expect(text).toContain('Last sync: none recorded yet')
 	})
 
+	it('treats a record with an invalid run time as none', async () => {
+		await putRecord({ at: 'not a date' })
+
+		const text = await callCacheStats(buildServer())
+		expect(text).toContain('Last sync: none recorded yet')
+		expect(text).not.toContain('NaN')
+	})
+
+	it('treats a record with an invalid last healthy time as none', async () => {
+		await putRecord({ outcome: 'failed', consecutiveFailures: 2, lastHealthyAt: 'not a date' })
+
+		const text = await callCacheStats(buildServer())
+		expect(text).toContain('Last sync: none recorded yet')
+		expect(text).not.toContain('NaN')
+	})
+
 	it('labels a manual refresh', async () => {
 		await putRecord({ trigger: 'manual' })
 

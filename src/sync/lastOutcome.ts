@@ -28,17 +28,20 @@ const OUTCOMES = [
 	'in_progress',
 ] as const satisfies readonly SyncOutcome[]
 
+/** An ISO time this code wrote; anything Date.parse can't read would render as "NaN d ago". */
+const timestamp = z.string().refine((value) => !Number.isNaN(Date.parse(value)))
+
 /** A stored record is only trusted whole: a bad field would corrupt the streak it carries forward. */
 const lastSyncRecordSchema = z.object({
 	schemaVersion: z.literal(1),
 	outcome: z.enum(OUTCOMES),
 	trigger: z.enum(['scheduled', 'manual']),
-	at: z.string(),
+	at: timestamp,
 	pagesFetched: z.number().int().nonnegative(),
 	count: z.number().int().nonnegative().optional(),
 	error: z.string().optional(),
 	consecutiveFailures: z.number().int().nonnegative(),
-	lastHealthyAt: z.string().nullable(),
+	lastHealthyAt: timestamp.nullable(),
 }) satisfies z.ZodType<LastSyncRecord>
 
 /** The stored record, or null when there is none or it doesn't match this schema. Never throws. */
