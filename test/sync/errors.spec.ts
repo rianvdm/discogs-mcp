@@ -17,6 +17,14 @@ describe('isUnauthorizedError', () => {
 		expect(isUnauthorizedError(new Error(tripped))).toBe(false)
 	})
 
+	it('trusts the outer status over an Unauthorized in a 429 body', () => {
+		expect(isUnauthorizedError(new Error('Failed to search collection: HTTP 429: {"message":"Unauthorized"}'))).toBe(false)
+	})
+
+	it('trusts the outer status over a 401 mentioned in a 502 body', () => {
+		expect(isUnauthorizedError(new Error('Failed to search collection: HTTP 502: upstream returned HTTP 401'))).toBe(false)
+	})
+
 	it('does not flag a server error', () => {
 		expect(isUnauthorizedError(new Error('Failed to search collection: HTTP 500: boom'))).toBe(false)
 	})
