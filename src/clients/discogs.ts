@@ -109,8 +109,8 @@ export interface DiscogsWantlistResponse {
 }
 
 /**
- * Marketplace summary for one release. Discogs returns null for both
- * figures when nothing is listed, or when the release is blocked from sale.
+ * Marketplace summary for one release. When nothing is listed, Discogs sends
+ * `num_for_sale: 0` and `lowest_price: null`.
  */
 export interface DiscogsMarketplaceStats {
 	num_for_sale: number | null

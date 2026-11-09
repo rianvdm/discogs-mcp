@@ -37,7 +37,8 @@ async function callTool(args: unknown): Promise<string> {
 
 const statsById: Record<number, DiscogsMarketplaceStats> = {
 	101: { num_for_sale: 3, lowest_price: { currency: 'EUR', value: 42.5 }, blocked_from_sale: false },
-	202: { num_for_sale: null, lowest_price: null, blocked_from_sale: false },
+	// Shape Discogs returns for a release with nothing listed
+	202: { num_for_sale: 0, lowest_price: null, blocked_from_sale: false },
 	303: { num_for_sale: null, lowest_price: null, blocked_from_sale: true },
 }
 
