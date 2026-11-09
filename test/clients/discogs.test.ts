@@ -1161,3 +1161,47 @@ describe('Discogs Client rate limiter lane', () => {
 		expect((await sentPayload(stub)).priority).toBeUndefined()
 	})
 })
+
+describe('Discogs Client getMarketplaceStats', () => {
+	const auth = { accessToken: 'tok', accessTokenSecret: 'sec', consumerKey: 'ck', consumerSecret: 'cs' }
+
+	beforeEach(() => {
+		vi.resetAllMocks()
+	})
+
+	it('reads copies for sale and lowest price from the release stats endpoint', async () => {
+		mockFetch.mockResolvedValueOnce({
+			ok: true,
+			status: 200,
+			json: () => Promise.resolve({ lowest_price: { currency: 'EUR', value: 42.5 }, num_for_sale: 3, blocked_from_sale: false }),
+		})
+
+		const stats = await discogsClient.getMarketplaceStats(249504, auth.accessToken, auth.accessTokenSecret, auth.consumerKey, auth.consumerSecret)
+
+		expect(stats).toEqual({ lowest_price: { currency: 'EUR', value: 42.5 }, num_for_sale: 3, blocked_from_sale: false })
+		const [calledUrl, init] = mockFetch.mock.calls[0]
+		expect(calledUrl).toBe('https://api.discogs.com/marketplace/stats/249504')
+		expect(init.method).toBe('GET')
+		expect(init.headers.Authorization).toMatch(/^OAuth /)
+	})
+
+	it('asks Discogs for the requested currency', async () => {
+		mockFetch.mockResolvedValueOnce({
+			ok: true,
+			status: 200,
+			json: () => Promise.resolve({ lowest_price: null, num_for_sale: null, blocked_from_sale: false }),
+		})
+
+		await discogsClient.getMarketplaceStats(249504, auth.accessToken, auth.accessTokenSecret, auth.consumerKey, auth.consumerSecret, 'GBP')
+
+		expect(mockFetch.mock.calls[0][0]).toBe('https://api.discogs.com/marketplace/stats/249504?curr_abbr=GBP')
+	})
+
+	it('names the release in the error when Discogs refuses', async () => {
+		mockFetch.mockResolvedValueOnce({ ok: false, status: 404, text: () => Promise.resolve('Release not found.') })
+
+		await expect(
+			discogsClient.getMarketplaceStats(999, auth.accessToken, auth.accessTokenSecret, auth.consumerKey, auth.consumerSecret),
+		).rejects.toThrow('Failed to fetch marketplace stats for release 999: HTTP 404: Release not found.')
+	})
+})

@@ -80,3 +80,24 @@ describe('SmartCache background deletes', () => {
 		expect(waitUntil).not.toHaveBeenCalled()
 	})
 })
+
+describe('SmartCache.getOrFetch when the fetch fails', () => {
+	it('rejects to the caller without leaving an unhandled rejection behind', async () => {
+		const unhandled: unknown[] = []
+		const onUnhandled = (event: PromiseRejectionEvent) => {
+			unhandled.push(event.reason)
+			event.preventDefault()
+		}
+		globalThis.addEventListener('unhandledrejection', onUnhandled)
+		try {
+			const cache = new SmartCache(makeKV(new Map()))
+
+			await expect(cache.getOrFetch('marketplace', 'u:1:default', () => Promise.reject(new Error('HTTP 404')))).rejects.toThrow('HTTP 404')
+			await new Promise((resolve) => setTimeout(resolve, 0))
+
+			expect(unhandled).toEqual([])
+		} finally {
+			globalThis.removeEventListener('unhandledrejection', onUnhandled)
+		}
+	})
+})

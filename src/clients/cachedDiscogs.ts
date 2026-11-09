@@ -20,6 +20,7 @@ import {
 	type DiscogsCustomField,
 	type DiscogsWant,
 	type DiscogsWantlistResponse,
+	type DiscogsMarketplaceStats,
 } from './discogs'
 import type { ExecutionContext } from '@cloudflare/workers-types'
 import { SmartCache, CacheKeys, createDiscogsCache } from '../utils/cache'
@@ -268,6 +269,25 @@ export class CachedDiscogsClient {
 	): Promise<void> {
 		await this.client.removeFromWantlist(username, releaseId, accessToken, accessTokenSecret, consumerKey, consumerSecret)
 		await this.invalidateWantlistCache(username)
+	}
+
+	/**
+	 * Get marketplace stats for a release with caching. `username` scopes the cache entry,
+	 * since Discogs prices in the user's own currency when `currency` is omitted.
+	 */
+	async getMarketplaceStats(
+		username: string,
+		releaseId: number,
+		accessToken: string,
+		accessTokenSecret: string,
+		consumerKey: string,
+		consumerSecret: string,
+		currency?: string,
+	): Promise<DiscogsMarketplaceStats> {
+		const cacheKey = CacheKeys.marketplaceStats(username, releaseId, currency)
+		return this.cache.getOrFetch('marketplace', cacheKey, () =>
+			this.client.getMarketplaceStats(releaseId, accessToken, accessTokenSecret, consumerKey, consumerSecret, currency),
+		)
 	}
 
 	/**

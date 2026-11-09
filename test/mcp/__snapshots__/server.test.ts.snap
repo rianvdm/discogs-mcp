@@ -274,6 +274,55 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
     "required": [],
   },
   {
+    "description": "Check how many copies of each release are for sale on the Discogs marketplace and the lowest asking price. Takes up to 50 release IDs in one call, so a daily check of watched wantlist items needs a single call. Figures cover all listings regardless of condition or seller location, and may be up to an hour old.",
+    "inputSchema": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "properties": {
+        "currency": {
+          "description": "Currency for prices (default: the user's Discogs currency setting)",
+          "enum": [
+            "USD",
+            "GBP",
+            "EUR",
+            "CAD",
+            "AUD",
+            "JPY",
+            "CHF",
+            "MXN",
+            "BRL",
+            "NZD",
+            "SEK",
+            "ZAR",
+          ],
+          "type": "string",
+        },
+        "release_ids": {
+          "description": "Discogs release IDs to check (1–50)",
+          "items": {
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "type": "integer",
+          },
+          "maxItems": 50,
+          "minItems": 1,
+          "type": "array",
+        },
+      },
+      "required": [
+        "release_ids",
+      ],
+      "type": "object",
+    },
+    "name": "get_marketplace_stats",
+    "properties": [
+      "currency",
+      "release_ids",
+    ],
+    "required": [
+      "release_ids",
+    ],
+  },
+  {
     "description": "Get personalized music recommendations from your collection based on genre, decade, mood, or similarity to other releases. Supports mood-aware filtering with descriptors like 'mellow', 'energetic', 'melancholic'.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -343,19 +392,30 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
     ],
   },
   {
-    "description": "List releases on your Discogs wantlist (releases you want but don't own). Paginated.",
+    "description": "List releases on your Discogs wantlist (releases you want but don't own), with any rating and notes you've set. Paginated. Pass notes_contains and/or min_rating to search the whole wantlist and return every match instead of one page; a want must pass all filters given.",
     "inputSchema": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "properties": {
+        "min_rating": {
+          "description": "Only wants rated at least this (1–5)",
+          "maximum": 5,
+          "minimum": 1,
+          "type": "integer",
+        },
+        "notes_contains": {
+          "description": "Only wants whose notes contain this text (case-insensitive)",
+          "minLength": 1,
+          "type": "string",
+        },
         "page": {
           "default": 1,
-          "description": "Page number (default: 1)",
+          "description": "Page number (default: 1). Ignored when a filter is given",
           "minimum": 1,
           "type": "number",
         },
         "per_page": {
           "default": 50,
-          "description": "Items per page, max 100 (default: 50)",
+          "description": "Items per page, max 100 (default: 50). Ignored when a filter is given",
           "maximum": 100,
           "minimum": 1,
           "type": "number",
@@ -365,6 +425,8 @@ exports[`createMcpServer registration > advertises the expected tool catalogue 1
     },
     "name": "get_wantlist",
     "properties": [
+      "min_rating",
+      "notes_contains",
       "page",
       "per_page",
     ],

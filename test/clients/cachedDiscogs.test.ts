@@ -309,3 +309,48 @@ describe('CachedDiscogsClient — ExecutionContext plumbing', () => {
     expect(kv.delete).toHaveBeenCalledWith('cache:collections:user:1:default:desc:50')
   })
 })
+
+describe('CachedDiscogsClient.getMarketplaceStats', () => {
+  let client: CachedDiscogsClient
+  let innerGetStats: ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    innerGetStats = vi.fn(async (_id: number, _t: string, _s: string, _k: string, _c: string, currency?: string) => ({
+      num_for_sale: 2,
+      lowest_price: { currency: currency ?? 'EUR', value: 30 },
+      blocked_from_sale: false,
+    }))
+    client = new CachedDiscogsClient({ getMarketplaceStats: innerGetStats } as unknown as DiscogsClient, makeKV())
+  })
+
+  it('serves a repeat request for the same release and currency from cache', async () => {
+    await client.getMarketplaceStats('user', 42, 'token', 'secret', 'key', 'csecret', 'EUR')
+    const second = await client.getMarketplaceStats('user', 42, 'token', 'secret', 'key', 'csecret', 'EUR')
+
+    expect(second.lowest_price).toEqual({ currency: 'EUR', value: 30 })
+    expect(innerGetStats).toHaveBeenCalledTimes(1)
+  })
+
+  it('fetches again for a different currency instead of reusing another currency\'s prices', async () => {
+    await client.getMarketplaceStats('user', 42, 'token', 'secret', 'key', 'csecret', 'EUR')
+    const gbp = await client.getMarketplaceStats('user', 42, 'token', 'secret', 'key', 'csecret', 'GBP')
+
+    expect(gbp.lowest_price).toEqual({ currency: 'GBP', value: 30 })
+    expect(innerGetStats).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps each user\'s default-currency prices separate when no currency is given', async () => {
+    innerGetStats.mockImplementation(async (_id: number, token: string) => ({
+      num_for_sale: 1,
+      lowest_price: { currency: token === 'uk-token' ? 'GBP' : 'EUR', value: 30 },
+      blocked_from_sale: false,
+    }))
+
+    await client.getMarketplaceStats('mathieu', 42, 'fr-token', 'secret', 'key', 'csecret')
+    const uk = await client.getMarketplaceStats('alice', 42, 'uk-token', 'secret', 'key', 'csecret')
+
+    expect(uk.lowest_price?.currency).toBe('GBP')
+    expect(innerGetStats).toHaveBeenCalledTimes(2)
+  })
+})
