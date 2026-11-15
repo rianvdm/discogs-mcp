@@ -87,3 +87,11 @@ src/
 - Mock Discogs API responses for unit tests; real protocol compliance checks for integration tests
 - Test output must be clean — no warnings, no unexpected errors in logs
 - Tests live in `test/` mirroring `src/` structure
+
+## Releases
+
+GitHub releases follow Rian's side-project release notes contract: `~/git/product-ai/05-personal/side-projects/release-notes-contract.md`. Read it before drafting. The name is `discogs-mcp vX.Y.Z — <tagline>` (em dash), and the body is a 1-3 sentence opening paragraph, then only `## Breaking changes` / `## What's new` / `## Fixes` / `## Under the hood`, written from the user's side.
+
+A release stays on GitHub unless Rian explicitly asks for an elezea.com cross-post. Only then, put `<!-- post-to-elezea -->` on its own line at the end of the body: `.github/workflows/elezea-release-post.yml` posts a release that carries the marker to elezea.com, and the endpoint rejects anything off-contract. Adding the marker after publishing does nothing, because the workflow runs only when a release is published. A release runs the workflow from its tagged commit, so tag a commit that includes this version of the workflow.
+
+Check every claim against the commits since the last tag, show Rian the final text, and wait for a go before `gh release create`.
